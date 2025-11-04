@@ -1,6 +1,6 @@
 # PACSTAR Authentication Service - Frontend
 
-A military-grade cybersecurity challenge management platform with a professional, modern authentication interface.
+ cybersecurity challenge management platform with a professional, modern authentication interface.
 
 ## 🎨 Color Scheme
 
