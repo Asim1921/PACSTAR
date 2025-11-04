@@ -2,6 +2,9 @@
 
  cybersecurity challenge management platform with a professional, modern authentication interface.
 
+ <img width="1916" height="885" alt="image" src="https://github.com/user-attachments/assets/fa61b197-a362-48ef-a248-d3d4d83c1d2e" />
+
+
 ## 🎨 Color Scheme
 
 - **Primary (Steel Blue):** `#1E3A5F`
