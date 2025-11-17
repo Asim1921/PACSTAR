@@ -9,11 +9,28 @@ import { Select } from '@/components/ui/Select';
 import { RadioGroup } from '@/components/ui/RadioGroup';
 import { InfoBox } from '@/components/ui/InfoBox';
 import { authAPI } from '@/lib/api';
+import { useToast } from '@/components/ui/ToastProvider';
 
 type RegistrationType = 'team_code' | 'create_team' | 'individual';
 
+type Zone = {
+  value: string;
+  label: string;
+};
+
+// Available zones - 
+const AVAILABLE_ZONES: Zone[] = [
+  { value: 'zone1', label: 'zone1' },
+  { value: 'zone2', label: 'zone2' },
+  { value: 'zone3', label: 'zone3' },
+  { value: 'zone4', label: 'zone4' },
+  { value: 'zone5', label: 'zone5' },
+  { value: 'main', label: 'main' },
+];
+
 export default function RegisterForm() {
   const router = useRouter();
+  const { showToast } = useToast();
   const [formData, setFormData] = useState({
     username: '',
     email: '',
@@ -22,18 +39,11 @@ export default function RegisterForm() {
     registrationType: 'team_code' as RegistrationType,
     teamCode: '',
     teamName: '',
-    zone: 'zone1',
+    zone: 'zone1', // Default to zone1
   });
 
   const [errors, setErrors] = useState<{ [key: string]: string }>({});
   const [isLoading, setIsLoading] = useState(false);
-
-  const zones = [
-    { value: 'zone1', label: 'Zone 1' },
-    { value: 'zone2', label: 'Zone 2' },
-    { value: 'zone3', label: 'Zone 3' },
-    { value: 'zone4', label: 'Zone 4' },
-  ];
 
   const registrationOptions = [
     {
@@ -112,6 +122,10 @@ export default function RegisterForm() {
       newErrors.teamName = 'Team name is required';
     }
 
+    if (formData.registrationType === 'individual' && !formData.zone.trim()) {
+      newErrors.zone = 'Zone selection is required';
+    }
+
     setErrors(newErrors);
     return Object.keys(newErrors).length === 0;
   };
@@ -125,30 +139,176 @@ export default function RegisterForm() {
 
     setIsLoading(true);
     try {
+      // Build registration data according to API specification from documentation
+      // Based on API docs, all fields should be present with null/empty values when not applicable
       const registrationData: any = {
         username: formData.username,
         email: formData.email,
         password: formData.password,
-        registration_type: formData.registrationType,
+        zone: formData.registrationType === 'individual' ? formData.zone : null,
+        team_code: null,
+        create_team: false,
+        team_name: null,
       };
 
-      if (formData.registrationType === 'team_code') {
+      // Handle different registration types according to API spec
+      if (formData.registrationType === 'individual') {
+        // Individual registration: zone is already set above
+        // Other fields remain null/false
+      } else if (formData.registrationType === 'team_code') {
+        // Join team with code: requires team_code
         registrationData.team_code = formData.teamCode;
+        // zone, create_team, team_name remain null/false
       } else if (formData.registrationType === 'create_team') {
+        // Create new team: requires create_team=true and team_name
+        registrationData.create_team = true;
         registrationData.team_name = formData.teamName;
-      } else if (formData.registrationType === 'individual') {
-        registrationData.zone = formData.zone;
+        // zone and team_code remain null
       }
 
+      console.log('Registration data being sent:', JSON.stringify(registrationData, null, 2));
       const response = await authAPI.register(registrationData);
-      // Redirect to dashboard or home page
-      router.push('/dashboard');
+      console.log('Registration successful:', response);
+      
+      // Store user info if available
+      if (response.user) {
+        localStorage.setItem('user_info', JSON.stringify(response.user));
+        // Store user ID if available
+        if (response.user.id) {
+          localStorage.setItem('user_id', response.user.id);
+        }
+      } else if (response.id) {
+        // If response has user ID directly
+        localStorage.setItem('user_id', response.id);
+        localStorage.setItem('user_info', JSON.stringify({
+          id: response.id,
+          username: formData.username,
+          role: 'User',
+          zone: formData.registrationType === 'individual' ? formData.zone : 'zone1',
+        }));
+      } else {
+        // Store basic user info from form if user object not available
+        localStorage.setItem('user_info', JSON.stringify({
+          username: formData.username,
+          role: 'User',
+          zone: formData.registrationType === 'individual' ? formData.zone : 'zone1',
+        }));
+      }
+      
+      // Show success toast
+      showToast('User registration successful', 'success');
+      
+      // If team was created, log team information
+      if (formData.registrationType === 'create_team' && response.team) {
+        console.log('Team created successfully:', response.team);
+      }
+      
+      // Use hard redirect to ensure token is available when dashboard loads
+      setTimeout(() => {
+        window.location.href = '/dashboard';
+      }, 500);
     } catch (error: any) {
-      setErrors({
-        submit:
-          error.response?.data?.detail ||
-          'Registration failed. Please try again.',
-      });
+      // Log full error for debugging
+      console.error('Registration error:', error);
+      console.error('Error response:', error.response?.data);
+      console.error('Error status:', error.response?.status);
+      
+      const errorDetail = error.response?.data?.detail || '';
+      const newErrors: { [key: string]: string } = {};
+
+      // Handle FastAPI validation error format (array of errors)
+      if (Array.isArray(errorDetail)) {
+        errorDetail.forEach((err: any) => {
+          const field = err.loc?.[err.loc.length - 1]; // Get the field name from location
+          const message = (err.msg || err.message || JSON.stringify(err)).toLowerCase();
+          
+          // Check if it's an email conflict
+          if (
+            (field === 'email' || message.includes('email')) &&
+            (message.includes('already') || 
+             message.includes('taken') || 
+             message.includes('exists') || 
+             message.includes('registered') ||
+             message.includes('duplicate'))
+          ) {
+            newErrors.email = 'This email has already been taken. Please use a different email.';
+          }
+          
+          // Check if it's a username conflict
+          if (
+            (field === 'username' || message.includes('username')) &&
+            (message.includes('already') || 
+             message.includes('taken') || 
+             message.includes('exists') || 
+             message.includes('registered') ||
+             message.includes('duplicate'))
+          ) {
+            newErrors.username = 'This username has already been taken. Please choose a different username.';
+          }
+          
+          // Check if it's a team name conflict
+          if (
+            (field === 'team_name' || field === 'name' || message.includes('team')) &&
+            (message.includes('already') || 
+             message.includes('taken') || 
+             message.includes('exists') ||
+             message.includes('duplicate'))
+          ) {
+            newErrors.teamName = 'This team name has already been taken. Please choose a different team name.';
+          }
+        });
+      } else {
+        // Handle string error message
+        const errorMessage = typeof errorDetail === 'string' 
+          ? errorDetail.toLowerCase() 
+          : JSON.stringify(errorDetail).toLowerCase();
+
+        // Check for email already taken
+        if (
+          errorMessage.includes('email') && 
+          (errorMessage.includes('already') || 
+           errorMessage.includes('taken') || 
+           errorMessage.includes('exists') || 
+           errorMessage.includes('registered') ||
+           errorMessage.includes('duplicate'))
+        ) {
+          newErrors.email = 'This email has already been taken. Please use a different email.';
+        }
+
+        // Check for username already taken
+        if (
+          errorMessage.includes('username') && 
+          (errorMessage.includes('already') || 
+           errorMessage.includes('taken') || 
+           errorMessage.includes('exists') || 
+           errorMessage.includes('registered') ||
+           errorMessage.includes('duplicate'))
+        ) {
+          newErrors.username = 'This username has already been taken. Please choose a different username.';
+        }
+        
+        // Check for team name already taken
+        if (
+          (errorMessage.includes('team') || errorMessage.includes('name')) && 
+          (errorMessage.includes('already') || 
+           errorMessage.includes('taken') || 
+           errorMessage.includes('exists') ||
+           errorMessage.includes('duplicate'))
+        ) {
+          newErrors.teamName = 'This team name has already been taken. Please choose a different team name.';
+        }
+      }
+
+      // If we didn't find specific field errors, show general error
+      if (Object.keys(newErrors).length === 0) {
+        newErrors.submit = typeof errorDetail === 'string' 
+          ? errorDetail 
+          : Array.isArray(errorDetail)
+            ? errorDetail.map((e: any) => e?.msg || e?.message || JSON.stringify(e)).join(', ')
+            : 'Registration failed. Please try again.';
+      }
+
+      setErrors(newErrors);
     } finally {
       setIsLoading(false);
     }
@@ -272,7 +432,7 @@ export default function RegisterForm() {
               name="zone"
               value={formData.zone}
               onChange={handleChange}
-              options={zones}
+              options={AVAILABLE_ZONES}
               error={errors.zone}
             />
             <InfoBox type="info" icon={<MapPin size={18} />}>

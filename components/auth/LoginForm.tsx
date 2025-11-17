@@ -6,9 +6,11 @@ import { User, Lock as LockIcon } from 'lucide-react';
 import { Input } from '@/components/ui/Input';
 import { Button } from '@/components/ui/Button';
 import { authAPI } from '@/lib/api';
+import { useToast } from '@/components/ui/ToastProvider';
 
 export default function LoginForm() {
   const router = useRouter();
+  const { showToast } = useToast();
   const [formData, setFormData] = useState({
     username: '',
     password: '',
@@ -52,13 +54,49 @@ export default function LoginForm() {
     setIsLoading(true);
     try {
       const response = await authAPI.login(formData.username, formData.password);
-      // Redirect to dashboard or home page
-      router.push('/dashboard');
+      
+      // Verify token was saved
+      const token = localStorage.getItem('auth_token');
+      if (!token) {
+        throw new Error('Token was not saved. Please try again.');
+      }
+      
+      // Store user info if available
+      if (response.user) {
+        localStorage.setItem('user_info', JSON.stringify(response.user));
+        // Store user ID if available
+        if (response.user.id) {
+          localStorage.setItem('user_id', response.user.id);
+        }
+      } else if (response.id) {
+        // If response has user ID directly
+        localStorage.setItem('user_id', response.id);
+        localStorage.setItem('user_info', JSON.stringify({
+          id: response.id,
+          username: formData.username,
+          role: 'User',
+          zone: 'zone1',
+        }));
+      } else {
+        // Store basic user info from username if user object not available
+        localStorage.setItem('user_info', JSON.stringify({
+          username: formData.username,
+          role: 'User',
+          zone: 'zone1',
+        }));
+      }
+      
+      showToast('User logged in successfully', 'success');
+      
+      // Use hard redirect to ensure token is available when dashboard loads
+      // Give toast time to show before redirect
+      setTimeout(() => {
+        window.location.href = '/dashboard';
+      }, 800);
     } catch (error: any) {
       setErrors({
         submit: error.response?.data?.detail || 'Login failed. Please check your credentials.',
       });
-    } finally {
       setIsLoading(false);
     }
   };
