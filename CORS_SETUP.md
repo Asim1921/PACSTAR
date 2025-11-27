@@ -3,7 +3,7 @@
 ## Problem
 You're getting CORS errors when the frontend tries to access the backend API:
 ```
-Access to XMLHttpRequest at 'http://192.168.250.178:8000/api/v1/...' from origin 'http://localhost:3000' 
+Access to XMLHttpRequest at 'http://10.10.101.69:8000/api/v1/...' from origin 'http://localhost:3000' 
 has been blocked by CORS policy
 ```
 

@@ -2,13 +2,17 @@
 
 import React, { useState } from 'react';
 import { useRouter } from 'next/navigation';
-import { User, Lock as LockIcon } from 'lucide-react';
+import { User, Lock, ArrowRight, Mail } from 'lucide-react';
 import { Input } from '@/components/ui/Input';
 import { Button } from '@/components/ui/Button';
 import { authAPI } from '@/lib/api';
 import { useToast } from '@/components/ui/ToastProvider';
 
-export default function LoginForm() {
+interface LoginFormProps {
+  onSwitchToRegister?: () => void;
+}
+
+export default function LoginForm({ onSwitchToRegister }: LoginFormProps) {
   const router = useRouter();
   const { showToast } = useToast();
   const [formData, setFormData] = useState({
@@ -21,7 +25,6 @@ export default function LoginForm() {
   const handleChange = (e: React.ChangeEvent<HTMLInputElement>) => {
     const { name, value } = e.target;
     setFormData((prev) => ({ ...prev, [name]: value }));
-    // Clear error when user starts typing
     if (errors[name]) {
       setErrors((prev) => ({ ...prev, [name]: '' }));
     }
@@ -55,21 +58,17 @@ export default function LoginForm() {
     try {
       const response = await authAPI.login(formData.username, formData.password);
       
-      // Verify token was saved
       const token = localStorage.getItem('auth_token');
       if (!token) {
         throw new Error('Token was not saved. Please try again.');
       }
       
-      // Store user info if available
       if (response.user) {
         localStorage.setItem('user_info', JSON.stringify(response.user));
-        // Store user ID if available
         if (response.user.id) {
           localStorage.setItem('user_id', response.user.id);
         }
       } else if (response.id) {
-        // If response has user ID directly
         localStorage.setItem('user_id', response.id);
         localStorage.setItem('user_info', JSON.stringify({
           id: response.id,
@@ -78,7 +77,6 @@ export default function LoginForm() {
           zone: 'zone1',
         }));
       } else {
-        // Store basic user info from username if user object not available
         localStorage.setItem('user_info', JSON.stringify({
           username: formData.username,
           role: 'User',
@@ -88,8 +86,6 @@ export default function LoginForm() {
       
       showToast('User logged in successfully', 'success');
       
-      // Use hard redirect to ensure token is available when dashboard loads
-      // Give toast time to show before redirect
       setTimeout(() => {
         window.location.href = '/dashboard';
       }, 800);
@@ -103,49 +99,74 @@ export default function LoginForm() {
 
   return (
     <div className="w-full">
-      <div className="mb-6">
-        <div className="flex items-center gap-2 mb-2">
-          <div className="w-1 h-6 bg-accent glow-accent" />
-          <h2 className="text-xl font-mono font-bold text-accent tracking-wider">
-            [AUTH] LOGIN_SEQUENCE
-          </h2>
-        </div>
-        <p className="text-xs text-secondary font-mono ml-3">
-          Enter credentials to access system
-        </p>
+      {/* Header */}
+      <div className="mb-8">
+        <h2 className="text-3xl font-bold text-brown-900 mb-2">Welcome Back</h2>
+        <p className="text-brown-600">Sign in to continue to your account</p>
       </div>
 
-      <form onSubmit={handleSubmit} className="space-y-5">
-        <Input
-          label="Username"
-          name="username"
-          type="text"
-          value={formData.username}
-          onChange={handleChange}
-          error={errors.username}
-          icon={<User size={18} />}
-          placeholder="Enter your username"
-          autoComplete="username"
-        />
+      <form onSubmit={handleSubmit} className="space-y-6">
+        <div>
+          <label className="block text-sm font-semibold text-brown-700 mb-2">
+            Username
+          </label>
+          <div className="relative">
+            <div className="absolute left-4 top-1/2 transform -translate-y-1/2 text-brown-400">
+              <User size={20} />
+            </div>
+            <input
+              type="text"
+              name="username"
+              value={formData.username}
+              onChange={handleChange}
+              placeholder="Enter your username"
+              autoComplete="username"
+              className={`w-full pl-12 pr-4 py-3.5 bg-brown-50 border-2 rounded-xl focus:outline-none focus:ring-2 focus:ring-green-500/20 transition-all ${
+                errors.username 
+                  ? 'border-orange-500 focus:border-orange-500' 
+                  : 'border-brown-200 focus:border-green-500'
+              }`}
+            />
+          </div>
+          {errors.username && (
+            <p className="mt-2 text-sm text-orange-600 flex items-center gap-1">
+              <span>⚠</span> {errors.username}
+            </p>
+          )}
+        </div>
 
-        <Input
-          label="Password"
-          name="password"
-          type="password"
-          value={formData.password}
-          onChange={handleChange}
-          error={errors.password}
-          icon={<LockIcon size={18} />}
-          placeholder="Enter your password"
-          autoComplete="current-password"
-        />
+        <div>
+          <label className="block text-sm font-semibold text-brown-700 mb-2">
+            Password
+          </label>
+          <div className="relative">
+            <div className="absolute left-4 top-1/2 transform -translate-y-1/2 text-brown-400">
+              <Lock size={20} />
+            </div>
+            <input
+              type="password"
+              name="password"
+              value={formData.password}
+              onChange={handleChange}
+              placeholder="Enter your password"
+              autoComplete="current-password"
+              className={`w-full pl-12 pr-4 py-3.5 bg-brown-50 border-2 rounded-xl focus:outline-none focus:ring-2 focus:ring-green-500/20 transition-all ${
+                errors.password 
+                  ? 'border-orange-500 focus:border-orange-500' 
+                  : 'border-brown-200 focus:border-green-500'
+              }`}
+            />
+          </div>
+          {errors.password && (
+            <p className="mt-2 text-sm text-orange-600 flex items-center gap-1">
+              <span>⚠</span> {errors.password}
+            </p>
+          )}
+        </div>
 
         {errors.submit && (
-          <div className="p-4 bg-warning/20 border-2 border-warning data-panel">
-            <div className="flex items-start gap-2">
-              <span className="text-warning font-mono text-sm">[ERROR]</span>
-              <p className="text-warning text-sm font-mono">{errors.submit}</p>
-            </div>
+          <div className="p-4 bg-orange-50 border-2 border-orange-200 rounded-xl">
+            <p className="text-orange-700 text-sm font-medium">{errors.submit}</p>
           </div>
         )}
 
@@ -154,12 +175,25 @@ export default function LoginForm() {
           variant="primary"
           size="lg"
           isLoading={isLoading}
-          className="w-full badge-military font-mono font-semibold tracking-wider"
+          className="w-full bg-gradient-to-r from-green-500 to-green-600 hover:from-green-600 hover:to-green-700 text-white font-semibold py-4 rounded-xl shadow-lg hover:shadow-xl transition-all duration-300 flex items-center justify-center gap-2"
         >
-          &gt; EXECUTE_LOGIN
+          {!isLoading && <ArrowRight size={20} />}
+          {isLoading ? 'Signing in...' : 'Sign In'}
         </Button>
+
+        <div className="text-center pt-4">
+          <p className="text-sm text-brown-600">
+            Don't have an account?{' '}
+            <button
+              type="button"
+              onClick={onSwitchToRegister}
+              className="text-green-600 hover:text-green-700 font-semibold transition-colors cursor-pointer underline"
+            >
+              Sign up here
+            </button>
+          </p>
+        </div>
       </form>
     </div>
   );
 }
-

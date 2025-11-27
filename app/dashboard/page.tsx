@@ -2,10 +2,16 @@
 
 import React, { useEffect, useState, useRef } from 'react';
 import { useRouter } from 'next/navigation';
-import { Shield, LogOut, User, Target, RefreshCw, ChevronDown, ChevronUp, Mail, Users, Crown, FileText, BookOpen, CheckCircle } from 'lucide-react';
+import { Shield, LogOut, User, Target, RefreshCw, ChevronDown, ChevronUp, Mail, Users, Crown, FileText, BookOpen, CheckCircle, Settings, Trophy, FileCode, BarChart3, Search, Cloud, Menu, X } from 'lucide-react';
 import { Button } from '@/components/ui/Button';
+import { Select } from '@/components/ui/Select';
 import { authAPI, userAPI, teamAPI } from '@/lib/api';
 import { useToast } from '@/components/ui/ToastProvider';
+import { Challenges } from '@/components/admin/Challenges';
+import { DockerfileToK8s } from '@/components/admin/DockerfileToK8s';
+import { OpenStack } from '@/components/admin/OpenStack';
+import { UserChallenges } from '@/components/user/UserChallenges';
+import { Scoreboard } from '@/components/user/Scoreboard';
 
 interface UserProfile {
   id?: string;
@@ -39,6 +45,18 @@ interface Team {
   updated_at: string;
 }
 
+type ViewMode = 'user' | 'admin';
+type AdminTab = 'users' | 'challenges' | 'dockerfile' | 'openstack' | 'stats';
+
+interface AllUser {
+  id: string;
+  username: string;
+  email: string;
+  role: string;
+  zone: string;
+  is_active: boolean;
+}
+
 export default function Dashboard() {
   const router = useRouter();
   const { showToast } = useToast();
@@ -49,7 +67,18 @@ export default function Dashboard() {
   const [isTeamMembersOpen, setIsTeamMembersOpen] = useState(true);
   const [isLoading, setIsLoading] = useState(true);
   const [isDataLoading, setIsDataLoading] = useState(true);
+  const [sidebarOpen, setSidebarOpen] = useState(true);
   const hasCheckedAuth = useRef(false);
+  
+  // Admin Panel states
+  const [viewMode, setViewMode] = useState<ViewMode>('user');
+  const [activeAdminTab, setActiveAdminTab] = useState<AdminTab>('users');
+  const [allUsers, setAllUsers] = useState<AllUser[]>([]);
+  const [isLoadingUsers, setIsLoadingUsers] = useState(false);
+  const [userSearchTerm, setUserSearchTerm] = useState('');
+  
+  // Check if user is Master role
+  const isMaster = userProfile.role?.toLowerCase() === 'master';
 
   // Fetch user profile and team data
   useEffect(() => {
@@ -58,40 +87,23 @@ export default function Dashboard() {
 
     const fetchData = async () => {
       try {
-    const token = localStorage.getItem('auth_token');
-    if (!token) {
+        const token = localStorage.getItem('auth_token');
+        if (!token) {
           window.location.href = '/';
           return;
         }
 
         setIsDataLoading(true);
 
-        // Test Users API first
-        console.log('=== Testing Users API ===');
-        console.log('Token exists:', !!token);
-        console.log('Token (first 20 chars):', token ? token.substring(0, 20) + '...' : 'N/A');
-
-        // Try to list users first (to test API connectivity)
         try {
-          console.log('Attempting to list users (GET /users/)...');
           const usersList = await userAPI.listUsers();
-          console.log('✅ Users list API response:', usersList);
-          
-          // If we get a list, try to find current user
           if (Array.isArray(usersList) && usersList.length > 0) {
-            console.log(`Found ${usersList.length} users`);
-            // Try to match by username from stored info
             const storedUser = localStorage.getItem('user_info');
             if (storedUser) {
               try {
                 const parsed = JSON.parse(storedUser);
                 const currentUser = usersList.find((u: any) => u.username === parsed.username);
                 if (currentUser) {
-                  console.log('✅ Found current user in list:', currentUser);
-                  // Make sure email is included
-                  if (currentUser.email) {
-                    console.log('✅ User email from API:', currentUser.email);
-                  }
                   setUserProfile(currentUser);
                   localStorage.setItem('user_info', JSON.stringify(currentUser));
                   if (currentUser.id) {
@@ -104,98 +116,54 @@ export default function Dashboard() {
             }
           }
         } catch (listError: any) {
-          console.error('❌ Failed to list users:', listError);
-          console.error('Error details:', {
-            status: listError.response?.status,
-            statusText: listError.response?.statusText,
-            data: listError.response?.data,
-            message: listError.message,
-          });
+          console.error('Failed to list users:', listError);
         }
 
-        // Fetch user profile using user ID
         try {
-          // Try to get user ID from stored info first
           const storedUser = localStorage.getItem('user_info');
           let userId = localStorage.getItem('user_id');
           
-          console.log('Stored user_id:', userId);
-          console.log('Stored user_info:', storedUser);
-          
-          // If no user_id in localStorage, try to extract from stored user info
           if (!userId && storedUser) {
             try {
               const parsedUser = JSON.parse(storedUser);
-              console.log('Parsed stored user:', parsedUser);
               if (parsedUser.id) {
                 userId = parsedUser.id;
                 localStorage.setItem('user_id', parsedUser.id);
-                console.log('Extracted user_id from stored user_info:', userId);
               }
             } catch (e) {
               console.error('Error parsing stored user info:', e);
             }
           }
 
-          // If we have a user ID, fetch the full profile
           if (userId) {
-            console.log(`Attempting to get user by ID: ${userId} (GET /users/${userId})...`);
             try {
               const userResponse = await userAPI.getCurrentUser(userId);
-              console.log('✅ User profile API response:', userResponse);
-              // Check if email is in response
-              if (userResponse.email) {
-                console.log('✅ User email from API:', userResponse.email);
-              } else {
-                console.warn('⚠️ Email not found in user API response');
-              }
               setUserProfile(userResponse);
-              // Store in localStorage for sidebar
               localStorage.setItem('user_info', JSON.stringify(userResponse));
-              // Ensure user_id is stored
               if (userResponse.id) {
                 localStorage.setItem('user_id', userResponse.id);
               }
             } catch (error: any) {
-              console.error('❌ Failed to fetch user profile by ID:', error);
-              console.error('Error details:', {
-                status: error.response?.status,
-                statusText: error.response?.statusText,
-                data: error.response?.data,
-                message: error.message,
-                url: error.config?.url,
-              });
-              // Fallback to stored user info
+              console.error('Failed to fetch user profile by ID:', error);
               if (storedUser) {
                 try {
                   setUserProfile(JSON.parse(storedUser));
-                  console.log('Using stored user info as fallback');
                 } catch (e) {
                   console.error('Error parsing stored user info:', e);
                 }
               }
             }
           } else {
-            // No user ID available, use stored info
-            console.warn('⚠️ No user ID found, using stored user info');
             if (storedUser) {
               try {
                 setUserProfile(JSON.parse(storedUser));
-                console.log('Using stored user info');
               } catch (e) {
                 console.error('Error parsing stored user info:', e);
               }
             }
           }
         } catch (error: any) {
-          console.error('❌ Error in user profile fetch:', error);
-          console.error('Error details:', {
-            status: error.response?.status,
-            statusText: error.response?.statusText,
-            data: error.response?.data,
-            message: error.message,
-          });
-          // Fallback to stored user info
+          console.error('Error in user profile fetch:', error);
           const storedUser = localStorage.getItem('user_info');
           if (storedUser) {
             try {
@@ -205,15 +173,14 @@ export default function Dashboard() {
             }
           }
         }
-        
-        console.log('=== End Users API Test ===');
 
-        // Fetch team information
         try {
           const teamResponse = await teamAPI.getMyTeam();
           setTeam(teamResponse);
+          if (teamResponse) {
+            localStorage.setItem('team_info', JSON.stringify(teamResponse));
+          }
           
-          // Update user profile with team info if available
           if (teamResponse) {
             setUserProfile((prev) => {
               const updated: UserProfile = {
@@ -221,9 +188,7 @@ export default function Dashboard() {
                 zone: prev.zone || teamResponse.id,
               };
               
-              // Extract email from team members if not already set
               if (!updated.email && teamResponse.members && Array.isArray(teamResponse.members)) {
-                // Try to get current username from multiple sources
                 let currentUsername = prev.username;
                 if (!currentUsername) {
                   try {
@@ -243,8 +208,6 @@ export default function Dashboard() {
                   );
                   if (currentUserMember && currentUserMember.email) {
                     updated.email = currentUserMember.email;
-                    console.log('✅ Extracted email from team member:', currentUserMember.email);
-                    // Also update localStorage
                     try {
                       const storedUser = localStorage.getItem('user_info');
                       if (storedUser) {
@@ -264,7 +227,6 @@ export default function Dashboard() {
           }
         } catch (error: any) {
           console.error('Failed to fetch team:', error);
-          // User might not be in a team (404), that's okay
           if (error.response?.status !== 404) {
             console.warn('Unexpected error fetching team:', error);
           }
@@ -293,11 +255,9 @@ export default function Dashboard() {
   const handleRefresh = async () => {
     setIsDataLoading(true);
     try {
-      // Refresh both user and team data
       const storedUser = localStorage.getItem('user_info');
       const userId = localStorage.getItem('user_id');
       
-      // Refresh user profile
       if (userId) {
         try {
           const userResponse = await userAPI.getCurrentUser(userId);
@@ -305,18 +265,18 @@ export default function Dashboard() {
           localStorage.setItem('user_info', JSON.stringify(userResponse));
         } catch (error: any) {
           console.error('Failed to refresh user profile:', error);
-          // CORS or other error - use stored data
         }
       }
       
-      // Refresh team data
       try {
         const teamResponse = await teamAPI.getMyTeam();
         setTeam(teamResponse);
+        if (teamResponse) {
+          localStorage.setItem('team_info', JSON.stringify(teamResponse));
+        }
         showToast('Data refreshed successfully', 'success');
       } catch (error: any) {
         console.error('Failed to refresh team:', error);
-        // CORS error - show warning but don't fail completely
         if (error.code === 'ERR_NETWORK' || error.message?.includes('CORS')) {
           showToast('Refresh failed: CORS issue. Please check backend configuration.', 'error');
         } else {
@@ -331,24 +291,61 @@ export default function Dashboard() {
     }
   };
 
-  // Show loading state while checking authentication
+  const fetchAllUsers = async () => {
+    if (!isMaster) return;
+    
+    setIsLoadingUsers(true);
+    try {
+      const users = await userAPI.listUsers();
+      setAllUsers(Array.isArray(users) ? users : []);
+      showToast('Users refreshed successfully', 'success');
+    } catch (error: any) {
+      console.error('Failed to fetch users:', error);
+      if (error.code === 'ERR_NETWORK' || error.message?.includes('CORS')) {
+        showToast('Failed to fetch users: CORS issue', 'error');
+      } else {
+        showToast('Failed to fetch users', 'error');
+      }
+    } finally {
+      setIsLoadingUsers(false);
+    }
+  };
+
+  const handleAdminRefresh = async () => {
+    if (activeAdminTab === 'users') {
+      await fetchAllUsers();
+    } else {
+      showToast('Refresh functionality for this tab coming soon', 'info');
+    }
+  };
+
+  useEffect(() => {
+    if (viewMode === 'admin' && activeAdminTab === 'users' && isMaster && allUsers.length === 0) {
+      fetchAllUsers();
+    }
+  }, [viewMode, activeAdminTab]);
+
+  const filteredUsers = allUsers.filter((user) => {
+    const searchLower = userSearchTerm.toLowerCase();
+    return (
+      user.username.toLowerCase().includes(searchLower) ||
+      user.email.toLowerCase().includes(searchLower) ||
+      user.role.toLowerCase().includes(searchLower) ||
+      user.zone.toLowerCase().includes(searchLower)
+    );
+  });
+
   if (isLoading) {
     return (
-      <div className="min-h-screen w-full bg-background security-pattern flex items-center justify-center relative overflow-hidden scan-line">
-        <div className="absolute inset-0 hex-pattern opacity-30 pointer-events-none" />
-        <div className="data-panel terminal-border p-8 bg-secondary/20 border-2 border-accent relative z-10">
-          <div className="flex items-center gap-3">
-            <div className="relative">
-              <div className="w-10 h-10 bg-accent/20 border-2 border-accent flex items-center justify-center">
-                <Shield className="text-accent" size={20} />
-              </div>
-              <div className="absolute -top-1 -right-1 w-3 h-3 bg-accent pulse-ring" />
+      <div className="min-h-screen w-full bg-gradient-to-br from-white via-brown-50 to-orange-50 flex items-center justify-center">
+        <div className="bg-white rounded-2xl shadow-xl p-8 border border-brown-200">
+          <div className="flex items-center gap-4">
+            <div className="w-12 h-12 bg-green-100 rounded-xl flex items-center justify-center">
+              <Shield className="text-green-600" size={24} />
             </div>
             <div>
-              <h2 className="text-lg font-mono font-bold text-accent tracking-wider">
-                [LOADING] AUTHENTICATION_CHECK
-              </h2>
-              <p className="text-xs text-secondary font-mono">Verifying credentials...</p>
+              <h2 className="text-xl font-bold text-brown-900">Loading...</h2>
+              <p className="text-brown-600 text-sm">Verifying credentials...</p>
             </div>
           </div>
         </div>
@@ -357,308 +354,436 @@ export default function Dashboard() {
   }
 
   return (
-    <div className="min-h-screen w-full bg-background security-pattern flex flex-col lg:flex-row relative overflow-hidden scan-line">
-      {/* Animated Grid Background */}
-      <div className="absolute inset-0 hex-pattern opacity-30 pointer-events-none" />
-      
-      {/* Left Sidebar - Authentication Panel */}
-      <div className="w-full lg:w-80 xl:w-96 relative z-10 border-b-2 lg:border-b-0 lg:border-r-2 border-accent/30">
-        {/* Military-style header bar */}
-        <div className="bg-primary/40 border-b-2 border-accent p-4 data-panel">
+    <div className="min-h-screen w-full bg-gradient-to-br from-white via-brown-50 to-orange-50">
+      {/* Top Navigation Bar */}
+      <div className="bg-white border-b border-brown-200 shadow-sm sticky top-0 z-50">
+        <div className="flex items-center justify-between px-4 lg:px-6 py-4">
+          <div className="flex items-center gap-4">
+            <button
+              onClick={() => setSidebarOpen(!sidebarOpen)}
+              className="lg:hidden p-2 hover:bg-brown-50 rounded-lg transition-colors"
+            >
+              {sidebarOpen ? <X size={24} className="text-brown-700" /> : <Menu size={24} className="text-brown-700" />}
+            </button>
+            <div className="flex items-center gap-3">
+              <div className="w-10 h-10 bg-gradient-to-br from-green-500 to-green-600 rounded-xl flex items-center justify-center shadow-md">
+                <Shield className="text-white" size={20} />
+              </div>
+              <div>
+                <h1 className="text-xl font-bold text-brown-900">PACSTAR</h1>
+                <p className="text-xs text-brown-600">Challenge Management</p>
+              </div>
+            </div>
+          </div>
+          
           <div className="flex items-center gap-3">
-            <div className="relative">
-              <div className="w-10 h-10 bg-accent/20 border-2 border-accent flex items-center justify-center">
-                <Shield className="text-accent" size={20} />
-              </div>
-              <div className="absolute -top-1 -right-1 w-3 h-3 bg-accent pulse-ring" />
+            <div className="hidden sm:flex items-center gap-2 px-4 py-2 bg-green-50 rounded-lg border border-green-200">
+              <div className="w-2 h-2 bg-green-500 rounded-full animate-pulse" />
+              <span className="text-sm font-medium text-green-700">Online</span>
             </div>
-            <div>
-              <h1 className="text-lg font-mono font-bold text-accent tracking-wider">
-                AUTHENTICATION
-              </h1>
-              <p className="text-xs text-secondary font-mono">SYSTEM_STATUS</p>
-            </div>
+            <Button
+              variant="outline"
+              size="sm"
+              onClick={handleLogout}
+              className="flex items-center gap-2"
+            >
+              <LogOut size={16} />
+              <span className="hidden sm:inline">Logout</span>
+            </Button>
           </div>
-        </div>
-
-        {/* User Info Panel */}
-        <div className="p-4 lg:p-6 space-y-4">
-          <div className="data-panel terminal-border p-3 lg:p-4 bg-accent/10 border-2 border-accent">
-            <div className="flex items-center gap-2 mb-3">
-              <div className="w-1 h-6 bg-accent glow-accent" />
-              <h2 className="text-xs lg:text-sm font-mono font-bold text-accent tracking-wider">
-                [USER_INFO]
-              </h2>
-            </div>
-            <div className="space-y-2 font-mono text-xs lg:text-sm">
-              <div className="flex items-center gap-2 flex-wrap">
-                <span className="text-accent">Logged in as:</span>
-                <span className="text-text font-semibold break-all">{userProfile.username || 'User'}</span>
-              </div>
-              <div className="flex items-center gap-2">
-                <span className="text-accent">Role:</span>
-                <span className="text-text">{userProfile.role || 'User'}</span>
-              </div>
-              <div className="flex items-center gap-2">
-                <span className="text-accent">Zone:</span>
-                <span className="text-text break-all">{userProfile.zone || team?.id || 'N/A'}</span>
-              </div>
-            </div>
-          </div>
-
-          <Button
-            variant="outline"
-            size="md"
-            onClick={handleLogout}
-            className="w-full badge-military font-mono font-semibold tracking-wider"
-          >
-            <LogOut size={18} className="mr-2" />
-            &gt; LOGOUT
-          </Button>
         </div>
       </div>
 
-      {/* Main Content Area */}
-      <div className="flex-1 flex flex-col relative z-10">
-        {/* Top Status Bar */}
-        <div className="bg-primary/40 border-b-2 border-accent p-3 lg:p-4 data-panel">
-          <div className="flex items-center justify-between flex-wrap gap-2">
-            <div className="flex items-center gap-2 lg:gap-4">
-              <div className="flex items-center gap-1 lg:gap-2">
-                <Target className="text-accent" size={20} />
-                <h1 className="text-lg lg:text-2xl font-mono font-bold text-accent tracking-wider">
-                  <span className="hidden sm:inline">PACSTAR CHALLENGE MANAGEMENT</span>
-                  <span className="sm:hidden">PACSTAR</span>
-                </h1>
+      <div className="flex">
+        {/* Sidebar */}
+        <div className={`
+          ${sidebarOpen ? 'translate-x-0' : '-translate-x-full lg:translate-x-0'}
+          fixed lg:static inset-y-0 left-0 z-40
+          w-80 bg-white border-r border-brown-200 shadow-lg lg:shadow-none
+          transition-transform duration-300 ease-in-out
+          pt-20 lg:pt-0
+        `}>
+          <div className="h-full overflow-y-auto p-6 space-y-6">
+            {/* User Info Card */}
+            <div className="bg-gradient-to-br from-brown-600 to-brown-700 rounded-2xl p-6 text-white shadow-lg">
+              <div className="flex items-center gap-4 mb-4">
+                <div className="w-16 h-16 bg-white/20 backdrop-blur-sm rounded-xl flex items-center justify-center border-2 border-white/30">
+                  <User className="text-white" size={28} />
+                </div>
+                <div className="flex-1">
+                  <h3 className="font-bold text-lg">{userProfile.username || 'User'}</h3>
+                  <p className="text-white/80 text-sm">{userProfile.role || 'User'}</p>
+                </div>
+              </div>
+              <div className="space-y-2 text-sm">
+                <div className="flex items-center gap-2">
+                  <Mail size={16} className="text-white/70" />
+                  <span className="text-white/90">{userProfile.email || 'N/A'}</span>
+                </div>
+                <div className="flex items-center gap-2">
+                  <Target size={16} className="text-white/70" />
+                  <span className="text-white/90">
+                    {team ? `Team: ${team.team_code}` : (userProfile.zone || 'N/A')}
+                  </span>
+                </div>
               </div>
             </div>
-            <div className="flex items-center gap-2">
-              <div className="w-2 h-2 bg-accent rounded-full glow-accent" />
-              <span className="text-xs text-accent font-mono">ONLINE</span>
-            </div>
-          </div>
-        </div>
 
-        {/* Main Content */}
-        <div className="flex-1 p-4 lg:p-8 overflow-y-auto">
-          <div className="mb-4 lg:mb-6">
-            <div className="flex items-center gap-2 mb-2">
-              <User className="text-accent" size={20} />
-              <h2 className="text-xl lg:text-2xl font-mono font-bold text-accent tracking-wider">
-                USER DASHBOARD
-            </h2>
-            </div>
-          </div>
-
-          {/* My Profile Section */}
-          <div className="mb-4 lg:mb-6">
-            <button
-              onClick={() => setIsProfileOpen(!isProfileOpen)}
-              className="w-full flex items-center justify-between p-3 lg:p-4 bg-secondary/20 border-2 border-accent/30 data-panel terminal-border hover:border-accent/50 transition-all"
-            >
-              <div className="flex items-center gap-2 lg:gap-3">
-                <FileText className="text-accent" size={18} />
-                <h3 className="text-base lg:text-lg font-mono font-bold text-accent tracking-wider">
-                  MY PROFILE
-                </h3>
-                {isProfileOpen ? (
-                  <ChevronUp className="text-accent" size={16} />
-                ) : (
-                  <ChevronDown className="text-accent" size={16} />
-                )}
-              </div>
-            </button>
-            {isProfileOpen && (
-              <div className="mt-2 p-4 lg:p-6 bg-secondary/10 border-2 border-accent/20 data-panel terminal-border">
-                <div className="grid grid-cols-1 md:grid-cols-2 gap-4 lg:gap-6 font-mono text-sm">
-                  {/* Left Column */}
-                  <div className="space-y-4">
-                    <div>
-                      <span className="text-text">Username: </span>
-                      <span className="text-accent font-semibold">{userProfile.username || 'N/A'}</span>
-                    </div>
-                    <div>
-                      <span className="text-text">Email: </span>
-                      {userProfile.email ? (
-                        <a 
-                          href={`mailto:${userProfile.email}`}
-                          className="text-accent hover:underline"
-                        >
-                          {userProfile.email}
-                        </a>
-                      ) : (
-                        <span className="text-text/60">N/A</span>
-                      )}
-                    </div>
-                    <div>
-                      <span className="text-text">Role: </span>
-                      <span className="text-accent">{userProfile.role || 'User'}</span>
-                    </div>
-                  </div>
-
-                  {/* Right Column */}
-                  <div className="space-y-4">
-                    <div>
-                      <span className="text-text">Zone: </span>
-                      <span className="text-accent">{userProfile.zone || team?.id || 'N/A'}</span>
-                    </div>
-                    {team && (
-                      <>
-                        <div>
-                          <span className="text-text">Team Code: </span>
-                          <span className="inline-block px-3 py-1 bg-accent/20 border border-accent text-accent font-semibold">
-                            {team.team_code}
-                          </span>
-                        </div>
-                        <div className="flex items-center gap-2">
-                          <span className="text-text">Active: </span>
-                          <CheckCircle className="text-accent" size={18} />
-                        </div>
-                      </>
-                    )}
-                  </div>
+            {/* Navigation for Master Users */}
+            {isMaster && (
+              <div className="space-y-2">
+                <label className="block text-sm font-semibold text-brown-700 mb-2">View Mode</label>
+                <div className="flex gap-2 p-1 bg-brown-50 rounded-xl">
+                  <button
+                    onClick={() => setViewMode('user')}
+                    className={`flex-1 px-4 py-2 rounded-lg font-semibold text-sm transition-all ${
+                      viewMode === 'user'
+                        ? 'bg-white text-brown-900 shadow-sm'
+                        : 'text-brown-600 hover:text-brown-900'
+                    }`}
+                  >
+                    User
+                  </button>
+                  <button
+                    onClick={() => setViewMode('admin')}
+                    className={`flex-1 px-4 py-2 rounded-lg font-semibold text-sm transition-all ${
+                      viewMode === 'admin'
+                        ? 'bg-white text-brown-900 shadow-sm'
+                        : 'text-brown-600 hover:text-brown-900'
+                    }`}
+                  >
+                    Admin
+                  </button>
                 </div>
               </div>
             )}
           </div>
+        </div>
 
-          {/* My Team Section */}
-          {team && (
-            <div className="mb-4 lg:mb-6">
-              <button
-                onClick={() => setIsTeamOpen(!isTeamOpen)}
-                className="w-full flex items-center justify-between p-3 lg:p-4 bg-secondary/20 border-2 border-accent/30 data-panel terminal-border hover:border-accent/50 transition-all"
-              >
-                <div className="flex items-center gap-2 lg:gap-3">
-                  <Users className="text-accent" size={18} />
-                  <h3 className="text-base lg:text-lg font-mono font-bold text-accent tracking-wider">
-                    MY TEAM
-                  </h3>
-                  {isTeamOpen ? (
-                    <ChevronUp className="text-accent" size={16} />
-                  ) : (
-                    <ChevronDown className="text-accent" size={16} />
+        {/* Main Content */}
+        <div className="flex-1 min-h-screen">
+          <div className="p-4 lg:p-8">
+            {/* User View */}
+            {viewMode === 'user' && (
+              <div className="space-y-6">
+                <div className="flex items-center justify-between">
+                  <div>
+                    <h2 className="text-3xl font-bold text-brown-900">Dashboard</h2>
+                    <p className="text-brown-600 mt-1">Welcome back, {userProfile.username}!</p>
+                  </div>
+                </div>
+
+                {/* Profile Section */}
+                <div className="bg-white rounded-2xl shadow-md border border-brown-200 overflow-hidden">
+                  <button
+                    onClick={() => setIsProfileOpen(!isProfileOpen)}
+                    className="w-full flex items-center justify-between p-6 hover:bg-brown-50 transition-colors"
+                  >
+                    <div className="flex items-center gap-3">
+                      <div className="w-12 h-12 bg-green-100 rounded-xl flex items-center justify-center">
+                        <FileText className="text-green-600" size={24} />
+                      </div>
+                      <div className="text-left">
+                        <h3 className="text-lg font-bold text-brown-900">My Profile</h3>
+                        <p className="text-sm text-brown-600">View your account information</p>
+                      </div>
+                    </div>
+                    {isProfileOpen ? <ChevronUp className="text-brown-400" size={20} /> : <ChevronDown className="text-brown-400" size={20} />}
+                  </button>
+                  {isProfileOpen && (
+                    <div className="px-6 pb-6 border-t border-brown-100">
+                      <div className="grid grid-cols-1 md:grid-cols-2 gap-6 pt-6">
+                        <div className="space-y-4">
+                          <div>
+                            <label className="text-sm font-semibold text-brown-600">Username</label>
+                            <p className="text-brown-900 font-medium mt-1">{userProfile.username || 'N/A'}</p>
+                          </div>
+                          <div>
+                            <label className="text-sm font-semibold text-brown-600">Email</label>
+                            {userProfile.email ? (
+                              <a href={`mailto:${userProfile.email}`} className="text-green-600 hover:text-green-700 font-medium mt-1 block">
+                                {userProfile.email}
+                              </a>
+                            ) : (
+                              <p className="text-brown-400 mt-1">N/A</p>
+                            )}
+                          </div>
+                          <div>
+                            <label className="text-sm font-semibold text-brown-600">Role</label>
+                            <p className="text-brown-900 font-medium mt-1">{userProfile.role || 'User'}</p>
+                          </div>
+                        </div>
+                        <div className="space-y-4">
+                          <div>
+                            <label className="text-sm font-semibold text-brown-600">Zone</label>
+                            <p className="text-brown-900 font-medium mt-1">
+                              {team ? `Team: ${team.team_code}` : (userProfile.zone || 'N/A')}
+                            </p>
+                          </div>
+                          {team && (
+                            <>
+                              <div>
+                                <label className="text-sm font-semibold text-brown-600">Team Code</label>
+                                <p className="text-green-600 font-bold mt-1">{team.team_code}</p>
+                              </div>
+                              <div>
+                                <label className="text-sm font-semibold text-brown-600">Status</label>
+                                <div className="flex items-center gap-2 mt-1">
+                                  <CheckCircle className="text-green-600" size={18} />
+                                  <span className="text-green-600 font-medium">Active</span>
+                                </div>
+                              </div>
+                            </>
+                          )}
+                        </div>
+                      </div>
+                    </div>
                   )}
                 </div>
-              </button>
-              {isTeamOpen && (
-                <div className="mt-2 p-4 lg:p-6 bg-secondary/10 border-2 border-accent/20 data-panel terminal-border">
-                  <div className="grid grid-cols-1 md:grid-cols-2 gap-4 lg:gap-6 font-mono text-sm">
-                    {/* Left Column */}
-                    <div className="space-y-4">
-                      <div>
-                        <span className="text-text">Team Name: </span>
-                        <span className="text-accent font-semibold">{team.name}</span>
-                      </div>
-                      <div>
-                        <span className="text-text">Team Code: </span>
-                        <span className="text-accent">{team.team_code}</span>
-                      </div>
-                      
-                      {/* View Team Members - Collapsible */}
-                      <div>
-                        <button
-                          onClick={() => setIsTeamMembersOpen(!isTeamMembersOpen)}
-                          className="flex items-center gap-2 text-accent hover:text-accent/80 transition-colors"
-                        >
-                          <span>View Team Members</span>
-                          {isTeamMembersOpen ? (
-                            <ChevronUp size={16} />
-                          ) : (
-                            <ChevronDown size={16} />
-                          )}
-                        </button>
-                        {isTeamMembersOpen && team.members && team.members.length > 0 && (
-                          <div className="mt-3 ml-4 space-y-2">
-                            {team.members.map((member) => (
-                              <div key={member.user_id} className="flex items-center gap-2 text-sm">
-                                {member.role === 'leader' ? (
-                                  <>
-                                    <Crown className="text-warning" size={16} />
-                                    <span className="text-text">
-                                      Leader {member.username} (
-                                      <a 
-                                        href={`mailto:${member.email}`}
-                                        className="text-accent hover:underline"
-                                      >
-                                        {member.email}
-                                      </a>
-                                      )
-                                    </span>
-                                  </>
-                                ) : (
-                                  <>
-                                    <User className="text-accent" size={16} />
-                                    <span className="text-text">
-                                      Member {member.username} (
-                                      <a 
-                                        href={`mailto:${member.email}`}
-                                        className="text-accent hover:underline"
-                                      >
-                                        {member.email}
-                                      </a>
-                                      )
-                                    </span>
-                                  </>
-                                )}
-                              </div>
-                            ))}
-                          </div>
-                        )}
-                      </div>
-                    </div>
 
-                    {/* Right Column */}
-                    <div className="space-y-4">
-                      <div>
-                        <span className="text-text">Members: </span>
-                        <span className="text-accent">
-                          {team.member_count}/{team.max_members}
+                {/* Team Section */}
+                {team && (
+                  <div className="bg-white rounded-2xl shadow-md border border-brown-200 overflow-hidden">
+                    <button
+                      onClick={() => setIsTeamOpen(!isTeamOpen)}
+                      className="w-full flex items-center justify-between p-6 hover:bg-brown-50 transition-colors"
+                    >
+                      <div className="flex items-center gap-3">
+                        <div className="w-12 h-12 bg-orange-100 rounded-xl flex items-center justify-center">
+                          <Users className="text-orange-600" size={24} />
+                        </div>
+                        <div className="text-left">
+                          <h3 className="text-lg font-bold text-brown-900">My Team</h3>
+                          <p className="text-sm text-brown-600">{team.name}</p>
+                        </div>
+                      </div>
+                      {isTeamOpen ? <ChevronUp className="text-brown-400" size={20} /> : <ChevronDown className="text-brown-400" size={20} />}
+                    </button>
+                    {isTeamOpen && (
+                      <div className="px-6 pb-6 border-t border-brown-100">
+                        <div className="grid grid-cols-1 md:grid-cols-2 gap-6 pt-6">
+                          <div className="space-y-4">
+                            <div>
+                              <label className="text-sm font-semibold text-brown-600">Team Name</label>
+                              <p className="text-brown-900 font-medium mt-1">{team.name}</p>
+                            </div>
+                            <div>
+                              <label className="text-sm font-semibold text-brown-600">Team Code</label>
+                              <p className="text-green-600 font-bold mt-1">{team.team_code}</p>
+                            </div>
+                            <div>
+                              <label className="text-sm font-semibold text-brown-600">Members</label>
+                              <p className="text-brown-900 font-medium mt-1">
+                                {team.member_count}/{team.max_members}
+                              </p>
+                            </div>
+                          </div>
+                          <div className="space-y-4">
+                            <div>
+                              <label className="text-sm font-semibold text-brown-600">Leader</label>
+                              <p className="text-brown-900 font-medium mt-1">{team.leader_username}</p>
+                            </div>
+                            <div>
+                              <button
+                                onClick={() => setIsTeamMembersOpen(!isTeamMembersOpen)}
+                                className="text-green-600 hover:text-green-700 font-semibold text-sm flex items-center gap-2"
+                              >
+                                View Team Members
+                                {isTeamMembersOpen ? <ChevronUp size={16} /> : <ChevronDown size={16} />}
+                              </button>
+                              {isTeamMembersOpen && team.members && team.members.length > 0 && (
+                                <div className="mt-3 space-y-2">
+                                  {team.members.map((member) => (
+                                    <div key={member.user_id} className="flex items-center gap-2 p-2 bg-brown-50 rounded-lg">
+                                      {member.role === 'leader' ? (
+                                        <Crown className="text-orange-600" size={16} />
+                                      ) : (
+                                        <User className="text-brown-400" size={16} />
+                                      )}
+                                      <span className="text-sm text-brown-900">{member.username}</span>
+                                      <a href={`mailto:${member.email}`} className="text-green-600 hover:text-green-700 text-xs ml-auto">
+                                        {member.email}
+                                      </a>
+                                    </div>
+                                  ))}
+                                </div>
+                              )}
+                            </div>
+                          </div>
+                        </div>
+                      </div>
+                    )}
+                  </div>
+                )}
+
+                {/* Challenges Section */}
+                <UserChallenges teamId={team?.id} />
+
+                {/* Scoreboard Section */}
+                <div className="mt-6">
+                  <Scoreboard />
+                </div>
+              </div>
+            )}
+
+            {/* Admin Panel View */}
+            {viewMode === 'admin' && isMaster && (
+              <div className="space-y-6">
+                <div>
+                  <h2 className="text-3xl font-bold text-brown-900">Admin Panel</h2>
+                  <p className="text-brown-600 mt-1">Manage users, challenges, and system settings</p>
+                </div>
+
+                {/* Admin Tabs */}
+                <div className="bg-white rounded-2xl shadow-md border border-brown-200 p-2">
+                  <div className="flex flex-wrap gap-2">
+                    {[
+                      { id: 'users', label: 'Users', icon: User },
+                      { id: 'challenges', label: 'Challenges', icon: Trophy },
+                      { id: 'dockerfile', label: 'Dockerfile', icon: FileCode },
+                      { id: 'openstack', label: 'OpenStack', icon: Cloud },
+                      { id: 'stats', label: 'Stats', icon: BarChart3 },
+                    ].map((tab) => {
+                      const Icon = tab.icon;
+                      return (
+                        <button
+                          key={tab.id}
+                          onClick={() => setActiveAdminTab(tab.id as AdminTab)}
+                          className={`flex items-center gap-2 px-6 py-3 rounded-xl font-semibold text-sm transition-all ${
+                            activeAdminTab === tab.id
+                              ? 'bg-green-500 text-white shadow-md'
+                              : 'text-brown-700 hover:bg-brown-50'
+                          }`}
+                        >
+                          <Icon size={18} />
+                          {tab.label}
+                        </button>
+                      );
+                    })}
+                  </div>
+                </div>
+
+                {/* Users Tab Content */}
+                {activeAdminTab === 'users' && (
+                  <div className="bg-white rounded-2xl shadow-md border border-brown-200 p-6">
+                    <div className="mb-6">
+                      <h3 className="text-xl font-bold text-brown-900 mb-4">User Management</h3>
+                      
+                      <div className="flex flex-col sm:flex-row gap-3 mb-4">
+                        <div className="flex-1 relative">
+                          <Search className="absolute left-4 top-1/2 transform -translate-y-1/2 text-brown-400" size={18} />
+                          <input
+                            type="text"
+                            placeholder="Search users..."
+                            value={userSearchTerm}
+                            onChange={(e) => setUserSearchTerm(e.target.value)}
+                            className="w-full pl-12 pr-4 py-3 bg-brown-50 border-2 border-brown-200 rounded-xl focus:outline-none focus:border-green-500 focus:ring-2 focus:ring-green-500/20 text-brown-900"
+                          />
+                        </div>
+                        <Button
+                          variant="outline"
+                          size="md"
+                          onClick={handleAdminRefresh}
+                          disabled={isLoadingUsers}
+                        >
+                          <RefreshCw size={16} className={`mr-2 ${isLoadingUsers ? 'animate-spin' : ''}`} />
+                          Refresh
+                        </Button>
+                      </div>
+
+                      <div className="mb-4">
+                        <span className="text-brown-700 font-medium">
+                          Total Users: <span className="text-green-600 font-bold">{filteredUsers.length}</span>
                         </span>
                       </div>
-                      <div>
-                        <span className="text-text">Leader: </span>
-                        <span className="text-accent">{team.leader_username}</span>
+
+                      <div className="overflow-x-auto border border-brown-200 rounded-xl">
+                        <table className="w-full">
+                          <thead className="bg-brown-50 border-b border-brown-200">
+                            <tr>
+                              <th className="px-4 py-3 text-left text-sm font-semibold text-brown-700">Username</th>
+                              <th className="px-4 py-3 text-left text-sm font-semibold text-brown-700">Email</th>
+                              <th className="px-4 py-3 text-left text-sm font-semibold text-brown-700">Role</th>
+                              <th className="px-4 py-3 text-left text-sm font-semibold text-brown-700">Zone</th>
+                              <th className="px-4 py-3 text-left text-sm font-semibold text-brown-700">Active</th>
+                            </tr>
+                          </thead>
+                          <tbody>
+                            {isLoadingUsers ? (
+                              <tr>
+                                <td colSpan={5} className="px-4 py-8 text-center text-brown-600">
+                                  Loading users...
+                                </td>
+                              </tr>
+                            ) : filteredUsers.length === 0 ? (
+                              <tr>
+                                <td colSpan={5} className="px-4 py-8 text-center text-brown-600">
+                                  {userSearchTerm ? 'No users found matching your search.' : 'No users available.'}
+                                </td>
+                              </tr>
+                            ) : (
+                              filteredUsers.map((user) => (
+                                <tr
+                                  key={user.id}
+                                  className="border-b border-brown-100 hover:bg-brown-50 transition-colors"
+                                >
+                                  <td className="px-4 py-3 text-brown-900 font-medium">{user.username}</td>
+                                  <td className="px-4 py-3">
+                                    <a
+                                      href={`mailto:${user.email}`}
+                                      className="text-green-600 hover:text-green-700 hover:underline"
+                                    >
+                                      {user.email}
+                                    </a>
+                                  </td>
+                                  <td className="px-4 py-3 text-brown-700">{user.role}</td>
+                                  <td className="px-4 py-3 text-brown-700">{user.zone || 'N/A'}</td>
+                                  <td className="px-4 py-3">
+                                    {user.is_active ? (
+                                      <CheckCircle className="text-green-600" size={20} />
+                                    ) : (
+                                      <span className="text-brown-400">—</span>
+                                    )}
+                                  </td>
+                                </tr>
+                              ))
+                            )}
+                          </tbody>
+                        </table>
                       </div>
                     </div>
                   </div>
-                </div>
-              )}
-            </div>
-          )}
+                )}
 
-          {/* Available Challenges Section */}
-          <div>
-            <div className="flex items-center justify-between mb-3 lg:mb-4 flex-wrap gap-2">
-              <div className="flex items-center gap-2">
-                <BookOpen className="text-accent" size={18} />
-                <h3 className="text-base lg:text-lg font-mono font-bold text-accent tracking-wider">
-                  <span className="hidden sm:inline">AVAILABLE CHALLENGES</span>
-                  <span className="sm:hidden">CHALLENGES</span>
-                </h3>
-              </div>
-              <Button
-                variant="outline"
-                size="sm"
-                onClick={handleRefresh}
-                className="badge-military font-mono text-xs"
-              >
-                <RefreshCw size={14} className="mr-1 lg:mr-2" />
-                <span className="hidden sm:inline">REFRESH</span>
-                <span className="sm:hidden">↻</span>
-              </Button>
-            </div>
-            <div className="data-panel terminal-border p-4 lg:p-6 bg-secondary/10 border-2 border-accent/20">
-              <div className="flex items-center justify-center py-8">
-                <div className="text-center">
-                  <div className="p-4 bg-accent/10 border-2 border-accent/30 rounded mb-4">
-                    <p className="text-text/80 font-mono text-sm">
-                      No challenges available at the moment.
-                    </p>
+                {/* Challenges Tab Content */}
+                {activeAdminTab === 'challenges' && (
+                  <Challenges />
+                )}
+
+                {/* Dockerfile to K8s Tab Content */}
+                {activeAdminTab === 'dockerfile' && (
+                  <DockerfileToK8s />
+                )}
+
+                {/* OpenStack Tab Content */}
+                {activeAdminTab === 'openstack' && (
+                  <OpenStack />
+                )}
+
+                {/* Stats Tab Content */}
+                {activeAdminTab === 'stats' && (
+                  <div className="bg-white rounded-2xl shadow-md border border-brown-200 p-12">
+                    <div className="text-center">
+                      <div className="w-20 h-20 bg-brown-100 rounded-2xl flex items-center justify-center mx-auto mb-4">
+                        <BarChart3 className="text-brown-600" size={40} />
+                      </div>
+                      <h3 className="text-xl font-bold text-brown-900 mb-2">Statistics Dashboard</h3>
+                      <p className="text-brown-600">Coming soon...</p>
+                    </div>
                   </div>
-                </div>
+                )}
               </div>
-            </div>
+            )}
           </div>
         </div>
       </div>

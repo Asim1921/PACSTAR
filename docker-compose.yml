@@ -1,0 +1,22 @@
+version: '3.8'
+
+services:
+  frontend:
+    build:
+      context: .
+      dockerfile: Dockerfile
+    container_name: pacstar-frontend
+    ports:
+      - "3505:3505"
+    environment:
+      - NODE_ENV=production
+      - PORT=3505
+      - HOSTNAME=0.0.0.0
+    restart: unless-stopped
+    networks:
+      - pacstar-network
+
+networks:
+  pacstar-network:
+    driver: bridge
+

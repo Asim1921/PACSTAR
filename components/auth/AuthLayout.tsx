@@ -1,230 +1,130 @@
 'use client';
 
-import React, { useState, useEffect } from 'react';
-import { Shield, Lock, Terminal, Activity, Zap } from 'lucide-react';
+import React, { useState } from 'react';
+import { Shield, LogIn, UserPlus, Sparkles } from 'lucide-react';
 import LoginForm from '@/components/auth/LoginForm';
 import RegisterForm from '@/components/auth/RegisterForm';
 
 export default function AuthLayout() {
   const [activeTab, setActiveTab] = useState<'login' | 'register'>('login');
-  const [terminalText, setTerminalText] = useState('');
-  const terminalMessages = [
-    'PACSTAR_AUTH_SYSTEM v2.1.4',
-    'Initializing security protocols...',
-    'Establishing secure connection...',
-    'System ready. Awaiting authentication.',
-  ];
-
-  useEffect(() => {
-    let currentIndex = 0;
-    const interval = setInterval(() => {
-      if (currentIndex < terminalMessages.length) {
-        setTerminalText(terminalMessages.slice(0, currentIndex + 1).join('\n> '));
-        currentIndex++;
-      } else {
-        clearInterval(interval);
-      }
-    }, 800);
-    return () => clearInterval(interval);
-  }, []);
 
   return (
-    <div className="min-h-screen w-full bg-background security-pattern flex flex-col lg:flex-row relative overflow-hidden scan-line">
-      {/* Animated Grid Background */}
-      <div className="absolute inset-0 hex-pattern opacity-30 pointer-events-none" />
-      
-      {/* Left Sidebar - Authentication Panel */}
-      <div className="w-full lg:w-2/5 xl:w-1/3 relative z-10">
-        {/* Military-style header bar */}
-        <div className="bg-primary/40 border-b-2 border-accent p-4 data-panel">
-          <div className="flex items-center justify-between">
-            <div className="flex items-center gap-3">
-              <div className="relative">
-                <div className="w-10 h-10 bg-accent/20 border-2 border-accent flex items-center justify-center">
-                  <Shield className="text-accent" size={20} />
-                </div>
-                <div className="absolute -top-1 -right-1 w-3 h-3 bg-accent pulse-ring" />
-              </div>
-              <div>
-                <h1 className="text-lg font-mono font-bold text-accent tracking-wider">
-                  AUTH_SYSTEM
-                </h1>
-                <p className="text-xs text-secondary font-mono">ACCESS CONTROL</p>
-              </div>
-            </div>
-            <div className="flex items-center gap-2">
-              <div className="w-2 h-2 bg-accent rounded-full glow-accent" />
-              <span className="text-xs text-accent font-mono">ONLINE</span>
-            </div>
-          </div>
-        </div>
-
-        {/* Tabs with military badge style */}
-        <div className="bg-secondary/30 border-b border-accent/30 p-2 flex gap-2">
-          <button
-            onClick={() => setActiveTab('login')}
-            className={`
-              badge-military font-mono text-sm font-semibold px-6 py-2 transition-all duration-300
-              ${
-                activeTab === 'login'
-                  ? 'bg-accent/20 text-accent border-accent glow-accent'
-                  : 'bg-transparent text-secondary border-secondary/50 hover:border-accent/50 hover:text-text'
-              }
-            `}
-          >
-            &gt; LOGIN
-          </button>
-          <button
-            onClick={() => setActiveTab('register')}
-            className={`
-              badge-military font-mono text-sm font-semibold px-6 py-2 transition-all duration-300
-              ${
-                activeTab === 'register'
-                  ? 'bg-accent/20 text-accent border-accent glow-accent'
-                  : 'bg-transparent text-secondary border-secondary/50 hover:border-accent/50 hover:text-text'
-              }
-            `}
-          >
-            &gt; REGISTER
-          </button>
-        </div>
-
-        {/* Form Content Container */}
-        <div className="p-6 lg:p-10 flex-1 min-h-[calc(100vh-200px)]">
-          <div className="terminal-border bg-secondary/20 p-6">
-            {activeTab === 'login' ? <LoginForm /> : <RegisterForm />}
-          </div>
-        </div>
+    <div className="min-h-screen w-full bg-gradient-to-br from-white via-brown-50 to-orange-50 relative overflow-hidden">
+      {/* Decorative Background Elements */}
+      <div className="absolute inset-0 overflow-hidden pointer-events-none">
+        <div className="absolute top-0 right-0 w-96 h-96 bg-green-200/20 rounded-full blur-3xl" />
+        <div className="absolute bottom-0 left-0 w-96 h-96 bg-orange-200/20 rounded-full blur-3xl" />
+        <div className="absolute top-1/2 left-1/2 transform -translate-x-1/2 -translate-y-1/2 w-[600px] h-[600px] bg-brown-100/10 rounded-full blur-3xl" />
       </div>
 
-      {/* Right Content Area - Terminal/Data Panel Style */}
-      <div className="hidden lg:flex flex-1 flex-col relative z-10">
-        {/* Top Status Bar */}
-        <div className="bg-primary/40 border-b-2 border-accent p-4 data-panel">
-          <div className="flex items-center justify-between">
-            <div className="flex items-center gap-4">
-              <div className="flex items-center gap-2">
-                <Terminal className="text-accent" size={20} />
-                <span className="text-accent font-mono text-sm font-semibold">SYSTEM_STATUS</span>
-              </div>
-              <div className="h-4 w-px bg-accent/30" />
-              <div className="flex items-center gap-2">
-                <Activity className="text-accent" size={16} />
-                <span className="text-text text-xs font-mono">ACTIVE</span>
-              </div>
-            </div>
-            <div className="flex items-center gap-3">
-              <div className="flex items-center gap-1">
-                <Zap className="text-warning" size={14} />
-                <span className="text-warning text-xs font-mono">SECURE</span>
-              </div>
-            </div>
-          </div>
-        </div>
-
-        {/* Main Content Area */}
-        <div className="flex-1 p-8 relative overflow-hidden">
-          {/* Background Circuit Pattern */}
-          <div className="absolute inset-0 circuit-lines opacity-20" />
-          
-          {/* Terminal Window */}
-          <div className="terminal-border bg-secondary/10 p-6 mb-8 h-40">
-            <div className="flex items-center gap-2 mb-4">
-              <div className="flex gap-1.5">
-                <div className="w-3 h-3 bg-warning rounded-full" />
-                <div className="w-3 h-3 bg-accent rounded-full glow-accent" />
-                <div className="w-3 h-3 bg-secondary rounded-full" />
-              </div>
-              <span className="text-xs text-secondary font-mono ml-2">terminal.exe</span>
-            </div>
-            <div className="font-mono text-xs text-accent leading-relaxed">
-              <pre className="whitespace-pre-wrap">
-                {terminalText}
-                <span className="terminal-cursor">_</span>
-              </pre>
-            </div>
-          </div>
-
-          {/* Logo Section */}
-          <div className="mb-8">
-            <div className="flex items-center gap-4 mb-4">
-              <div className="relative">
-                <div className="w-16 h-16 bg-accent/20 border-2 border-accent flex items-center justify-center terminal-border">
-                  <Lock className="text-accent" size={28} />
+      <div className="relative z-10 flex items-center justify-center min-h-screen p-4 lg:p-8">
+        <div className="w-full max-w-5xl">
+          {/* Main Container */}
+          <div className="bg-white rounded-3xl shadow-2xl overflow-hidden border border-brown-200/50">
+            <div className="grid lg:grid-cols-2">
+              {/* Left Side - Branding & Info */}
+              <div className="hidden lg:flex flex-col justify-between bg-gradient-to-br from-brown-600 via-brown-500 to-brown-700 p-12 text-white relative overflow-hidden">
+                {/* Decorative Pattern */}
+                <div className="absolute inset-0 opacity-10">
+                  <div className="absolute top-0 left-0 w-full h-full" style={{
+                    backgroundImage: `radial-gradient(circle at 2px 2px, white 1px, transparent 0)`,
+                    backgroundSize: '40px 40px'
+                  }} />
                 </div>
-                <div className="absolute -top-2 -right-2 w-4 h-4 bg-accent pulse-ring" />
-              </div>
-              <div>
-                <h1 className="text-4xl font-mono font-bold text-accent tracking-wider mb-1">
-                  PACSTAR
-                </h1>
-                <p className="text-xl font-mono text-secondary">
-                  CHALLENGE_MANAGEMENT
-                </p>
-              </div>
-            </div>
-          </div>
+                
+                <div className="relative z-10">
+                  {/* Logo Section */}
+                  <div className="mb-12">
+                    <div className="flex items-center gap-4 mb-6">
+                      <div className="w-16 h-16 bg-white/20 backdrop-blur-sm rounded-2xl flex items-center justify-center border-2 border-white/30">
+                        <Shield className="text-white" size={32} />
+                      </div>
+                      <div>
+                        <h1 className="text-3xl font-bold tracking-tight">PACSTAR</h1>
+                        <p className="text-white/80 text-sm font-medium">Challenge Platform</p>
+                      </div>
+                    </div>
+                    <p className="text-white/90 text-lg leading-relaxed">
+                      Welcome to the ultimate cybersecurity challenge management platform. 
+                      Test your skills, compete with teams, and master the art of hacking.
+                    </p>
+                  </div>
 
-          {/* Info Banner - Military Style */}
-          <div className="mb-8 data-panel p-4 terminal-border">
-            <div className="flex items-start gap-3">
-              <div className="w-2 h-2 bg-warning mt-1.5 glow-accent" />
-              <div className="flex-1">
-                <p className="text-sm font-mono text-accent mb-1">[INFO] SYSTEM_NOTIFICATION</p>
-                <p className="text-text text-sm">
-                  Authentication required. Please login or register in the control panel.
-                </p>
-              </div>
-            </div>
-          </div>
+                  {/* Features */}
+                  <div className="space-y-4">
+                    <div className="flex items-start gap-3">
+                      <div className="w-10 h-10 rounded-lg bg-green-500/20 backdrop-blur-sm flex items-center justify-center flex-shrink-0 border border-green-400/30">
+                        <Sparkles className="text-green-300" size={20} />
+                      </div>
+                      <div>
+                        <h3 className="font-semibold mb-1">Interactive Challenges</h3>
+                        <p className="text-white/70 text-sm">Engage with real-world scenarios and hands-on exercises</p>
+                      </div>
+                    </div>
+                    <div className="flex items-start gap-3">
+                      <div className="w-10 h-10 rounded-lg bg-orange-500/20 backdrop-blur-sm flex items-center justify-center flex-shrink-0 border border-orange-400/30">
+                        <UserPlus className="text-orange-300" size={20} />
+                      </div>
+                      <div>
+                        <h3 className="font-semibold mb-1">Team Collaboration</h3>
+                        <p className="text-white/70 text-sm">Work together with your team to solve complex challenges</p>
+                      </div>
+                    </div>
+                    <div className="flex items-start gap-3">
+                      <div className="w-10 h-10 rounded-lg bg-green-500/20 backdrop-blur-sm flex items-center justify-center flex-shrink-0 border border-green-400/30">
+                        <Shield className="text-green-300" size={20} />
+                      </div>
+                      <div>
+                        <h3 className="font-semibold mb-1">Secure Platform</h3>
+                        <p className="text-white/70 text-sm">Enterprise-grade security for all your activities</p>
+                      </div>
+                    </div>
+                  </div>
+                </div>
 
-          {/* Features List - Terminal Style */}
-          <div className="space-y-4">
-            <div className="flex items-center gap-2 mb-4">
-              <div className="w-1 h-6 bg-accent glow-accent" />
-              <h2 className="text-lg font-mono font-semibold text-accent">
-                [FEATURES] AVAILABLE_MODULES
-              </h2>
-            </div>
-            
-            <div className="space-y-3 font-mono text-sm">
-              <div className="flex items-start gap-3 data-panel p-3 terminal-border">
-                <span className="text-accent">[+]</span>
-                <span className="text-text">User Registration & Login</span>
-              </div>
-              <div className="flex items-start gap-3 data-panel p-3 terminal-border">
-                <span className="text-accent">[+]</span>
-                <span className="text-text">View Available Challenges</span>
-              </div>
-              <div className="flex items-start gap-3 data-panel p-3 terminal-border">
-                <span className="text-accent">[+]</span>
-                <span className="text-text">Start Challenge Instances</span>
-              </div>
-              
-              <div className="ml-6 mt-4 space-y-2">
-                <div className="flex items-center gap-2 mb-2">
-                  <div className="w-1 h-4 bg-warning" />
-                  <p className="text-warning font-semibold text-xs">
-                    [ADMIN] PRIVILEGED_ACCESS
+                {/* Bottom Decoration */}
+                <div className="relative z-10 mt-8 pt-8 border-t border-white/20">
+                  <p className="text-white/60 text-xs">
+                    © 2024 PACSTAR. All rights reserved.
                   </p>
                 </div>
-                <div className="space-y-2 ml-4">
-                  <div className="flex items-start gap-2">
-                    <span className="text-secondary">└─</span>
-                    <span className="text-secondary text-xs">View all users</span>
-                  </div>
-                  <div className="flex items-start gap-2">
-                    <span className="text-secondary">└─</span>
-                    <span className="text-secondary text-xs">Create challenges</span>
-                  </div>
-                  <div className="flex items-start gap-2">
-                    <span className="text-secondary">└─</span>
-                    <span className="text-secondary text-xs">Delete challenges</span>
-                  </div>
-                  <div className="flex items-start gap-2">
-                    <span className="text-secondary">└─</span>
-                    <span className="text-secondary text-xs">Monitor challenge deployments</span>
-                  </div>
+              </div>
+
+              {/* Right Side - Auth Forms */}
+              <div className="bg-white p-8 lg:p-12">
+                {/* Tab Switcher */}
+                <div className="flex items-center gap-2 mb-8 p-1 bg-brown-50 rounded-xl border border-brown-100">
+                  <button
+                    onClick={() => setActiveTab('login')}
+                    className={`flex-1 flex items-center justify-center gap-2 px-6 py-3 rounded-lg font-semibold text-sm transition-all duration-300 ${
+                      activeTab === 'login'
+                        ? 'bg-white text-brown-700 shadow-md border border-brown-200'
+                        : 'text-brown-600 hover:text-brown-700'
+                    }`}
+                  >
+                    <LogIn size={18} />
+                    Sign In
+                  </button>
+                  <button
+                    onClick={() => setActiveTab('register')}
+                    className={`flex-1 flex items-center justify-center gap-2 px-6 py-3 rounded-lg font-semibold text-sm transition-all duration-300 ${
+                      activeTab === 'register'
+                        ? 'bg-white text-brown-700 shadow-md border border-brown-200'
+                        : 'text-brown-600 hover:text-brown-700'
+                    }`}
+                  >
+                    <UserPlus size={18} />
+                    Sign Up
+                  </button>
+                </div>
+
+                {/* Form Content */}
+                <div className="animate-fade-in">
+                  {activeTab === 'login' ? (
+                    <LoginForm onSwitchToRegister={() => setActiveTab('register')} />
+                  ) : (
+                    <RegisterForm onSwitchToLogin={() => setActiveTab('login')} />
+                  )}
                 </div>
               </div>
             </div>

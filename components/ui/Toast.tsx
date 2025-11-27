@@ -27,45 +27,53 @@ export const ToastComponent: React.FC<ToastProps> = ({ toast, onClose }) => {
   }, [toast.id, toast.duration, onClose]);
 
   const icons = {
-    success: <CheckCircle className="text-accent" size={20} />,
-    error: <XCircle className="text-warning" size={20} />,
-    info: <Info className="text-accent" size={20} />,
-    warning: <AlertCircle className="text-warning" size={20} />,
+    success: <CheckCircle className="text-green-600" size={20} />,
+    error: <XCircle className="text-orange-600" size={20} />,
+    info: <Info className="text-green-600" size={20} />,
+    warning: <AlertCircle className="text-orange-600" size={20} />,
   };
 
   const bgColors = {
-    success: 'bg-accent/20 border-accent',
-    error: 'bg-warning/20 border-warning',
-    info: 'bg-accent/20 border-accent',
-    warning: 'bg-warning/20 border-warning',
+    success: 'bg-green-50 border-green-200',
+    error: 'bg-orange-50 border-orange-200',
+    info: 'bg-green-50 border-green-200',
+    warning: 'bg-orange-50 border-orange-200',
+  };
+
+  const textColors = {
+    success: 'text-green-700',
+    error: 'text-orange-700',
+    info: 'text-green-700',
+    warning: 'text-orange-700',
   };
 
   return (
     <div
       className={`
         ${bgColors[toast.type]}
-        border-2 data-panel terminal-border
+        border-2 rounded-xl
         p-4 mb-3 min-w-[300px] max-w-[500px]
         flex items-start gap-3
+        shadow-lg
         animate-slide-in
-        font-mono text-sm
+        bg-white
       `}
     >
       <div className="flex-shrink-0 mt-0.5">{icons[toast.type]}</div>
       <div className="flex-1">
-        <p className={`${toast.type === 'success' || toast.type === 'info' ? 'text-accent' : 'text-warning'} font-semibold mb-1`}>
-          {toast.type === 'success' && '[SUCCESS]'}
-          {toast.type === 'error' && '[ERROR]'}
-          {toast.type === 'info' && '[INFO]'}
-          {toast.type === 'warning' && '[WARNING]'}
+        <p className={`${textColors[toast.type]} font-semibold mb-1 text-sm`}>
+          {toast.type === 'success' && 'Success'}
+          {toast.type === 'error' && 'Error'}
+          {toast.type === 'info' && 'Info'}
+          {toast.type === 'warning' && 'Warning'}
         </p>
-        <p className={toast.type === 'success' || toast.type === 'info' ? 'text-text' : 'text-warning'}>
+        <p className={`${textColors[toast.type]} text-sm`}>
           {toast.message}
         </p>
       </div>
       <button
         onClick={() => onClose(toast.id)}
-        className="flex-shrink-0 text-secondary hover:text-text transition-colors"
+        className="flex-shrink-0 text-brown-400 hover:text-brown-600 transition-colors"
         aria-label="Close"
       >
         <X size={18} />
@@ -73,4 +81,3 @@ export const ToastComponent: React.FC<ToastProps> = ({ toast, onClose }) => {
     </div>
   );
 };
-

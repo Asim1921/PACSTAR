@@ -1,6 +1,9 @@
 # PACSTAR Authentication Service - Frontend
 
-A military-grade cybersecurity challenge management platform with a professional, modern authentication interface.
+ cybersecurity challenge management platform with a professional, modern authentication interface.
+
+ <img width="1916" height="885" alt="image" src="https://github.com/user-attachments/assets/fa61b197-a362-48ef-a248-d3d4d83c1d2e" />
+
 
 ## 🎨 Color Scheme
 
@@ -57,7 +60,7 @@ npm run dev
 ## 🔌 API Configuration
 
 The frontend communicates with the FastAPI backend at:
-- Base URL: `http://192.168.250.178:8000/api/v1`
+- Base URL: `http://10.10.101.69:8000/api/v1`
 
 API endpoints are configured in `lib/api.ts`. Update the `API_BASE_URL` if your backend URL changes.
 

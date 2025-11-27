@@ -5,7 +5,7 @@ import axios from 'axios';
 const USE_PROXY = true; // Set to false to call backend directly (requires CORS fix on backend)
 const API_BASE_URL = USE_PROXY 
   ? '/api/proxy'  // Next.js API route proxy
-  : 'http://192.168.250.178:8000/api/v1';  // Direct backend URL
+  : 'http://10.10.101.69:8000/api/v1';  // Direct backend URL
 
 // Helper function to decode JWT token and extract user ID
 const decodeJWT = (token: string): any => {
@@ -36,10 +36,12 @@ const apiClient = axios.create({
 // Request interceptor
 apiClient.interceptors.request.use(
   (config) => {
-    // Add auth token if available
-    const token = localStorage.getItem('auth_token');
+    // Add auth token if available (check both auth_token and access_token)
+    const token = localStorage.getItem('auth_token') || localStorage.getItem('access_token');
     if (token) {
       config.headers.Authorization = `Bearer ${token}`;
+    } else {
+      console.warn('No authentication token found in localStorage');
     }
     return config;
   },
@@ -50,8 +52,19 @@ apiClient.interceptors.request.use(
 
 // Response interceptor
 apiClient.interceptors.response.use(
-  (response) => response,
+  (response) => {
+    // 204 No Content is a valid success response (especially for DELETE)
+    if (response.status === 204) {
+      return { ...response, data: { success: true } };
+    }
+    return response;
+  },
   (error) => {
+    // 204 No Content should be treated as success, not error
+    if (error.response?.status === 204) {
+      return Promise.resolve({ ...error.response, data: { success: true } });
+    }
+    
     // Handle CORS errors specifically
     if (error.code === 'ERR_NETWORK' || error.message?.includes('CORS') || error.message?.includes('Access-Control')) {
       console.error('CORS Error: The backend server needs to be configured to allow requests from http://localhost:3000');
@@ -233,6 +246,422 @@ export const teamAPI = {
     const response = await apiClient.get(path, {
       params: { skip, limit },
     });
+    return response.data;
+  },
+};
+
+// Challenge API endpoints
+export const challengeAPI = {
+  createChallenge: async (data: any) => {
+    const path = USE_PROXY ? '/challenges/' : '/challenges/';
+    const response = await apiClient.post(path, data);
+    return response.data;
+  },
+
+  listChallenges: async (skip = 0, limit = 100) => {
+    const path = USE_PROXY ? '/challenges/' : '/challenges/';
+    const response = await apiClient.get(path, {
+      params: { skip, limit },
+    });
+    return response.data;
+  },
+
+  getChallengeById: async (challengeId: string) => {
+    const path = USE_PROXY ? `/challenges/${challengeId}` : `/challenges/${challengeId}`;
+    const response = await apiClient.get(path);
+    return response.data;
+  },
+
+  updateChallenge: async (challengeId: string, data: any) => {
+    const path = USE_PROXY ? `/challenges/${challengeId}` : `/challenges/${challengeId}`;
+    const response = await apiClient.put(path, data);
+    return response.data;
+  },
+
+  deleteChallenge: async (challengeId: string) => {
+    const path = USE_PROXY ? `/challenges/${challengeId}` : `/challenges/${challengeId}`;
+    try {
+      const response = await apiClient.delete(path);
+      // 204 No Content is a valid success response for DELETE
+      // The response interceptor already handles 204, so we should get success here
+      return { success: true, ...response.data };
+    } catch (error: any) {
+      // If status is 204, it's actually success (handled by interceptor, but just in case)
+      if (error.response?.status === 204) {
+        return { success: true };
+      }
+      throw error;
+    }
+  },
+
+  startChallenge: async (challengeId: string) => {
+    const path = USE_PROXY ? `/challenges/${challengeId}/start` : `/challenges/${challengeId}/start`;
+    try {
+      // Log the request for debugging
+      const token = localStorage.getItem('auth_token') || localStorage.getItem('access_token');
+      if (!token) {
+        throw new Error('Authentication token not found. Please log in again.');
+      }
+      
+      console.log('Starting challenge:', { challengeId, path, hasToken: !!token });
+      
+      const response = await apiClient.post(path, {});
+      return response.data;
+    } catch (error: any) {
+      // Enhanced error handling for start challenge
+      console.error('Start challenge error details:', {
+        status: error.response?.status,
+        statusText: error.response?.statusText,
+        data: error.response?.data,
+        message: error.message,
+        url: error.config?.url,
+      });
+      
+      if (error.response) {
+        let errorMessage = `Server error: ${error.response.status}`;
+        if (error.response.data) {
+          if (error.response.data.detail) {
+            errorMessage = error.response.data.detail;
+          } else if (error.response.data.message) {
+            errorMessage = error.response.data.message;
+          } else if (error.response.data.error) {
+            errorMessage = error.response.data.error;
+          } else if (typeof error.response.data === 'string') {
+            errorMessage = error.response.data;
+          } else {
+            // Try to stringify the entire error data
+            try {
+              const errorStr = JSON.stringify(error.response.data);
+              if (errorStr && errorStr !== '{}') {
+                errorMessage = errorStr;
+              }
+            } catch (e) {
+              // If stringification fails, use default message
+            }
+          }
+        }
+        
+        // Preserve the original error structure
+        const enhancedError: any = new Error(errorMessage);
+        enhancedError.response = error.response;
+        enhancedError.status = error.response.status;
+        throw enhancedError;
+      }
+      
+      // Handle network errors
+      if (error.code === 'ERR_NETWORK' || error.message?.includes('Network Error')) {
+        throw new Error('Network error: Could not connect to the server. Please check your connection.');
+      }
+      
+      // Re-throw with a more descriptive message if no response
+      if (!error.response && error.message) {
+        throw new Error(`Request failed: ${error.message}`);
+      }
+      
+      throw error;
+    }
+  },
+
+  resetChallenge: async (challengeId: string) => {
+    const path = USE_PROXY ? `/challenges/${challengeId}/reset` : `/challenges/${challengeId}/reset`;
+    const response = await apiClient.post(path, {});
+    return response.data;
+  },
+
+  deployChallenge: async (challengeId: string, teamId: string | null = null, forceRedeploy = false) => {
+    const path = USE_PROXY ? `/challenges/${challengeId}/deploy` : `/challenges/${challengeId}/deploy`;
+    const response = await apiClient.post(path, {
+      force_redeploy: forceRedeploy,
+      team_id: teamId,
+    });
+    return response.data;
+  },
+
+  stopChallenge: async (challengeId: string, removeInstances = false) => {
+    const path = USE_PROXY ? `/challenges/${challengeId}/stop` : `/challenges/${challengeId}/stop`;
+    const response = await apiClient.post(path, {
+      remove_instances: removeInstances,
+    });
+    return response.data;
+  },
+
+  submitFlag: async (challengeId: string, flag: string) => {
+    const path = USE_PROXY ? `/challenges/${challengeId}/submit-flag` : `/challenges/${challengeId}/submit-flag`;
+    const response = await apiClient.post(path, { flag });
+    return response.data;
+  },
+
+  getScoreboard: async () => {
+    const path = USE_PROXY ? '/challenges/scores' : '/challenges/scores';
+    const response = await apiClient.get(path);
+    return response.data;
+  },
+
+  getChallengeStats: async (challengeId: string) => {
+    const path = USE_PROXY ? `/challenges/${challengeId}/stats` : `/challenges/${challengeId}/stats`;
+    const response = await apiClient.get(path);
+    return response.data;
+  },
+
+  getTeamAccessInfo: async (challengeId: string, teamId: string) => {
+    const path = USE_PROXY ? `/challenges/${challengeId}/team/${teamId}/access` : `/challenges/${challengeId}/team/${teamId}/access`;
+    const response = await apiClient.get(path);
+    return response.data;
+  },
+};
+
+// File API endpoints
+export const fileAPI = {
+  uploadFile: async (file: File) => {
+    const formData = new FormData();
+    formData.append('file', file);
+    
+    const token = localStorage.getItem('auth_token');
+    const backendUrl = 'http://10.10.101.69:8000/api/v1';
+    const path = '/files/upload';
+    
+    try {
+      // For file uploads, we need to call the backend directly or handle it through proxy
+      // Since FormData needs special handling, we'll use axios directly
+      const response = await axios.post(
+        USE_PROXY ? `${API_BASE_URL}${path}` : `${backendUrl}${path}`,
+        formData,
+        {
+          headers: {
+            'Authorization': `Bearer ${token}`,
+            'Content-Type': 'multipart/form-data',
+          },
+          timeout: 60000, // 60 seconds timeout for file uploads
+        }
+      );
+      return response.data;
+    } catch (error: any) {
+      // Provide better error messages
+      if (error.response) {
+        // Server responded with error
+        const errorMessage = error.response.data?.detail || error.response.data?.message || `Server error: ${error.response.status}`;
+        throw new Error(errorMessage);
+      } else if (error.request) {
+        // Request made but no response
+        throw new Error('No response from server. Please check your connection.');
+      } else {
+        // Error setting up request
+        throw new Error(error.message || 'Failed to upload file');
+      }
+    }
+  },
+
+  downloadFile: async (fileId: string) => {
+    const path = USE_PROXY ? `/files/download/${fileId}` : `/files/download/${fileId}`;
+    const response = await apiClient.get(path, {
+      responseType: 'blob',
+    });
+    return response.data;
+  },
+
+  serveFile: async (fileId: string) => {
+    const path = USE_PROXY ? `/files/serve/${fileId}` : `/files/serve/${fileId}`;
+    const response = await apiClient.get(path, {
+      responseType: 'blob',
+    });
+    return response.data;
+  },
+
+  listFiles: async () => {
+    const path = USE_PROXY ? '/files/list' : '/files/list';
+    const response = await apiClient.get(path);
+    return response.data;
+  },
+};
+
+// Builder API endpoints (Docker Image Management)
+export const builderAPI = {
+  // Build image from ZIP
+  buildImage: async (
+    file: File,
+    imageName: string,
+    options: {
+      dockerfilePath?: string;
+      contextSubdir?: string;
+      pushToRegistry?: boolean;
+      registry?: string;
+    } = {}
+  ) => {
+    const formData = new FormData();
+    formData.append('file', file);
+    formData.append('image_name', imageName);
+    formData.append('dockerfile_path', options.dockerfilePath || 'Dockerfile');
+    
+    // Only append context_subdir if it's not empty
+    if (options.contextSubdir && options.contextSubdir.trim()) {
+      formData.append('context_subdir', options.contextSubdir.trim());
+    } else {
+      formData.append('context_subdir', '');
+    }
+    
+    // Convert boolean to lowercase string (some backends are case-sensitive)
+    const pushToRegistry = options.pushToRegistry || false;
+    formData.append('push_to_registry', pushToRegistry ? 'true' : 'false');
+    
+    // Only append registry if push_to_registry is true
+    if (pushToRegistry && options.registry) {
+      formData.append('registry', options.registry);
+    }
+
+    const token = localStorage.getItem('auth_token');
+    const backendUrl = 'http://10.10.101.69:8000/api/v1';
+    const path = '/builder/build-image';
+
+    try {
+      // For FormData, don't set Content-Type - axios will set it with boundary automatically
+      const headers: Record<string, string> = {};
+      if (token) {
+        headers['Authorization'] = `Bearer ${token}`;
+      }
+
+      const response = await axios.post(
+        USE_PROXY ? `${API_BASE_URL}${path}` : `${backendUrl}${path}`,
+        formData,
+        {
+          headers,
+          timeout: 300000, // 5 minutes for image builds
+        }
+      );
+      return response.data;
+    } catch (error: any) {
+      if (error.response) {
+        // Try to extract detailed error message
+        let errorMessage = `Server error: ${error.response.status}`;
+        
+        if (error.response.data) {
+          if (error.response.data.detail) {
+            errorMessage = error.response.data.detail;
+          } else if (error.response.data.message) {
+            errorMessage = error.response.data.message;
+          } else if (typeof error.response.data === 'string') {
+            errorMessage = error.response.data;
+          } else if (error.response.data.error) {
+            errorMessage = error.response.data.error;
+          } else {
+            // Try to stringify the entire error data for debugging
+            try {
+              const errorStr = JSON.stringify(error.response.data);
+              if (errorStr && errorStr !== '{}') {
+                errorMessage = errorStr;
+              }
+            } catch (e) {
+              // If stringification fails, use default message
+            }
+          }
+        }
+        
+        throw new Error(errorMessage);
+      } else if (error.request) {
+        throw new Error('No response from server. Please check your connection.');
+      } else {
+        throw new Error(error.message || 'Failed to build image');
+      }
+    }
+  },
+
+  // List local Docker images
+  listImages: async () => {
+    const path = USE_PROXY ? '/builder/images' : '/builder/images';
+    const response = await apiClient.get(path);
+    return response.data;
+  },
+
+  // Delete Docker image
+  deleteImage: async (imageName: string) => {
+    const encodedName = encodeURIComponent(imageName);
+    const path = USE_PROXY ? `/builder/images/${encodedName}` : `/builder/images/${encodedName}`;
+    try {
+      const response = await apiClient.delete(path);
+      return { success: true, ...response.data };
+    } catch (error: any) {
+      if (error.response?.status === 204) {
+        return { success: true };
+      }
+      throw error;
+    }
+  },
+
+  // Kill all challenges
+  killAllChallenges: async () => {
+    const path = USE_PROXY ? '/builder/kill-all' : '/builder/kill-all';
+    const response = await apiClient.post(path, {});
+    return response.data;
+  },
+};
+
+// OpenStack API endpoints
+export const openStackAPI = {
+  // Test connectivity and get summary
+  getSummary: async () => {
+    const path = USE_PROXY ? '/openstack/summary' : '/openstack/summary';
+    const response = await apiClient.get(path);
+    return response.data;
+  },
+
+  // List snapshots
+  listSnapshots: async () => {
+    const path = USE_PROXY ? '/openstack/snapshots' : '/openstack/snapshots';
+    const response = await apiClient.get(path);
+    return response.data;
+  },
+
+  // List instances with status filter
+  listInstances: async (statusFilter: string = 'ACTIVE') => {
+    // If statusFilter is empty, don't include the query parameter (to get all instances)
+    const queryParam = statusFilter ? `?status_filter=${statusFilter}` : '';
+    const path = USE_PROXY 
+      ? `/openstack/instances${queryParam}` 
+      : `/openstack/instances${queryParam}`;
+    const response = await apiClient.get(path);
+    return response.data;
+  },
+
+  // List networks
+  listNetworks: async () => {
+    const path = USE_PROXY ? '/openstack/networks' : '/openstack/networks';
+    const response = await apiClient.get(path);
+    return response.data;
+  },
+
+  // List teams (helper endpoint)
+  listTeams: async () => {
+    const path = USE_PROXY ? '/openstack/teams' : '/openstack/teams';
+    const response = await apiClient.get(path);
+    return response.data;
+  },
+
+  // Plan deployment
+  planDeployment: async (teamIds: string[], instancesPerTeam: number) => {
+    const path = USE_PROXY 
+      ? '/openstack/deployments/plan' 
+      : '/openstack/deployments/plan';
+    const response = await apiClient.post(path, {
+      team_ids: teamIds,
+      instances_per_team: instancesPerTeam,
+    });
+    return response.data;
+  },
+
+  // Deploy snapshot
+  deploySnapshot: async (payload: {
+    snapshot_id: string;
+    flavor_id: string;
+    team_ids: string[];
+    instances_per_team: number;
+    network_strategy: string;
+    network_id: string;
+    security_group_names: string[];
+    metadata?: Record<string, any>;
+  }) => {
+    const path = USE_PROXY 
+      ? '/openstack/deployments' 
+      : '/openstack/deployments';
+    const response = await apiClient.post(path, payload);
     return response.data;
   },
 };

@@ -16,13 +16,13 @@ export const Button: React.FC<ButtonProps> = ({
   disabled,
   ...props
 }) => {
-  const baseStyles = 'font-medium transition-all duration-300 disabled:opacity-50 disabled:cursor-not-allowed relative overflow-hidden';
+  const baseStyles = 'font-semibold transition-all duration-300 disabled:opacity-50 disabled:cursor-not-allowed relative overflow-hidden rounded-xl';
   
   const variants = {
-    primary: 'bg-accent text-background hover:bg-accent-light glow-accent-hover border-2 border-accent',
-    secondary: 'bg-secondary text-text hover:bg-secondary-light border-2 border-secondary',
-    outline: 'border-2 border-accent text-accent hover:bg-accent/10 bg-transparent',
-    ghost: 'text-text hover:bg-secondary/50 border-2 border-transparent',
+    primary: 'bg-gradient-to-r from-green-500 to-green-600 hover:from-green-600 hover:to-green-700 text-white shadow-lg hover:shadow-xl border-0',
+    secondary: 'bg-white text-brown-700 hover:bg-brown-50 border-2 border-brown-200 shadow-md hover:shadow-lg',
+    outline: 'border-2 border-green-500 text-green-600 hover:bg-green-50 bg-white shadow-sm hover:shadow-md',
+    ghost: 'text-brown-700 hover:bg-brown-50 border-0 bg-transparent',
   };
 
   const sizes = {
@@ -33,7 +33,7 @@ export const Button: React.FC<ButtonProps> = ({
 
   return (
     <button
-      className={`${baseStyles} ${variants[variant]} ${sizes[size]} ${className} btn-primary`}
+      className={`${baseStyles} ${variants[variant]} ${sizes[size]} ${className}`}
       disabled={disabled || isLoading}
       {...props}
     >
@@ -67,4 +67,3 @@ export const Button: React.FC<ButtonProps> = ({
     </button>
   );
 };
-
