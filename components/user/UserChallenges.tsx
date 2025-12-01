@@ -358,33 +358,33 @@ export const UserChallenges: React.FC<UserChallengesProps> = ({ teamId: propTeam
   return (
     <div className="space-y-6">
       <div className="flex items-center gap-3">
-        <div className="w-10 h-10 bg-green-100 rounded-xl flex items-center justify-center">
-          <BookOpen className="text-green-600" size={20} />
+        <div className="w-10 h-10 bg-neon-green/10 rounded-xl flex items-center justify-center">
+          <BookOpen className="text-neon-green" size={20} />
         </div>
-        <h3 className="text-2xl font-bold text-brown-900">
+          <h3 className="text-2xl font-bold gradient-text">
           Available Challenges
         </h3>
       </div>
 
       {isLoading ? (
-        <div className="bg-white rounded-2xl shadow-md border border-brown-200 p-12">
+        <div className="bg-cyber-900/80 backdrop-blur-xl rounded-2xl shadow-md border border-neon-green/20 terminal-border p-12">
           <div className="flex items-center justify-center py-8">
             <div className="text-center">
               <div className="inline-block animate-spin mb-4">
-                <RefreshCw className="text-green-600" size={32} />
+                <RefreshCw className="text-neon-green" size={32} />
               </div>
-              <p className="text-brown-600">Loading challenges...</p>
+              <p className="text-white/60">Loading challenges...</p>
             </div>
           </div>
         </div>
       ) : challenges.length === 0 ? (
-        <div className="bg-white rounded-2xl shadow-md border border-brown-200 p-12">
+        <div className="bg-cyber-900/80 backdrop-blur-xl rounded-2xl shadow-md border border-neon-green/20 terminal-border p-12">
           <div className="flex items-center justify-center py-8">
             <div className="text-center">
-              <div className="w-16 h-16 bg-brown-100 rounded-2xl flex items-center justify-center mx-auto mb-4">
-                <BookOpen className="text-brown-400" size={32} />
+              <div className="w-16 h-16 bg-cyber-800/30 rounded-2xl flex items-center justify-center mx-auto mb-4">
+                <BookOpen className="text-white/40" size={32} />
               </div>
-              <p className="text-brown-600">
+              <p className="text-white/60">
                 No challenges available at the moment.
               </p>
             </div>
@@ -426,7 +426,7 @@ export const UserChallenges: React.FC<UserChallengesProps> = ({ teamId: propTeam
             return (
               <div
                 key={challenge.id}
-                className="bg-white rounded-2xl shadow-md border border-brown-200 p-6"
+                className="bg-cyber-900/80 backdrop-blur-xl rounded-2xl shadow-md border border-neon-green/20 terminal-border p-6"
               >
                 <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
                   {/* Left Side - Challenge Details */}
@@ -434,20 +434,20 @@ export const UserChallenges: React.FC<UserChallengesProps> = ({ teamId: propTeam
                 {/* Challenge Header */}
                     <div className="flex items-start gap-3">
                     {challenge.challenge_category === 'containerized' ? (
-                        <div className="w-12 h-12 bg-green-100 rounded-xl flex items-center justify-center flex-shrink-0">
-                          <Container className="text-green-600" size={24} />
+                        <div className="w-12 h-12 bg-neon-green/10 rounded-xl flex items-center justify-center flex-shrink-0">
+                          <Container className="text-neon-green" size={24} />
                         </div>
                     ) : (
-                        <div className="w-12 h-12 bg-orange-100 rounded-xl flex items-center justify-center flex-shrink-0">
-                          <Folder className="text-orange-600" size={24} />
+                        <div className="w-12 h-12 bg-neon-orange/10 rounded-xl flex items-center justify-center flex-shrink-0">
+                          <Folder className="text-neon-orange" size={24} />
                         </div>
                     )}
                     <div className="flex-1 min-w-0">
-                        <h4 className="text-xl font-bold text-brown-900 mb-2 break-words">
+                        <h4 className="text-xl font-bold text-white mb-2 break-words">
                         {challenge.name}
                       </h4>
                 {challenge.description && (
-                          <p className="text-brown-600 text-sm mb-3">
+                          <p className="text-white/60 text-sm mb-3">
                     {challenge.description}
                   </p>
                 )}
@@ -457,26 +457,26 @@ export const UserChallenges: React.FC<UserChallengesProps> = ({ teamId: propTeam
                     {/* Challenge Status and Details */}
                     <div className="space-y-3 text-sm">
                       <div className="flex items-center gap-2">
-                        <span className="text-brown-600">Status:</span>
+                        <span className="text-white/60">Status:</span>
                         <span className={`inline-flex items-center px-2.5 py-1 rounded-full font-semibold text-xs ${
                           challengeStatus === 'RUNNING'
-                            ? 'bg-green-100 text-green-700 border border-green-200'
-                            : 'bg-green-100 text-green-700 border border-green-200'
+                            ? 'bg-neon-green/10 text-neon-green border border-neon-green/30'
+                            : 'bg-neon-green/10 text-neon-green border border-neon-green/30'
                         }`}>
                           {challengeStatus}
                         </span>
                     </div>
                       
                       <div className="flex items-center gap-2">
-                        <Users className="text-brown-400" size={16} />
-                        <span className="text-brown-600">Max Teams:</span>
-                        <span className="text-brown-900 font-semibold">{challenge.total_teams || 0}</span>
+                        <Users className="text-white/40" size={16} />
+                        <span className="text-white/60">Max Teams:</span>
+                        <span className="text-white font-semibold">{challenge.total_teams || 0}</span>
                       </div>
 
                       {challenge.challenge_category === 'containerized' && (
                         <div className="flex items-center gap-2">
-                          <span className="text-brown-600">Deployed:</span>
-                          <span className="text-green-600 font-semibold">
+                          <span className="text-white/60">Deployed:</span>
+                          <span className="text-neon-green font-semibold">
                             {deployedCount}/{challenge.total_teams || 0}
                           </span>
                         </div>
@@ -484,16 +484,16 @@ export const UserChallenges: React.FC<UserChallengesProps> = ({ teamId: propTeam
 
                       {challenge.points && (
                         <div className="flex items-center gap-2">
-                          <Trophy className="text-orange-500" size={16} />
-                          <span className="text-brown-600">Points:</span>
-                          <span className="text-green-600 font-semibold">{challenge.points}</span>
+                          <Trophy className="text-neon-orange" size={16} />
+                          <span className="text-white/60">Points:</span>
+                          <span className="text-neon-green font-semibold">{challenge.points}</span>
                         </div>
                       )}
 
                       {challenge.challenge_category === 'containerized' && challenge.config?.ports && (
                         <div className="flex items-center gap-2">
-                          <span className="text-brown-600">Ports:</span>
-                          <span className="text-brown-900 font-medium">{challenge.config.ports.join(', ')}</span>
+                          <span className="text-white/60">Ports:</span>
+                          <span className="text-white font-medium">{challenge.config.ports.join(', ')}</span>
                     </div>
                   )}
                 </div>
@@ -522,8 +522,8 @@ export const UserChallenges: React.FC<UserChallengesProps> = ({ teamId: propTeam
                     {/* Active Badge */}
                     {challenge.is_active && (
                       <div className="flex justify-end">
-                        <span className="inline-flex items-center px-3 py-1.5 rounded-full bg-green-100 border border-green-200 text-green-700 font-semibold text-xs">
-                          <div className="w-2 h-2 bg-green-500 rounded-full mr-2" />
+                        <span className="inline-flex items-center px-3 py-1.5 rounded-full bg-neon-green/10 border border-neon-green/30 text-neon-green font-semibold text-xs">
+                          <div className="w-2 h-2 bg-neon-green rounded-full mr-2" />
                           Active
                         </span>
                       </div>
@@ -534,14 +534,14 @@ export const UserChallenges: React.FC<UserChallengesProps> = ({ teamId: propTeam
                       <div className="space-y-4">
                         {/* Your Instance Running Badge */}
                         <div className="flex justify-end">
-                          <span className="inline-flex items-center px-3 py-1.5 rounded-full bg-green-100 border border-green-200 text-green-700 font-semibold text-xs">
-                            <div className="w-2 h-2 bg-green-500 rounded-full mr-2 animate-pulse" />
+                          <span className="inline-flex items-center px-3 py-1.5 rounded-full bg-neon-green/10 border border-neon-green/30 text-neon-green font-semibold text-xs">
+                            <div className="w-2 h-2 bg-neon-green rounded-full mr-2 animate-pulse" />
                             Your Instance Running
                           </span>
                         </div>
 
                         {/* Instance Details */}
-                        <div className="space-y-3 bg-green-50 rounded-xl p-4 border border-green-200">
+                        <div className="space-y-3 bg-neon-green/10 rounded-xl p-4 border border-neon-green/30">
                           {/* Your IP - Check multiple possible field names and locations */}
                           {(() => {
                             const info = challenge.access_info || accessInfo || {};
@@ -559,20 +559,20 @@ export const UserChallenges: React.FC<UserChallengesProps> = ({ teamId: propTeam
                             return (
                               <>
                                 <div className="flex items-center gap-2">
-                                  <Globe className="text-green-600" size={16} />
-                                  <span className="text-brown-600 text-sm">Your IP:</span>
-                                  <span className="text-green-700 font-semibold text-sm">{ip}</span>
+                                  <Globe className="text-neon-green" size={16} />
+                                  <span className="text-white/60 text-sm">Your IP:</span>
+                                  <span className="text-neon-green font-semibold text-sm">{ip}</span>
                                 </div>
                                 
                                 {/* Access URL - Always show if we have IP */}
                                 <div className="flex items-center gap-2">
-                                  <ExternalLink className="text-green-600" size={16} />
-                                  <span className="text-brown-600 text-sm">Access URL:</span>
+                                  <ExternalLink className="text-neon-green" size={16} />
+                                  <span className="text-white/60 text-sm">Access URL:</span>
                                   <a
                                     href={accessUrl}
                                     target="_blank"
                                     rel="noopener noreferrer"
-                                    className="text-blue-600 hover:text-blue-700 hover:underline font-semibold text-sm break-all"
+                                    className="text-neon-cyan hover:text-neon-cyan/80 hover:underline font-semibold text-sm break-all"
                                   >
                                     {accessUrl}
                                   </a>
@@ -589,8 +589,8 @@ export const UserChallenges: React.FC<UserChallengesProps> = ({ teamId: propTeam
 
                           {/* Status */}
                           <div className="flex items-center gap-2">
-                            <span className="text-brown-600 text-sm">Status:</span>
-                            <span className="text-green-600 text-sm font-semibold">
+                            <span className="text-white/60 text-sm">Status:</span>
+                            <span className="text-neon-green text-sm font-semibold">
                               {accessInfo.status || challenge.access_info?.status || instanceStatus || 'running'}
                             </span>
                           </div>
@@ -598,20 +598,20 @@ export const UserChallenges: React.FC<UserChallengesProps> = ({ teamId: propTeam
                           {/* Team ID - Show team code if available, otherwise show team ID */}
                           {(teamCode || teamId) && (
                             <div className="flex items-center gap-2">
-                              <span className="text-brown-600 text-sm">Team ID:</span>
-                              <span className="text-green-600 text-sm font-semibold">{teamCode || teamId}</span>
+                              <span className="text-white/60 text-sm">Team ID:</span>
+                              <span className="text-neon-green text-sm font-semibold">{teamCode || teamId}</span>
                             </div>
                           )}
                         </div>
 
                         {/* Separator */}
-                        <div className="border-t border-brown-200 my-4"></div>
+                        <div className="border-t border-neon-green/20 terminal-border my-4"></div>
 
                         {/* Reset Challenge Section */}
                         <div className="space-y-2">
                           <div className="flex items-center gap-2">
-                            <HelpCircle className="text-brown-400" size={14} />
-                            <span className="text-brown-600 text-sm">Having issues? Reset your instance</span>
+                            <HelpCircle className="text-white/40" size={14} />
+                            <span className="text-white/60 text-sm">Having issues? Reset your instance</span>
                           </div>
                           <Button
                             variant="outline"
@@ -626,11 +626,11 @@ export const UserChallenges: React.FC<UserChallengesProps> = ({ teamId: propTeam
                         </div>
 
                         {/* Separator */}
-                        <div className="border-t border-brown-200 my-4"></div>
+                        <div className="border-t border-neon-green/20 terminal-border my-4"></div>
 
                         {/* Flag Submission Section */}
                         <div className="space-y-2">
-                          <span className="text-brown-700 text-sm font-semibold">Submit Flag to score points</span>
+                          <span className="text-white/80 text-sm font-semibold">Submit Flag to score points</span>
                           {!showFlagInput[challenge.id] ? (
                             <Button
                               variant="primary"
@@ -705,8 +705,8 @@ export const UserChallenges: React.FC<UserChallengesProps> = ({ teamId: propTeam
                           {isStarting ? 'Starting...' : 'Start Challenge'}
                         </Button>
                         {/* Flag Submission Section for non-running challenges */}
-                        <div className="mt-4 p-4 bg-brown-50 rounded-xl border border-brown-200">
-                          <span className="text-brown-700 text-sm font-semibold block mb-2">Submit Flag</span>
+                        <div className="mt-4 p-4 bg-cyber-800/50 rounded-xl border border-neon-green/20 terminal-border">
+                          <span className="text-white/80 text-sm font-semibold block mb-2">Submit Flag</span>
                           {!showFlagInput[challenge.id] ? (
                             <Button
                               variant="outline"

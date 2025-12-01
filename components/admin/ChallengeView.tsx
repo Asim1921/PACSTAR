@@ -163,13 +163,13 @@ export const ChallengeView: React.FC<ChallengeViewProps> = ({ challengeId, onClo
 
   if (isLoading) {
     return (
-      <div className="fixed inset-0 bg-black/50 backdrop-blur-sm z-50 flex items-center justify-center">
-        <div className="bg-white rounded-2xl shadow-xl p-8 border border-brown-200">
+      <div className="fixed inset-0 bg-black/70 backdrop-blur-sm z-50 flex items-center justify-center">
+        <div className="bg-cyber-900/95 backdrop-blur-xl rounded-2xl shadow-xl p-8 border border-neon-green/20 terminal-border">
           <div className="text-center">
             <div className="inline-block animate-spin mb-4">
-              <Trophy className="text-green-600" size={32} />
+              <Trophy className="text-neon-green" size={32} />
             </div>
-            <p className="text-brown-700">Loading challenge details...</p>
+            <p className="text-white/80">Loading challenge details...</p>
           </div>
         </div>
       </div>
@@ -181,27 +181,27 @@ export const ChallengeView: React.FC<ChallengeViewProps> = ({ challengeId, onClo
   }
 
   return (
-    <div className="fixed inset-0 bg-black/50 backdrop-blur-sm z-50 flex items-center justify-center p-4 overflow-y-auto">
-      <div className="bg-white rounded-2xl shadow-xl p-6 lg:p-8 border border-brown-200 relative z-10 max-w-4xl w-full max-h-[90vh] overflow-y-auto">
+    <div className="fixed inset-0 bg-black/70 backdrop-blur-sm z-50 flex items-center justify-center p-4 overflow-y-auto">
+      <div className="bg-cyber-900/95 backdrop-blur-xl rounded-2xl shadow-xl p-6 lg:p-8 border border-neon-green/20 terminal-border relative z-10 max-w-4xl w-full max-h-[90vh] overflow-y-auto">
         {/* Header */}
         <div className="flex items-center justify-between mb-6">
           <div className="flex items-center gap-3">
             {challenge.challenge_category === 'containerized' ? (
-              <div className="w-12 h-12 bg-green-100 rounded-xl flex items-center justify-center">
-                <Container className="text-green-600" size={24} />
+              <div className="w-12 h-12 bg-neon-green/20 backdrop-blur-sm rounded-xl flex items-center justify-center border border-neon-green/40">
+                <Container className="text-neon-green" size={24} />
               </div>
             ) : (
-              <div className="w-12 h-12 bg-orange-100 rounded-xl flex items-center justify-center">
-                <Folder className="text-orange-600" size={24} />
+              <div className="w-12 h-12 bg-neon-cyan/20 backdrop-blur-sm rounded-xl flex items-center justify-center border border-neon-cyan/40">
+                <Folder className="text-neon-cyan" size={24} />
               </div>
             )}
-            <h2 className="text-xl lg:text-2xl font-bold text-brown-900">
+            <h2 className="text-xl lg:text-2xl font-bold text-white gradient-text">
               {challenge.name}
             </h2>
           </div>
           <button
             onClick={onClose}
-            className="p-2 text-brown-600 hover:text-brown-900 hover:bg-brown-50 rounded-lg border border-brown-200 hover:border-brown-300 transition-all"
+            className="p-2 text-white/60 hover:text-white hover:bg-cyber-800/50 rounded-lg border border-neon-green/20 hover:border-neon-green/40 transition-all"
           >
             <X size={20} />
           </button>
@@ -213,83 +213,83 @@ export const ChallengeView: React.FC<ChallengeViewProps> = ({ challengeId, onClo
           <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
             <div className="space-y-4">
               <div>
-                <label className="block text-sm font-semibold text-brown-700 mb-2">
+                <label className="block text-sm font-semibold text-white/90 mb-2">
                   Description
                 </label>
-                <div className="p-4 bg-brown-50 border-2 border-brown-200 rounded-xl text-brown-900 text-sm">
+                <div className="p-4 bg-cyber-800/50 border-2 border-neon-green/20 rounded-xl text-white/80 text-sm">
                   {challenge.description || 'No description provided'}
                 </div>
               </div>
 
               <div>
-                <label className="block text-sm font-semibold text-brown-700 mb-2">
+                <label className="block text-sm font-semibold text-white/90 mb-2">
                   CATEGORY
                 </label>
                 <div className="flex items-center gap-2">
                   {challenge.challenge_category === 'containerized' ? (
-                    <Container className="text-green-600" size={16} />
+                    <Container className="text-neon-green" size={16} />
                   ) : (
-                    <Folder className="text-green-600" size={16} />
+                    <Folder className="text-neon-cyan" size={16} />
                   )}
-                  <span className="text-brown-900 font-mono capitalize">{challenge.challenge_category}</span>
+                  <span className="text-white font-mono capitalize">{challenge.challenge_category}</span>
                 </div>
               </div>
 
               <div>
-                <label className="block text-sm font-semibold text-brown-700 mb-2">
+                <label className="block text-sm font-semibold text-white/90 mb-2">
                   CHALLENGE TYPE
                 </label>
-                <div className="text-brown-900 font-mono">{challenge.config?.challenge_type || 'N/A'}</div>
+                <div className="text-white/80 font-mono">{challenge.config?.challenge_type || 'N/A'}</div>
               </div>
 
               <div>
-                <label className="block text-sm font-semibold text-brown-700 mb-2">
+                <label className="block text-sm font-semibold text-white/90 mb-2">
                   POINTS
                 </label>
                 <div className="flex items-center gap-2">
-                  <Trophy className="text-green-600" size={16} />
-                  <span className="text-green-600 font-mono font-bold">{challenge.points}</span>
+                  <Trophy className="text-neon-green" size={16} />
+                  <span className="text-neon-green font-mono font-bold">{challenge.points}</span>
                 </div>
               </div>
             </div>
 
             <div className="space-y-4">
               <div>
-                <label className="block text-sm font-semibold text-brown-700 mb-2">
+                <label className="block text-sm font-semibold text-white/90 mb-2">
                   TOTAL TEAMS
                 </label>
                 <div className="flex items-center gap-2">
-                  <Target className="text-green-600" size={16} />
-                  <span className="text-brown-900 font-mono">{challenge.total_teams || 0}</span>
+                  <Target className="text-neon-cyan" size={16} />
+                  <span className="text-white font-mono">{challenge.total_teams || 0}</span>
                 </div>
               </div>
 
               <div>
-                <label className="block text-sm font-semibold text-brown-700 mb-2">
+                <label className="block text-sm font-semibold text-white/90 mb-2">
                   ACTIVE STATUS
                 </label>
-                <div className="text-brown-900 font-mono">
+                <div className="text-white/80 font-mono">
                   {challenge.is_active ? 'Active' : 'Inactive'}
                 </div>
               </div>
 
               <div>
-                <label className="block text-sm font-semibold text-brown-700 mb-2">
+                <label className="block text-sm font-semibold text-white/90 mb-2">
                   CREATED AT
                 </label>
                 <div className="flex items-center gap-2">
-                  <Calendar className="text-green-600" size={16} />
-                  <span className="text-brown-900/80 font-mono text-xs">{formatDate(challenge.created_at)}</span>
+                  <Calendar className="text-neon-cyan" size={16} />
+                  <span className="text-white/60 font-mono text-xs">{formatDate(challenge.created_at)}</span>
                 </div>
               </div>
 
               <div>
-                <label className="block text-sm font-semibold text-brown-700 mb-2">
+                <label className="block text-sm font-semibold text-white/90 mb-2">
                   UPDATED AT
                 </label>
                 <div className="flex items-center gap-2">
-                  <Calendar className="text-green-600" size={16} />
-                  <span className="text-brown-900/80 font-mono text-xs">{formatDate(challenge.updated_at)}</span>
+                  <Calendar className="text-neon-cyan" size={16} />
+                  <span className="text-white/60 font-mono text-xs">{formatDate(challenge.updated_at)}</span>
                 </div>
               </div>
             </div>
@@ -297,42 +297,42 @@ export const ChallengeView: React.FC<ChallengeViewProps> = ({ challengeId, onClo
 
           {/* Containerized Challenge Config */}
           {challenge.challenge_category === 'containerized' && challenge.config && (
-            <div className="pt-6 border-t border-brown-200">
-              <h3 className="text-base font-mono font-bold text-green-600 tracking-wider mb-4">
+            <div className="pt-6 border-t border-neon-green/20">
+              <h3 className="text-base font-mono font-bold text-neon-green tracking-wider mb-4">
                 Container Configuration
               </h3>
               <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
                 <div>
-                  <label className="block text-sm font-semibold text-brown-700 mb-2">
+                  <label className="block text-sm font-semibold text-white/90 mb-2">
                     DOCKER IMAGE
                   </label>
-                  <div className="p-3 bg-brown-50 border-2 border-brown-200 rounded-xl text-brown-900 font-mono text-sm">
+                  <div className="p-3 bg-cyber-800/50 border-2 border-neon-green/20 rounded-xl text-white/80 font-mono text-sm">
                     {challenge.config.image || 'N/A'}
                   </div>
                 </div>
                 <div>
-                  <label className="block text-sm font-semibold text-brown-700 mb-2">
+                  <label className="block text-sm font-semibold text-white/90 mb-2">
                     PORTS
                   </label>
-                  <div className="p-3 bg-brown-50 border-2 border-brown-200 rounded-xl text-brown-900 font-mono text-sm">
+                  <div className="p-3 bg-cyber-800/50 border-2 border-neon-green/20 rounded-xl text-white/80 font-mono text-sm">
                     {challenge.config.ports?.join(', ') || 'N/A'}
                   </div>
                 </div>
                 {challenge.config.resources && (
                   <>
                     <div>
-                      <label className="block text-sm font-semibold text-brown-700 mb-2">
+                      <label className="block text-sm font-semibold text-white/90 mb-2">
                         CPU REQUEST
                       </label>
-                      <div className="p-3 bg-brown-50 border-2 border-brown-200 rounded-xl text-brown-900 font-mono text-sm">
+                      <div className="p-3 bg-cyber-800/50 border-2 border-neon-green/20 rounded-xl text-white/80 font-mono text-sm">
                         {challenge.config.resources.cpu || 'N/A'}
                       </div>
                     </div>
                     <div>
-                      <label className="block text-sm font-semibold text-brown-700 mb-2">
+                      <label className="block text-sm font-semibold text-white/90 mb-2">
                         MEMORY REQUEST
                       </label>
-                      <div className="p-3 bg-brown-50 border-2 border-brown-200 rounded-xl text-brown-900 font-mono text-sm">
+                      <div className="p-3 bg-cyber-800/50 border-2 border-neon-green/20 rounded-xl text-white/80 font-mono text-sm">
                         {challenge.config.resources.memory || 'N/A'}
                       </div>
                     </div>
@@ -340,10 +340,10 @@ export const ChallengeView: React.FC<ChallengeViewProps> = ({ challengeId, onClo
                 )}
                 {challenge.config.environment_vars && Object.keys(challenge.config.environment_vars).length > 0 && (
                   <div className="md:col-span-2">
-                    <label className="block text-sm font-semibold text-brown-700 mb-2">
+                    <label className="block text-sm font-semibold text-white/90 mb-2">
                       ENVIRONMENT VARIABLES
                     </label>
-                    <div className="p-3 bg-brown-50 border-2 border-brown-200 rounded-xl text-brown-900 font-mono text-sm">
+                    <div className="p-3 bg-cyber-800/50 border-2 border-neon-green/20 rounded-xl text-white/80 font-mono text-sm">
                       <pre className="whitespace-pre-wrap">
                         {JSON.stringify(challenge.config.environment_vars, null, 2)}
                       </pre>
@@ -356,38 +356,38 @@ export const ChallengeView: React.FC<ChallengeViewProps> = ({ challengeId, onClo
 
           {/* Static Challenge Config */}
           {challenge.challenge_category === 'static' && challenge.config && (
-            <div className="pt-6 border-t border-brown-200">
-              <h3 className="text-base font-mono font-bold text-green-600 tracking-wider mb-4">
+            <div className="pt-6 border-t border-neon-green/20">
+              <h3 className="text-base font-mono font-bold text-neon-cyan tracking-wider mb-4">
                 File Configuration
               </h3>
               <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
                 <div>
-                  <label className="block text-sm font-semibold text-brown-700 mb-2">
+                  <label className="block text-sm font-semibold text-white/90 mb-2">
                     FILE NAME
                   </label>
-                  <div className="p-3 bg-brown-50 border-2 border-brown-200 rounded-xl text-brown-900 font-mono text-sm">
+                  <div className="p-3 bg-cyber-800/50 border-2 border-neon-cyan/20 rounded-xl text-white/80 font-mono text-sm">
                     {challenge.config.file_name || 'N/A'}
                   </div>
                 </div>
                 <div>
-                  <label className="block text-sm font-semibold text-brown-700 mb-2">
+                  <label className="block text-sm font-semibold text-white/90 mb-2">
                     FILE PATH
                   </label>
-                  <div className="p-3 bg-brown-50 border-2 border-brown-200 rounded-xl text-brown-900 font-mono text-sm break-all">
+                  <div className="p-3 bg-cyber-800/50 border-2 border-neon-cyan/20 rounded-xl text-white/80 font-mono text-sm break-all">
                     {challenge.config.file_path || 'N/A'}
                   </div>
                 </div>
                 {challenge.config.download_url && (
                   <div className="md:col-span-2">
-                    <label className="block text-sm font-semibold text-brown-700 mb-2">
+                    <label className="block text-sm font-semibold text-white/90 mb-2">
                       DOWNLOAD URL
                     </label>
-                    <div className="p-3 bg-brown-50 border-2 border-brown-200 rounded-xl">
+                    <div className="p-3 bg-cyber-800/50 border-2 border-neon-cyan/20 rounded-xl">
                       <a
                         href={challenge.config.download_url}
                         target="_blank"
                         rel="noopener noreferrer"
-                        className="text-green-600 hover:underline font-mono text-sm break-all"
+                        className="text-neon-cyan hover:text-neon-cyan/80 hover:underline font-mono text-sm break-all"
                       >
                         {challenge.config.download_url}
                       </a>
@@ -400,16 +400,16 @@ export const ChallengeView: React.FC<ChallengeViewProps> = ({ challengeId, onClo
 
           {/* Team Restrictions */}
           {challenge.allowed_teams && challenge.allowed_teams.length > 0 && (
-            <div className="pt-6 border-t border-brown-200">
-              <h3 className="text-base font-mono font-bold text-green-600 tracking-wider mb-4">
+            <div className="pt-6 border-t border-neon-green/20">
+              <h3 className="text-base font-mono font-bold text-neon-purple tracking-wider mb-4">
                 Team Restrictions
               </h3>
-              <div className="p-4 bg-brown-50 border-2 border-brown-200 rounded-xl">
+              <div className="p-4 bg-cyber-800/50 border-2 border-neon-purple/20 rounded-xl">
                 <div className="flex flex-wrap gap-2">
                   {challenge.allowed_teams.map((team, index) => (
                     <span
                       key={index}
-                      className="px-3 py-1 bg-accent/20 border border-accent/50 text-green-600 font-mono text-xs"
+                      className="px-3 py-1 bg-neon-purple/20 border border-neon-purple/50 text-neon-purple font-mono text-xs"
                     >
                       {team}
                     </span>
@@ -421,8 +421,8 @@ export const ChallengeView: React.FC<ChallengeViewProps> = ({ challengeId, onClo
 
           {/* Challenge Actions (Admin Only) */}
           {challenge.challenge_category === 'containerized' && (
-            <div className="pt-6 border-t border-brown-200">
-              <h3 className="text-base font-mono font-bold text-green-600 tracking-wider mb-4">
+            <div className="pt-6 border-t border-neon-green/20">
+              <h3 className="text-base font-mono font-bold text-neon-green tracking-wider mb-4">
                 Challenge Actions
               </h3>
               <div className="grid grid-cols-2 md:grid-cols-4 gap-3 mb-4">
@@ -431,7 +431,7 @@ export const ChallengeView: React.FC<ChallengeViewProps> = ({ challengeId, onClo
                   size="sm"
                   onClick={handleStartChallenge}
                   disabled={isActionLoading !== null}
-                  className=" text-xs"
+                  className="text-xs border-neon-green/30 hover:bg-neon-green/10 text-white"
                 >
                   <Play size={14} className="mr-2" />
                   {isActionLoading === 'start' ? 'Starting...' : 'Start'}
@@ -441,7 +441,7 @@ export const ChallengeView: React.FC<ChallengeViewProps> = ({ challengeId, onClo
                   size="sm"
                   onClick={handleResetChallenge}
                   disabled={isActionLoading !== null}
-                  className=" text-xs"
+                  className="text-xs border-neon-cyan/30 hover:bg-neon-cyan/10 text-white"
                 >
                   <RotateCcw size={14} className="mr-2" />
                   {isActionLoading === 'reset' ? 'Resetting...' : 'Reset'}
@@ -451,7 +451,7 @@ export const ChallengeView: React.FC<ChallengeViewProps> = ({ challengeId, onClo
                   size="sm"
                   onClick={handleDeployChallenge}
                   disabled={isActionLoading !== null}
-                  className=" text-xs"
+                  className="text-xs border-neon-purple/30 hover:bg-neon-purple/10 text-white"
                 >
                   <Rocket size={14} className="mr-2" />
                   {isActionLoading === 'deploy' ? 'Deploying...' : 'Deploy'}
@@ -461,7 +461,7 @@ export const ChallengeView: React.FC<ChallengeViewProps> = ({ challengeId, onClo
                   size="sm"
                   onClick={handleStopChallenge}
                   disabled={isActionLoading !== null}
-                  className=" text-xs border-warning/50 text-orange-600 hover:border-warning hover:text-orange-600"
+                  className="text-xs border-neon-orange/30 text-neon-orange hover:bg-neon-orange/10 hover:border-neon-orange/50 text-white"
                 >
                   <Square size={14} className="mr-2" />
                   {isActionLoading === 'stop' ? 'Stopping...' : 'Stop'}
@@ -471,9 +471,9 @@ export const ChallengeView: React.FC<ChallengeViewProps> = ({ challengeId, onClo
           )}
 
           {/* Challenge Stats */}
-          <div className="pt-6 border-t border-brown-200">
+          <div className="pt-6 border-t border-neon-green/20">
             <div className="flex items-center justify-between mb-4">
-              <h3 className="text-base font-mono font-bold text-green-600 tracking-wider">
+              <h3 className="text-base font-mono font-bold text-neon-green tracking-wider">
                 Challenge Statistics
               </h3>
               <Button
@@ -481,7 +481,7 @@ export const ChallengeView: React.FC<ChallengeViewProps> = ({ challengeId, onClo
                 size="sm"
                 onClick={fetchStats}
                 disabled={isLoadingStats}
-                className=" text-xs"
+                className="border-neon-green/30 hover:bg-neon-green/10 text-white text-xs"
               >
                 <BarChart3 size={14} className={`mr-2 ${isLoadingStats ? 'animate-spin' : ''}`} />
                 {isLoadingStats ? 'Loading...' : 'Refresh Stats'}
@@ -489,37 +489,37 @@ export const ChallengeView: React.FC<ChallengeViewProps> = ({ challengeId, onClo
             </div>
             {stats ? (
               <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
-                <div className="p-3 bg-brown-50 border-2 border-brown-200 rounded-xl">
-                  <div className="text-brown-900/60 text-xs font-mono mb-1">Total Instances</div>
-                  <div className="text-green-600 text-xl font-bold font-mono">{stats.total_instances || 0}</div>
+                <div className="p-3 bg-cyber-800/50 border-2 border-neon-green/20 rounded-xl">
+                  <div className="text-white/60 text-xs font-mono mb-1">Total Instances</div>
+                  <div className="text-neon-green text-xl font-bold font-mono">{stats.total_instances || 0}</div>
                 </div>
-                <div className="p-3 bg-brown-50 border-2 border-brown-200 rounded-xl">
-                  <div className="text-brown-900/60 text-xs font-mono mb-1">Running</div>
-                  <div className="text-green-600 text-xl font-bold font-mono">{stats.running_instances || 0}</div>
+                <div className="p-3 bg-cyber-800/50 border-2 border-neon-green/20 rounded-xl">
+                  <div className="text-white/60 text-xs font-mono mb-1">Running</div>
+                  <div className="text-neon-green text-xl font-bold font-mono">{stats.running_instances || 0}</div>
                 </div>
-                <div className="p-3 bg-brown-50 border-2 border-brown-200 rounded-xl">
-                  <div className="text-brown-900/60 text-xs font-mono mb-1">Failed</div>
-                  <div className="text-orange-600 text-xl font-bold font-mono">{stats.failed_instances || 0}</div>
+                <div className="p-3 bg-cyber-800/50 border-2 border-neon-orange/20 rounded-xl">
+                  <div className="text-white/60 text-xs font-mono mb-1">Failed</div>
+                  <div className="text-neon-orange text-xl font-bold font-mono">{stats.failed_instances || 0}</div>
                 </div>
-                <div className="p-3 bg-brown-50 border-2 border-brown-200 rounded-xl">
-                  <div className="text-brown-900/60 text-xs font-mono mb-1">Total Teams</div>
-                  <div className="text-green-600 text-xl font-bold font-mono">{stats.total_teams || 0}</div>
+                <div className="p-3 bg-cyber-800/50 border-2 border-neon-green/20 rounded-xl">
+                  <div className="text-white/60 text-xs font-mono mb-1">Total Teams</div>
+                  <div className="text-neon-green text-xl font-bold font-mono">{stats.total_teams || 0}</div>
                 </div>
               </div>
             ) : (
-              <div className="p-4 bg-secondary/10 border border-accent/20 text-center">
-                <p className="text-brown-900/60 font-mono text-sm">Click "Refresh Stats" to load statistics</p>
+              <div className="p-4 bg-cyber-800/50 border border-neon-green/20 text-center rounded-xl">
+                <p className="text-white/60 font-mono text-sm">Click "Refresh Stats" to load statistics</p>
               </div>
             )}
           </div>
 
           {/* Close Button */}
-          <div className="pt-6 border-t border-brown-200 flex justify-end">
+          <div className="pt-6 border-t border-neon-green/20 flex justify-end">
             <Button
               variant="outline"
               size="md"
               onClick={onClose}
-              className=" font-semibold tracking-wider"
+              className="border-neon-green/30 hover:bg-neon-green/10 text-white font-semibold tracking-wider"
             >
               Close
             </Button>

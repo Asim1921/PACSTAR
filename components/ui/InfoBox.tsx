@@ -23,21 +23,21 @@ export const InfoBox: React.FC<InfoBoxProps> = ({
   };
 
   const styles = {
-    info: 'bg-green-50 border-green-200 text-green-700',
-    warning: 'bg-orange-50 border-orange-200 text-orange-700',
-    success: 'bg-green-50 border-green-200 text-green-700',
+    info: 'bg-neon-cyan/10 border-neon-cyan/30 text-neon-cyan',
+    warning: 'bg-neon-orange/10 border-neon-orange/30 text-neon-orange',
+    success: 'bg-neon-green/10 border-neon-green/30 text-neon-green',
   };
 
   const iconColors = {
-    info: 'text-green-600',
-    warning: 'text-orange-600',
-    success: 'text-green-600',
+    info: 'text-neon-cyan',
+    warning: 'text-neon-orange',
+    success: 'text-neon-green',
   };
 
   return (
     <div
       className={`
-        flex items-start gap-3 p-4 border-2 rounded-xl
+        flex items-start gap-3 p-4 border-2 rounded-xl backdrop-blur-sm
         ${styles[type]}
         ${className}
       `}

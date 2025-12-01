@@ -25,7 +25,7 @@ export const RadioGroup: React.FC<RadioGroupProps> = ({
   return (
     <div className="w-full">
       {label && (
-        <label className="block text-sm font-semibold text-brown-700 mb-3">
+        <label className="block text-sm font-semibold text-white/90 mb-3">
           {label}
         </label>
       )}
@@ -37,44 +37,47 @@ export const RadioGroup: React.FC<RadioGroupProps> = ({
             onClick={() => onChange(option.value)}
             className={`
               w-full flex items-start p-4 border-2 rounded-xl
-              transition-all duration-300 text-left
+              transition-all duration-300 text-left relative overflow-hidden
               ${
                 value === option.value
-                  ? 'border-green-500 bg-green-50 shadow-md'
-                  : 'border-brown-200 bg-white hover:border-green-300 hover:shadow-sm'
+                  ? 'border-neon-green/50 bg-neon-green/10 shadow-lg shadow-neon-green/20'
+                  : 'border-neon-green/20 bg-cyber-800/30 hover:border-neon-green/40 hover:bg-cyber-800/50'
               }
             `}
           >
-            <div className={`flex-shrink-0 w-5 h-5 rounded-full border-2 mr-3 mt-0.5 flex items-center justify-center ${
+            {value === option.value && (
+              <div className="absolute inset-0 bg-neon-green/5 animate-pulse" />
+            )}
+            <div className={`flex-shrink-0 w-5 h-5 rounded-full border-2 mr-3 mt-0.5 flex items-center justify-center relative z-10 ${
               value === option.value
-                ? 'border-green-500 bg-green-500'
-                : 'border-brown-300 bg-white'
+                ? 'border-neon-green bg-neon-green'
+                : 'border-white/40 bg-cyber-800/50'
             }`}>
               {value === option.value && (
-                <div className="w-2 h-2 rounded-full bg-white" />
+                <div className="w-2 h-2 rounded-full bg-cyber-darker" />
               )}
             </div>
-            <div className="flex-1">
+            <div className="flex-1 relative z-10">
               <div className={`text-sm font-semibold mb-1 ${
-                value === option.value ? 'text-green-700' : 'text-brown-900'
+                value === option.value ? 'text-neon-green' : 'text-white'
               }`}>
                 {option.label}
               </div>
               {option.description && (
-                <div className="text-xs text-brown-600">
+                <div className="text-xs text-white/60">
                   {option.description}
                 </div>
               )}
             </div>
             {value === option.value && (
-              <CheckCircle className="text-green-600 flex-shrink-0 ml-2" size={20} />
+              <CheckCircle className="text-neon-green flex-shrink-0 ml-2 relative z-10" size={20} />
             )}
           </button>
         ))}
       </div>
       {error && (
-        <div className="mt-2 p-3 bg-orange-50 border-2 border-orange-200 rounded-xl">
-          <p className="text-xs text-orange-700 font-medium">⚠ {error}</p>
+        <div className="mt-2 p-3 bg-neon-orange/10 border-2 border-neon-orange/30 rounded-xl">
+          <p className="text-xs text-neon-orange font-medium">⚠ {error}</p>
         </div>
       )}
     </div>

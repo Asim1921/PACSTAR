@@ -9,6 +9,10 @@ interface Particle {
   vy: number;
   radius: number;
   color: string;
+  baseX: number;
+  baseY: number;
+  angle: number;
+  speed: number;
 }
 
 export default function ParticleBackground() {
@@ -16,6 +20,7 @@ export default function ParticleBackground() {
   const animationFrameRef = useRef<number>();
   const particlesRef = useRef<Particle[]>([]);
   const mouseRef = useRef({ x: 0, y: 0 });
+  const timeRef = useRef(0);
 
   useEffect(() => {
     const canvas = canvasRef.current;
@@ -24,24 +29,44 @@ export default function ParticleBackground() {
     const ctx = canvas.getContext('2d');
     if (!ctx) return;
 
-    // Particle colors matching the theme
+    // Particle colors matching the theme - more military/cyber
     const colors = [
-      'rgba(0, 255, 136, 0.6)', // neon-green
-      'rgba(0, 217, 255, 0.6)', // neon-cyan
-      'rgba(157, 78, 221, 0.6)', // neon-purple
+      'rgba(0, 255, 136, 0.8)', // neon-green - brighter
+      'rgba(0, 217, 255, 0.8)', // neon-cyan - brighter
+      'rgba(157, 78, 221, 0.7)', // neon-purple
     ];
 
-    // Function to create particles
+    // Function to create particles with more structured positioning
     const createParticles = () => {
-      const particleCount = Math.min(80, Math.floor((canvas.width * canvas.height) / 15000));
-      particlesRef.current = Array.from({ length: particleCount }, () => ({
-        x: Math.random() * canvas.width,
-        y: Math.random() * canvas.height,
-        vx: (Math.random() - 0.5) * 0.5,
-        vy: (Math.random() - 0.5) * 0.5,
-        radius: Math.random() * 2 + 1,
-        color: colors[Math.floor(Math.random() * colors.length)],
-      }));
+      // Increased particle density for tighter formation
+      const particleCount = Math.min(150, Math.floor((canvas.width * canvas.height) / 8000));
+      
+      // Create particles in a more structured way (clustered formation)
+      particlesRef.current = Array.from({ length: particleCount }, (_, i) => {
+        // Create clusters for military formation
+        const clusterX = (i % 10) * (canvas.width / 10) + (canvas.width / 20);
+        const clusterY = Math.floor(i / 10) * (canvas.height / Math.ceil(particleCount / 10)) + (canvas.height / (Math.ceil(particleCount / 10) * 2));
+        
+        // Add some controlled randomness within cluster
+        const offsetX = (Math.random() - 0.5) * 80;
+        const offsetY = (Math.random() - 0.5) * 80;
+        
+        const angle = Math.random() * Math.PI * 2;
+        const speed = 0.2 + Math.random() * 0.2; // Slower, more controlled movement
+        
+        return {
+          x: clusterX + offsetX,
+          y: clusterY + offsetY,
+          baseX: clusterX + offsetX,
+          baseY: clusterY + offsetY,
+          vx: Math.cos(angle) * speed,
+          vy: Math.sin(angle) * speed,
+          radius: 1.5 + Math.random() * 1, // Slightly smaller, more uniform
+          color: colors[Math.floor(Math.random() * colors.length)],
+          angle: angle,
+          speed: speed,
+        };
+      });
     };
 
     // Set canvas size and create particles
@@ -66,53 +91,91 @@ export default function ParticleBackground() {
 
     // Animation loop
     const animate = () => {
+      timeRef.current += 0.01;
       ctx.clearRect(0, 0, canvas.width, canvas.height);
 
       // Update and draw particles
       particlesRef.current.forEach((particle, i) => {
-        // Update position
-        particle.x += particle.vx;
-        particle.y += particle.vy;
-
-        // Bounce off edges
-        if (particle.x < 0 || particle.x > canvas.width) particle.vx *= -1;
-        if (particle.y < 0 || particle.y > canvas.height) particle.vy *= -1;
+        // More controlled movement - return to base position with oscillation
+        const targetX = particle.baseX + Math.cos(timeRef.current + particle.angle) * 30;
+        const targetY = particle.baseY + Math.sin(timeRef.current + particle.angle) * 30;
+        
+        // Smooth movement towards target
+        particle.x += (targetX - particle.x) * 0.05 + particle.vx;
+        particle.y += (targetY - particle.y) * 0.05 + particle.vy;
 
         // Keep particles in bounds
-        particle.x = Math.max(0, Math.min(canvas.width, particle.x));
-        particle.y = Math.max(0, Math.min(canvas.height, particle.y));
+        if (particle.x < 0 || particle.x > canvas.width) {
+          particle.vx *= -1;
+          particle.x = Math.max(0, Math.min(canvas.width, particle.x));
+        }
+        if (particle.y < 0 || particle.y > canvas.height) {
+          particle.vy *= -1;
+          particle.y = Math.max(0, Math.min(canvas.height, particle.y));
+        }
 
-        // Mouse interaction
+        // Enhanced mouse interaction - particles react more strongly
         const dx = mouseRef.current.x - particle.x;
         const dy = mouseRef.current.y - particle.y;
         const distance = Math.sqrt(dx * dx + dy * dy);
 
-        if (distance < 100) {
-          const force = (100 - distance) / 100;
-          particle.vx -= (dx / distance) * force * 0.01;
-          particle.vy -= (dy / distance) * force * 0.01;
+        if (distance < 150) {
+          const force = (150 - distance) / 150;
+          particle.vx -= (dx / distance) * force * 0.02;
+          particle.vy -= (dy / distance) * force * 0.02;
         }
 
-        // Draw particle
+        // Draw particle with glow effect
+        const gradient = ctx.createRadialGradient(
+          particle.x, particle.y, 0,
+          particle.x, particle.y, particle.radius * 3
+        );
+        gradient.addColorStop(0, particle.color);
+        gradient.addColorStop(0.5, particle.color.replace('0.8', '0.4').replace('0.7', '0.3'));
+        gradient.addColorStop(1, particle.color.replace('0.8', '0').replace('0.7', '0'));
+        
         ctx.beginPath();
         ctx.arc(particle.x, particle.y, particle.radius, 0, Math.PI * 2);
-        ctx.fillStyle = particle.color;
+        ctx.fillStyle = gradient;
         ctx.fill();
 
-        // Draw connections to nearby particles
+        // Draw inner bright core
+        ctx.beginPath();
+        ctx.arc(particle.x, particle.y, particle.radius * 0.5, 0, Math.PI * 2);
+        ctx.fillStyle = particle.color.replace('0.8', '1').replace('0.7', '1');
+        ctx.fill();
+
+        // Draw connections to nearby particles - tighter network
         particlesRef.current.slice(i + 1).forEach((otherParticle) => {
           const dx = otherParticle.x - particle.x;
           const dy = otherParticle.y - particle.y;
           const distance = Math.sqrt(dx * dx + dy * dy);
 
-          if (distance < 120) {
-            const opacity = (120 - distance) / 120 * 0.2;
+          // Reduced connection distance for tighter mesh
+          if (distance < 90) {
+            const opacity = (90 - distance) / 90 * 0.4; // Increased opacity for visibility
+            
+            // Determine line color based on particle colors
+            let lineColor = 'rgba(0, 255, 136,';
+            if (particle.color.includes('217, 255') || otherParticle.color.includes('217, 255')) {
+              lineColor = 'rgba(0, 217, 255,';
+            } else if (particle.color.includes('78, 221') || otherParticle.color.includes('78, 221')) {
+              lineColor = 'rgba(157, 78, 221,';
+            }
+            
             ctx.beginPath();
             ctx.moveTo(particle.x, particle.y);
             ctx.lineTo(otherParticle.x, otherParticle.y);
-            ctx.strokeStyle = `rgba(0, 255, 136, ${opacity})`;
-            ctx.lineWidth = 0.5;
+            ctx.strokeStyle = `${lineColor}${opacity})`;
+            ctx.lineWidth = 0.8; // Slightly thicker lines
             ctx.stroke();
+            
+            // Add pulse effect on lines
+            if (distance < 60) {
+              ctx.strokeStyle = `${lineColor}${opacity * 0.3})`;
+              ctx.lineWidth = 1.2;
+              ctx.stroke();
+            }
           }
         });
       });
@@ -140,4 +203,3 @@ export default function ParticleBackground() {
     />
   );
 }
-

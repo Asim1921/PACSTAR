@@ -53,21 +53,21 @@ export const Scoreboard: React.FC = () => {
   }, []);
 
   const getRankIcon = (index: number) => {
-    if (index === 0) return <Medal className="text-yellow-500" size={20} />;
-    if (index === 1) return <Medal className="text-gray-400" size={20} />;
-    if (index === 2) return <Medal className="text-orange-500" size={20} />;
-    return <Award className="text-green-600" size={20} />;
+    if (index === 0) return <Medal className="text-yellow-400" size={20} />;
+    if (index === 1) return <Medal className="text-gray-300" size={20} />;
+    if (index === 2) return <Medal className="text-neon-orange" size={20} />;
+    return <Award className="text-neon-green" size={20} />;
   };
 
   if (isLoading) {
     return (
-      <div className="bg-white rounded-2xl shadow-md border border-brown-200 p-12">
+      <div className="bg-cyber-900/80 backdrop-blur-xl rounded-2xl shadow-md border border-neon-green/20 terminal-border p-12">
         <div className="flex items-center justify-center py-8">
           <div className="text-center">
             <div className="inline-block animate-spin mb-4">
-              <RefreshCw className="text-green-600" size={32} />
+              <RefreshCw className="text-neon-green" size={32} />
             </div>
-            <p className="text-brown-600">Loading scoreboard...</p>
+            <p className="text-white/60">Loading scoreboard...</p>
           </div>
         </div>
       </div>
@@ -77,71 +77,71 @@ export const Scoreboard: React.FC = () => {
   return (
     <div className="space-y-6">
       <div className="flex items-center gap-3">
-        <div className="w-10 h-10 bg-orange-100 rounded-xl flex items-center justify-center">
-          <Trophy className="text-orange-600" size={20} />
+        <div className="w-10 h-10 bg-neon-orange/10 rounded-xl flex items-center justify-center">
+          <Trophy className="text-neon-orange" size={20} />
         </div>
-        <h3 className="text-2xl font-bold text-brown-900">
+        <h3 className="text-2xl font-bold gradient-text">
           Scoreboard
         </h3>
       </div>
 
       {scoreboard.length === 0 ? (
-        <div className="bg-white rounded-2xl shadow-md border border-brown-200 p-12">
+        <div className="bg-cyber-900/80 backdrop-blur-xl rounded-2xl shadow-md border border-neon-green/20 terminal-border p-12">
           <div className="text-center">
-            <div className="w-16 h-16 bg-orange-100 rounded-2xl flex items-center justify-center mx-auto mb-4">
+            <div className="w-16 h-16 bg-neon-orange/10 rounded-2xl flex items-center justify-center mx-auto mb-4">
               <Trophy className="text-orange-400" size={32} />
             </div>
-            <p className="text-brown-600">
+            <p className="text-white/60">
               No scores available yet. Be the first to solve a challenge!
             </p>
           </div>
         </div>
       ) : (
-        <div className="bg-white rounded-2xl shadow-md border border-brown-200 overflow-x-auto">
+        <div className="bg-cyber-900/80 backdrop-blur-xl rounded-2xl shadow-md border border-neon-green/20 terminal-border overflow-x-auto">
           <table className="w-full">
             <thead>
-              <tr className="bg-brown-50 border-b border-brown-200">
-                <th className="px-4 py-3 text-left text-sm font-semibold text-brown-700">Rank</th>
-                <th className="px-4 py-3 text-left text-sm font-semibold text-brown-700">Team</th>
-                <th className="px-4 py-3 text-left text-sm font-semibold text-brown-700">Points</th>
-                <th className="px-4 py-3 text-left text-sm font-semibold text-brown-700">Solves</th>
+              <tr className="bg-cyber-800/50 border-b border-neon-green/20 terminal-border">
+                <th className="px-4 py-3 text-left text-sm font-semibold text-white/80">Rank</th>
+                <th className="px-4 py-3 text-left text-sm font-semibold text-white/80">Team</th>
+                <th className="px-4 py-3 text-left text-sm font-semibold text-white/80">Points</th>
+                <th className="px-4 py-3 text-left text-sm font-semibold text-white/80">Solves</th>
               </tr>
             </thead>
             <tbody>
               {scoreboard.map((entry, index) => (
                 <tr
                   key={entry.team_id}
-                  className={`border-b border-brown-100 hover:bg-brown-50 transition-colors ${
-                    index < 3 ? 'bg-green-50/50' : ''
+                  className={`border-b border-brown-100 hover:bg-cyber-800/50 transition-colors ${
+                    index < 3 ? 'bg-neon-green/10/50' : ''
                   }`}
                 >
                   <td className="px-4 py-3">
                     <div className="flex items-center gap-2">
                       {getRankIcon(index)}
-                      <span className={`font-bold ${index < 3 ? 'text-green-600' : 'text-brown-900'}`}>
+                      <span className={`font-bold ${index < 3 ? 'text-neon-green' : 'text-white'}`}>
                         #{index + 1}
                       </span>
                     </div>
                   </td>
                   <td className="px-4 py-3">
                     <div className="flex items-center gap-2">
-                      <Users className="text-brown-400" size={16} />
-                      <span className="text-brown-900 font-semibold">{entry.team_name}</span>
+                      <Users className="text-white/40" size={16} />
+                      <span className="text-white font-semibold">{entry.team_name}</span>
                     </div>
                   </td>
                   <td className="px-4 py-3">
                     <span className={`inline-flex items-center px-2.5 py-1 rounded-full font-semibold text-xs ${
-                      index === 0 ? 'bg-yellow-100 text-yellow-700 border border-yellow-200' :
-                      index === 1 ? 'bg-gray-100 text-gray-700 border border-gray-200' :
-                      index === 2 ? 'bg-orange-100 text-orange-700 border border-orange-200' :
-                      'bg-green-100 text-green-700 border border-green-200'
+                      index === 0 ? 'bg-yellow-500/10 text-yellow-400 border border-yellow-400/30' :
+                      index === 1 ? 'bg-gray-500/10 text-gray-300 border border-gray-500/30' :
+                      index === 2 ? 'bg-neon-orange/10 text-neon-orange border border-neon-orange/30' :
+                      'bg-neon-green/10 text-neon-green border border-neon-green/30'
                     }`}>
                       <Trophy size={12} className="mr-1" />
                       {entry.points}
                     </span>
                   </td>
                   <td className="px-4 py-3">
-                    <span className="text-brown-700">{entry.solves}</span>
+                    <span className="text-white/80">{entry.solves}</span>
                   </td>
                 </tr>
               ))}

@@ -46,7 +46,7 @@ export default function AuthLayout() {
                       </div>
                       <div>
                         <h1 className="text-4xl font-bold tracking-tight neon-text">PACSTAR</h1>
-                        <p className="text-neon-cyan/80 text-sm font-medium tracking-wider">CHALLENGE PLATFORM</p>
+                        <p className="text-neon-cyan/80 text-sm font-medium tracking-wider"></p>
                       </div>
                     </div>
                     <p className="text-white/80 text-lg leading-relaxed">

@@ -197,12 +197,12 @@ export const OpenStack: React.FC = () => {
       {/* Header */}
       <div className="mb-6">
         <div className="flex items-center gap-2 mb-2">
-          <Cloud className="text-green-600" size={24} />
-          <h2 className="text-2xl font-mono font-bold text-green-600 tracking-wider">
+          <Cloud className="text-neon-green" size={24} />
+          <h2 className="text-2xl font-mono font-bold gradient-text tracking-wider">
             OpenStack Automation
           </h2>
         </div>
-        <p className="text-brown-900/60 font-mono text-sm">
+        <p className="text-white/60 font-mono text-sm">
           Master-only controls for testing the new OpenStack backend APIs.
         </p>
       </div>
@@ -248,27 +248,27 @@ export const OpenStack: React.FC = () => {
 
       {/* Summary Data */}
       {summary && connectivityResult?.success && (
-        <div className="bg-white rounded-2xl shadow-md border border-brown-200 border-2 border-accent/20 p-4">
-          <h3 className="text-lg font-mono font-bold text-green-600 tracking-wider mb-4">
+        <div className="bg-cyber-900/80 backdrop-blur-xl rounded-2xl shadow-md border border-neon-green/20 terminal-border border-2 border-neon-green/20 p-4">
+          <h3 className="text-lg font-mono font-bold gradient-text tracking-wider mb-4">
             OpenStack Summary
           </h3>
           <div className="grid grid-cols-1 md:grid-cols-3 gap-4 font-mono text-sm">
             {summary.instances !== undefined && (
-              <div className="p-3 bg-brown-50 border border-brown-200 rounded-xl">
-                <div className="text-brown-900/60 mb-1">Instances</div>
-                <div className="text-green-600 text-xl font-bold">{summary.instances}</div>
+              <div className="p-3 bg-cyber-800/50 border border-neon-green/20 terminal-border rounded-xl">
+                <div className="text-white/60 mb-1">Instances</div>
+                <div className="text-neon-green text-xl font-bold">{summary.instances}</div>
               </div>
             )}
             {summary.cores !== undefined && (
-              <div className="p-3 bg-brown-50 border border-brown-200 rounded-xl">
-                <div className="text-brown-900/60 mb-1">Cores</div>
-                <div className="text-green-600 text-xl font-bold">{summary.cores}</div>
+              <div className="p-3 bg-cyber-800/50 border border-neon-green/20 terminal-border rounded-xl">
+                <div className="text-white/60 mb-1">Cores</div>
+                <div className="text-neon-green text-xl font-bold">{summary.cores}</div>
               </div>
             )}
             {summary.ram_gb !== undefined && (
-              <div className="p-3 bg-brown-50 border border-brown-200 rounded-xl">
-                <div className="text-brown-900/60 mb-1">RAM (GB)</div>
-                <div className="text-green-600 text-xl font-bold">{summary.ram_gb}</div>
+              <div className="p-3 bg-cyber-800/50 border border-neon-green/20 terminal-border rounded-xl">
+                <div className="text-white/60 mb-1">RAM (GB)</div>
+                <div className="text-neon-green text-xl font-bold">{summary.ram_gb}</div>
               </div>
             )}
           </div>
@@ -282,21 +282,21 @@ export const OpenStack: React.FC = () => {
       />
 
       {/* Snapshots Section */}
-      <div className="bg-white rounded-2xl shadow-md border border-brown-200 border-2 border-accent/20">
+      <div className="bg-cyber-900/80 backdrop-blur-xl rounded-2xl shadow-md border border-neon-green/20 terminal-border border-2 border-neon-green/20">
         <button
           onClick={() => setIsSnapshotsOpen(!isSnapshotsOpen)}
-          className="w-full flex items-center justify-between p-4 bg-brown-50 border-b border-brown-200 hover:border-accent/50 transition-all"
+          className="w-full flex items-center justify-between p-4 bg-cyber-800/50 border-b border-neon-green/20 terminal-border hover:border-neon-cyan/50 transition-all"
         >
           <div className="flex items-center gap-3">
-            <Camera className="text-green-600" size={20} />
-            <h3 className="text-lg font-mono font-bold text-green-600 tracking-wider">
+            <Camera className="text-neon-green" size={20} />
+            <h3 className="text-lg font-mono font-bold gradient-text tracking-wider">
               Snapshots
             </h3>
           </div>
           {isSnapshotsOpen ? (
-            <ChevronUp className="text-green-600" size={20} />
+            <ChevronUp className="text-neon-green" size={20} />
           ) : (
-            <ChevronDown className="text-green-600" size={20} />
+            <ChevronDown className="text-neon-green" size={20} />
           )}
         </button>
         
@@ -328,36 +328,36 @@ export const OpenStack: React.FC = () => {
                 {snapshots.map((snapshot, index) => (
                   <div
                     key={snapshot.id || index}
-                    className="p-3 bg-brown-50 border border-brown-200 rounded-xl data-panel font-mono text-sm"
+                    className="p-3 bg-cyber-800/50 border border-neon-green/20 terminal-border rounded-xl data-panel font-mono text-sm"
                   >
                     <div className="flex items-start justify-between gap-4">
                       <div className="flex-1 space-y-1">
                         <div className="flex items-center gap-2">
-                          <span className="text-green-600 font-semibold">ID:</span>
-                          <span className="text-brown-900">{snapshot.id || 'N/A'}</span>
+                          <span className="text-neon-green font-semibold">ID:</span>
+                          <span className="text-white">{snapshot.id || 'N/A'}</span>
                         </div>
                         {snapshot.name && (
                           <div className="flex items-center gap-2">
-                            <span className="text-green-600 font-semibold">Name:</span>
-                            <span className="text-brown-900">{snapshot.name}</span>
+                            <span className="text-neon-green font-semibold">Name:</span>
+                            <span className="text-white">{snapshot.name}</span>
                           </div>
                         )}
                         {snapshot.size !== undefined && (
                           <div className="flex items-center gap-2">
-                            <span className="text-green-600 font-semibold">Size:</span>
-                            <span className="text-brown-900">{(snapshot.size / 1024 / 1024 / 1024).toFixed(2)} GB</span>
+                            <span className="text-neon-green font-semibold">Size:</span>
+                            <span className="text-white">{(snapshot.size / 1024 / 1024 / 1024).toFixed(2)} GB</span>
                           </div>
                         )}
                         {snapshot.status && (
                           <div className="flex items-center gap-2">
-                            <span className="text-green-600 font-semibold">Status:</span>
-                            <span className="text-brown-900 capitalize">{snapshot.status}</span>
+                            <span className="text-neon-green font-semibold">Status:</span>
+                            <span className="text-white capitalize">{snapshot.status}</span>
                           </div>
                         )}
                         {snapshot.created_at && (
                           <div className="flex items-center gap-2">
-                            <span className="text-green-600 font-semibold">Created:</span>
-                            <span className="text-brown-900/60 text-xs">{new Date(snapshot.created_at).toLocaleString()}</span>
+                            <span className="text-neon-green font-semibold">Created:</span>
+                            <span className="text-white/60 text-xs">{new Date(snapshot.created_at).toLocaleString()}</span>
                           </div>
                         )}
                       </div>
@@ -371,21 +371,21 @@ export const OpenStack: React.FC = () => {
       </div>
 
       {/* Instances Section */}
-      <div className="bg-white rounded-2xl shadow-md border border-brown-200 border-2 border-accent/20">
+      <div className="bg-cyber-900/80 backdrop-blur-xl rounded-2xl shadow-md border border-neon-green/20 terminal-border border-2 border-neon-green/20">
         <button
           onClick={() => setIsInstancesOpen(!isInstancesOpen)}
-          className="w-full flex items-center justify-between p-4 bg-brown-50 border-b border-brown-200 hover:border-accent/50 transition-all"
+          className="w-full flex items-center justify-between p-4 bg-cyber-800/50 border-b border-neon-green/20 terminal-border hover:border-neon-cyan/50 transition-all"
         >
           <div className="flex items-center gap-3">
-            <Monitor className="text-green-600" size={20} />
-            <h3 className="text-lg font-mono font-bold text-green-600 tracking-wider">
+            <Monitor className="text-neon-green" size={20} />
+            <h3 className="text-lg font-mono font-bold gradient-text tracking-wider">
               Instances
             </h3>
           </div>
           {isInstancesOpen ? (
-            <ChevronUp className="text-green-600" size={20} />
+            <ChevronUp className="text-neon-green" size={20} />
           ) : (
-            <ChevronDown className="text-green-600" size={20} />
+            <ChevronDown className="text-neon-green" size={20} />
           )}
         </button>
         
@@ -393,7 +393,7 @@ export const OpenStack: React.FC = () => {
           <div className="p-4 space-y-4">
             <div className="flex flex-col sm:flex-row gap-4 items-start sm:items-center justify-between">
               <div className="flex items-center gap-2">
-                <label className="text-brown-900 font-mono text-sm font-semibold">
+                <label className="text-white font-mono text-sm font-semibold">
                   Status filter:
                 </label>
                 <Select
@@ -411,7 +411,7 @@ export const OpenStack: React.FC = () => {
                 />
                 <div title="Filter instances by their current status">
                   <HelpCircle 
-                    className="text-green-600/60 cursor-help" 
+                    className="text-neon-green/60 cursor-help" 
                     size={16}
                   />
                 </div>
@@ -442,28 +442,28 @@ export const OpenStack: React.FC = () => {
                 {instances.map((instance, index) => (
                   <div
                     key={instance.id || index}
-                    className="p-3 bg-brown-50 border border-brown-200 rounded-xl data-panel font-mono text-sm"
+                    className="p-3 bg-cyber-800/50 border border-neon-green/20 terminal-border rounded-xl data-panel font-mono text-sm"
                   >
                     <div className="flex items-start justify-between gap-4">
                       <div className="flex-1 space-y-1">
                         <div className="flex items-center gap-2">
-                          <span className="text-green-600 font-semibold">ID:</span>
-                          <span className="text-brown-900">{instance.id || 'N/A'}</span>
+                          <span className="text-neon-green font-semibold">ID:</span>
+                          <span className="text-white">{instance.id || 'N/A'}</span>
                         </div>
                         {instance.name && (
                           <div className="flex items-center gap-2">
-                            <span className="text-green-600 font-semibold">Name:</span>
-                            <span className="text-brown-900">{instance.name}</span>
+                            <span className="text-neon-green font-semibold">Name:</span>
+                            <span className="text-white">{instance.name}</span>
                           </div>
                         )}
                         {instance.status && (
                           <div className="flex items-center gap-2">
-                            <span className="text-green-600 font-semibold">Status:</span>
+                            <span className="text-neon-green font-semibold">Status:</span>
                             <span className={`inline-flex items-center px-2 py-0.5 rounded text-xs font-semibold ${
-                              instance.status === 'ACTIVE' ? 'bg-accent/20 text-green-600' :
-                              instance.status === 'SHUTOFF' ? 'bg-warning/20 text-orange-600' :
+                              instance.status === 'ACTIVE' ? 'bg-neon-green/20 text-neon-green' :
+                              instance.status === 'SHUTOFF' ? 'bg-neon-orange/20 text-neon-orange' :
                               instance.status === 'ERROR' ? 'bg-red-500/20 text-red-400' :
-                              'bg-text/20 text-brown-900'
+                              'bg-cyber-800/20 text-white'
                             }`}>
                               {instance.status}
                             </span>
@@ -471,22 +471,22 @@ export const OpenStack: React.FC = () => {
                         )}
                         {instance.flavor && (
                           <div className="flex items-center gap-2">
-                            <span className="text-green-600 font-semibold">Flavor:</span>
-                            <span className="text-brown-900">{instance.flavor.name || instance.flavor.id || 'N/A'}</span>
+                            <span className="text-neon-green font-semibold">Flavor:</span>
+                            <span className="text-white">{instance.flavor.name || instance.flavor.id || 'N/A'}</span>
                           </div>
                         )}
                         {instance.addresses && Object.keys(instance.addresses).length > 0 && (
                           <div className="flex items-center gap-2">
-                            <span className="text-green-600 font-semibold">IP:</span>
-                            <span className="text-brown-900">
+                            <span className="text-neon-green font-semibold">IP:</span>
+                            <span className="text-white">
                               {Object.values(instance.addresses).flat().map((addr: any) => addr.addr).join(', ')}
                             </span>
                           </div>
                         )}
                         {instance.created && (
                           <div className="flex items-center gap-2">
-                            <span className="text-green-600 font-semibold">Created:</span>
-                            <span className="text-brown-900/60 text-xs">{new Date(instance.created).toLocaleString()}</span>
+                            <span className="text-neon-green font-semibold">Created:</span>
+                            <span className="text-white/60 text-xs">{new Date(instance.created).toLocaleString()}</span>
                           </div>
                         )}
                       </div>
@@ -500,21 +500,21 @@ export const OpenStack: React.FC = () => {
       </div>
 
       {/* Networks Section */}
-      <div className="bg-white rounded-2xl shadow-md border border-brown-200 border-2 border-accent/20">
+      <div className="bg-cyber-900/80 backdrop-blur-xl rounded-2xl shadow-md border border-neon-green/20 terminal-border border-2 border-neon-green/20">
         <button
           onClick={() => setIsNetworksOpen(!isNetworksOpen)}
-          className="w-full flex items-center justify-between p-4 bg-brown-50 border-b border-brown-200 hover:border-accent/50 transition-all"
+          className="w-full flex items-center justify-between p-4 bg-cyber-800/50 border-b border-neon-green/20 terminal-border hover:border-neon-cyan/50 transition-all"
         >
           <div className="flex items-center gap-3">
-            <Globe className="text-green-600" size={20} />
-            <h3 className="text-lg font-mono font-bold text-green-600 tracking-wider">
+            <Globe className="text-neon-green" size={20} />
+            <h3 className="text-lg font-mono font-bold gradient-text tracking-wider">
               Networks
             </h3>
           </div>
           {isNetworksOpen ? (
-            <ChevronUp className="text-green-600" size={20} />
+            <ChevronUp className="text-neon-green" size={20} />
           ) : (
-            <ChevronDown className="text-green-600" size={20} />
+            <ChevronDown className="text-neon-green" size={20} />
           )}
         </button>
         
@@ -546,42 +546,42 @@ export const OpenStack: React.FC = () => {
                 {networks.map((network, index) => (
                   <div
                     key={network.id || index}
-                    className="p-3 bg-brown-50 border border-brown-200 rounded-xl data-panel font-mono text-sm"
+                    className="p-3 bg-cyber-800/50 border border-neon-green/20 terminal-border rounded-xl data-panel font-mono text-sm"
                   >
                     <div className="flex items-start justify-between gap-4">
                       <div className="flex-1 space-y-1">
                         <div className="flex items-center gap-2">
-                          <span className="text-green-600 font-semibold">ID:</span>
-                          <span className="text-brown-900">{network.id || 'N/A'}</span>
+                          <span className="text-neon-green font-semibold">ID:</span>
+                          <span className="text-white">{network.id || 'N/A'}</span>
                         </div>
                         {network.name && (
                           <div className="flex items-center gap-2">
-                            <span className="text-green-600 font-semibold">Name:</span>
-                            <span className="text-brown-900">{network.name}</span>
+                            <span className="text-neon-green font-semibold">Name:</span>
+                            <span className="text-white">{network.name}</span>
                           </div>
                         )}
                         {network.available_ips !== undefined && (
                           <div className="flex items-center gap-2">
-                            <span className="text-green-600 font-semibold">Available IPs:</span>
-                            <span className="text-brown-900">{network.available_ips}</span>
+                            <span className="text-neon-green font-semibold">Available IPs:</span>
+                            <span className="text-white">{network.available_ips}</span>
                           </div>
                         )}
                         {network.used_ips !== undefined && (
                           <div className="flex items-center gap-2">
-                            <span className="text-green-600 font-semibold">Used IPs:</span>
-                            <span className="text-brown-900">{network.used_ips}</span>
+                            <span className="text-neon-green font-semibold">Used IPs:</span>
+                            <span className="text-white">{network.used_ips}</span>
                           </div>
                         )}
                         {network.cidr && (
                           <div className="flex items-center gap-2">
-                            <span className="text-green-600 font-semibold">CIDR:</span>
-                            <span className="text-brown-900">{network.cidr}</span>
+                            <span className="text-neon-green font-semibold">CIDR:</span>
+                            <span className="text-white">{network.cidr}</span>
                           </div>
                         )}
                         {network.status && (
                           <div className="flex items-center gap-2">
-                            <span className="text-green-600 font-semibold">Status:</span>
-                            <span className="text-brown-900 capitalize">{network.status}</span>
+                            <span className="text-neon-green font-semibold">Status:</span>
+                            <span className="text-white capitalize">{network.status}</span>
                           </div>
                         )}
                       </div>
@@ -595,21 +595,21 @@ export const OpenStack: React.FC = () => {
       </div>
 
       {/* Snapshot Deployment Section */}
-      <div className="bg-white rounded-2xl shadow-md border border-brown-200">
+      <div className="bg-cyber-900/80 backdrop-blur-xl rounded-2xl shadow-md border border-neon-green/20 terminal-border">
         <button
           onClick={() => setIsSnapshotDeploymentOpen(!isSnapshotDeploymentOpen)}
-          className="w-full flex items-center justify-between p-4 bg-brown-50 border-b border-brown-200 hover:bg-brown-100 transition-all"
+          className="w-full flex items-center justify-between p-4 bg-cyber-800/50 border-b border-neon-green/20 terminal-border hover:bg-cyber-800/70 transition-all"
         >
           <div className="flex items-center gap-3">
-            <Rocket className="text-green-600" size={20} />
-            <h3 className="text-lg font-bold text-brown-900">
+            <Rocket className="text-neon-green" size={20} />
+            <h3 className="text-lg font-bold gradient-text">
               Snapshot Deployment
             </h3>
           </div>
           {isSnapshotDeploymentOpen ? (
-            <ChevronUp className="text-brown-600" size={20} />
+            <ChevronUp className="text-white/60" size={20} />
           ) : (
-            <ChevronDown className="text-brown-600" size={20} />
+            <ChevronDown className="text-white/60" size={20} />
           )}
         </button>
         
@@ -621,23 +621,23 @@ export const OpenStack: React.FC = () => {
       </div>
 
       {/* Heat Templates Section */}
-      <div className="bg-white rounded-2xl shadow-md border border-brown-200">
+      <div className="bg-cyber-900/80 backdrop-blur-xl rounded-2xl shadow-md border border-neon-green/20 terminal-border">
         <button
           onClick={() => setIsHeatTemplatesOpen(!isHeatTemplatesOpen)}
-          className="w-full flex items-center justify-between p-4 bg-brown-50 border-b border-brown-200 hover:bg-brown-100 transition-all"
+          className="w-full flex items-center justify-between p-4 bg-cyber-800/50 border-b border-neon-green/20 terminal-border hover:bg-cyber-800/70 transition-all"
         >
           <div className="flex items-center gap-3">
-            <div className="w-8 h-8 bg-orange-100 rounded-lg flex items-center justify-center">
-              <Flame className="text-orange-600" size={18} />
+            <div className="w-8 h-8 bg-neon-orange/10 rounded-lg flex items-center justify-center">
+              <Flame className="text-neon-orange" size={18} />
             </div>
-            <h3 className="text-lg font-bold text-brown-900">
+            <h3 className="text-lg font-bold gradient-text">
               OpenStack Heat Templates
             </h3>
           </div>
           {isHeatTemplatesOpen ? (
-            <ChevronUp className="text-brown-600" size={20} />
+            <ChevronUp className="text-white/60" size={20} />
           ) : (
-            <ChevronDown className="text-brown-600" size={20} />
+            <ChevronDown className="text-white/60" size={20} />
           )}
         </button>
         

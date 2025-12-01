@@ -316,22 +316,22 @@ export const DockerfileToK8s: React.FC = () => {
       {/* Header */}
       <div>
         <div className="flex items-center gap-2 mb-2">
-          <Wrench className="text-green-600" size={20} />
-          <h3 className="text-lg font-mono font-bold text-green-600 tracking-wider">
+          <Wrench className="text-neon-green" size={20} />
+          <h3 className="text-lg font-mono font-bold gradient-text tracking-wider">
             Dockerfile to K8s
           </h3>
         </div>
-        <p className="text-sm font-mono text-brown-900/80">
+        <p className="text-sm font-mono text-white/60">
           Upload a ZIP, RAR, or TAR archive that contains your Dockerfile(s) and optional compose/content. We'll build a local Docker image you can use in Containerized challenges.
         </p>
       </div>
 
       {/* Form */}
       <form onSubmit={handleSubmit} className="space-y-6">
-        <div className="bg-white rounded-2xl shadow-md border border-brown-200 p-6 bg-white rounded-2xl shadow-md border border-brown-200 space-y-6">
+        <div className="bg-cyber-900/80 backdrop-blur-xl rounded-2xl shadow-lg border border-neon-green/20 terminal-border p-6 space-y-6">
           {/* Upload ZIP Section */}
           <div>
-            <label className="block text-xs font-mono font-semibold text-green-600 mb-3 tracking-wider">
+            <label className="block text-xs font-mono font-semibold text-neon-green mb-3 tracking-wider">
               &gt; UPLOAD ARCHIVE *
             </label>
             
@@ -343,15 +343,15 @@ export const DockerfileToK8s: React.FC = () => {
                 onDragLeave={isBuilding ? undefined : handleDragLeave}
                 onClick={isBuilding ? undefined : handleBrowseClick}
                 className={`
-                  flex-1 min-h-[200px] border-2 border-dashed rounded
+                  flex-1 min-h-[200px] border-2 border-dashed rounded-xl
                   flex flex-col items-center justify-center gap-3 p-8
                   transition-all
                   ${
                     isBuilding
-                      ? 'opacity-50 cursor-not-allowed border-accent/20'
+                      ? 'opacity-50 cursor-not-allowed border-neon-green/20'
                       : isDragging
-                      ? 'border-accent bg-accent/10 cursor-pointer'
-                      : 'border-brown-300 hover:border-green-400 bg-brown-50 cursor-pointer'
+                      ? 'border-neon-cyan bg-neon-cyan/10 cursor-pointer'
+                      : 'border-neon-cyan/30 hover:border-neon-cyan/50 bg-cyber-800/50 cursor-pointer'
                   }
                 `}
               >
@@ -366,27 +366,27 @@ export const DockerfileToK8s: React.FC = () => {
                 
                 {selectedFile ? (
                   <>
-                    <FileArchive className="text-green-600" size={48} />
+                    <FileArchive className="text-neon-green" size={48} />
                     <div className="text-center">
-                      <p className="text-sm font-mono text-green-600 font-semibold mb-1">
+                      <p className="text-sm font-mono text-neon-green font-semibold mb-1">
                         {selectedFile.name}
                       </p>
-                      <p className="text-xs font-mono text-brown-900/60">
+                      <p className="text-xs font-mono text-white/60">
                         {(selectedFile.size / (1024 * 1024)).toFixed(2)} MB
                       </p>
-                      <p className="text-xs font-mono text-brown-900/60 mt-2">
+                      <p className="text-xs font-mono text-white/60 mt-2">
                         Click to change file
                       </p>
                     </div>
                   </>
                 ) : (
                   <>
-                    <Upload className="text-green-600/60" size={48} />
+                    <Upload className="text-neon-cyan/60" size={48} />
                     <div className="text-center">
-                      <p className="text-sm font-mono text-brown-900 mb-1">
+                      <p className="text-sm font-mono text-white mb-1">
                         Drag and drop file here
                       </p>
-                      <p className="text-xs font-mono text-brown-900/60">
+                      <p className="text-xs font-mono text-white/60">
                         Limit 200MB per file • ZIP, RAR, or TAR
                       </p>
                     </div>
@@ -431,10 +431,10 @@ export const DockerfileToK8s: React.FC = () => {
 
             <div>
               <div className="flex items-center gap-2 mb-2">
-                <label className="block text-xs font-mono font-semibold text-green-600 tracking-wider">
+                <label className="block text-xs font-mono font-semibold text-neon-green tracking-wider">
                   &gt; CONTEXT SUBDIR IN ARCHIVE
                 </label>
-                <HelpCircle className="text-green-600/60" size={16} />
+                <HelpCircle className="text-neon-green/60" size={16} />
               </div>
               <input
                 type="text"
@@ -442,7 +442,7 @@ export const DockerfileToK8s: React.FC = () => {
                 onChange={(e) => handleInputChange('contextSubdir', e.target.value)}
                 placeholder="Leave empty for root"
                 disabled={isBuilding}
-                className="w-full px-4 py-3 bg-brown-50 border-2 border-brown-200 rounded-xl font-mono text-sm text-brown-900 placeholder:text-secondary/50 focus:outline-none focus:border-accent focus:bg-secondary/30 transition-all disabled:opacity-50 disabled:cursor-not-allowed"
+                className="w-full px-4 py-3 bg-cyber-800/50 border-2 border-neon-green/20 rounded-xl font-mono text-sm text-white placeholder:text-white/40 focus:outline-none focus:border-neon-green focus:ring-4 focus:ring-neon-green/20 transition-all disabled:opacity-50 disabled:cursor-not-allowed"
               />
             </div>
           </div>
@@ -455,9 +455,9 @@ export const DockerfileToK8s: React.FC = () => {
               checked={formData.pushToRegistry}
               onChange={(e) => handleInputChange('pushToRegistry', e.target.checked)}
               disabled={isBuilding}
-              className="w-4 h-4 text-green-600 focus:ring-accent focus:ring-2 accent-accent disabled:opacity-50 disabled:cursor-not-allowed"
+              className="w-4 h-4 text-neon-green focus:ring-neon-green focus:ring-2 accent-neon-green disabled:opacity-50 disabled:cursor-not-allowed"
             />
-            <label htmlFor="pushToRegistry" className="text-sm font-mono text-brown-900 cursor-pointer">
+            <label htmlFor="pushToRegistry" className="text-sm font-mono text-white/90 cursor-pointer">
               Push to local registry after build
             </label>
           </div>
@@ -466,10 +466,10 @@ export const DockerfileToK8s: React.FC = () => {
           {formData.pushToRegistry && (
             <div>
               <div className="flex items-center gap-2 mb-2">
-                <label className="block text-xs font-mono font-semibold text-green-600 tracking-wider">
+                <label className="block text-xs font-mono font-semibold text-neon-green tracking-wider">
                   &gt; REGISTRY HOST:PORT
                 </label>
-                <HelpCircle className="text-green-600/60" size={16} />
+                <HelpCircle className="text-neon-green/60" size={16} />
               </div>
               <input
                 type="text"
@@ -477,7 +477,7 @@ export const DockerfileToK8s: React.FC = () => {
                 onChange={(e) => handleInputChange('registryHostPort', e.target.value)}
                 placeholder="10.10.101.69:5000"
                 disabled={isBuilding}
-                className="w-full px-4 py-3 bg-brown-50 border-2 border-brown-200 rounded-xl font-mono text-sm text-brown-900 placeholder:text-secondary/50 focus:outline-none focus:border-accent focus:bg-secondary/30 transition-all disabled:opacity-50 disabled:cursor-not-allowed"
+                className="w-full px-4 py-3 bg-cyber-800/50 border-2 border-neon-green/20 rounded-xl font-mono text-sm text-white placeholder:text-white/40 focus:outline-none focus:border-neon-green focus:ring-4 focus:ring-neon-green/20 transition-all disabled:opacity-50 disabled:cursor-not-allowed"
               />
             </div>
           )}
@@ -503,17 +503,17 @@ export const DockerfileToK8s: React.FC = () => {
       {(buildResult || buildLogs.length > 0 || isBuilding) && (
         <div className="mt-8">
           <div className="flex items-center gap-2 mb-4">
-            <Wrench className="text-green-600" size={20} />
-            <h3 className="text-lg font-mono font-bold text-green-600 tracking-wider">
+            <Wrench className="text-neon-green" size={20} />
+            <h3 className="text-lg font-mono font-bold gradient-text tracking-wider">
               Build Logs
             </h3>
           </div>
 
-          <div className="bg-white rounded-2xl shadow-md border border-brown-200 p-6 bg-white rounded-2xl shadow-md border border-brown-200">
+          <div className="bg-cyber-900/80 backdrop-blur-xl rounded-2xl shadow-lg border border-neon-green/20 terminal-border p-6">
             {isBuilding ? (
               <div className="flex items-center gap-3 py-4">
-                <RefreshCw className="animate-spin text-green-600" size={20} />
-                <span className="text-sm font-mono text-brown-900">
+                <RefreshCw className="animate-spin text-neon-green" size={20} />
+                <span className="text-sm font-mono text-white">
                   Building image... This may take several minutes.
                 </span>
               </div>
@@ -523,12 +523,12 @@ export const DockerfileToK8s: React.FC = () => {
               <div className="mb-4">
                 <InfoBox type="success" message="Build completed successfully!" />
                 {buildResult.image && (
-                  <div className="mt-3 p-3 bg-accent/10 border-2 border-accent/30 rounded">
-                    <p className="text-xs font-mono text-green-600 mb-1">
+                  <div className="mt-3 p-3 bg-neon-green/10 border-2 border-neon-green/30 rounded-xl">
+                    <p className="text-xs font-mono text-neon-green mb-1">
                       <span className="font-semibold">Built Image:</span> {buildResult.image}
                     </p>
                     {buildResult.pushed_image && (
-                      <p className="text-xs font-mono text-green-600">
+                      <p className="text-xs font-mono text-neon-green">
                         <span className="font-semibold">Pushed Image:</span> {buildResult.pushed_image}
                       </p>
                     )}
@@ -540,7 +540,7 @@ export const DockerfileToK8s: React.FC = () => {
             {buildLogs.length > 0 && (
               <div className="mt-4">
                 <div className="flex items-center justify-between mb-2">
-                  <label className="text-xs font-mono font-semibold text-green-600 tracking-wider">
+                  <label className="text-xs font-mono font-semibold text-neon-green tracking-wider">
                     &gt; BUILD OUTPUT
                   </label>
                   <Button
@@ -556,8 +556,8 @@ export const DockerfileToK8s: React.FC = () => {
                     Clear
                   </Button>
                 </div>
-                <div className="bg-background/50 border-2 border-secondary p-4 rounded max-h-96 overflow-y-auto">
-                  <pre className="text-xs font-mono text-brown-900/80 whitespace-pre-wrap break-words">
+                <div className="bg-cyber-darker/50 border-2 border-neon-green/20 p-4 rounded-xl max-h-96 overflow-y-auto">
+                  <pre className="text-xs font-mono text-white/80 whitespace-pre-wrap break-words">
                     {buildLogs.join('\n')}
                   </pre>
                 </div>
@@ -571,8 +571,8 @@ export const DockerfileToK8s: React.FC = () => {
       <div className="mt-8">
         <div className="flex items-center justify-between mb-4">
           <div className="flex items-center gap-2">
-            <ImageIcon className="text-green-600" size={20} />
-            <h3 className="text-lg font-mono font-bold text-green-600 tracking-wider">
+            <ImageIcon className="text-neon-green" size={20} />
+            <h3 className="text-lg font-mono font-bold gradient-text tracking-wider">
               Local Docker Images
             </h3>
           </div>
@@ -589,18 +589,18 @@ export const DockerfileToK8s: React.FC = () => {
           </Button>
         </div>
 
-        <div className="bg-white rounded-2xl shadow-md border border-brown-200 p-6 bg-white rounded-2xl shadow-md border border-brown-200">
+        <div className="bg-cyber-900/80 backdrop-blur-xl rounded-2xl shadow-lg border border-neon-green/20 terminal-border p-6">
           {isLoadingImages ? (
             <div className="flex items-center justify-center py-8">
-              <RefreshCw className="animate-spin text-green-600" size={24} />
-              <span className="ml-3 text-sm font-mono text-brown-900">Loading images...</span>
+              <RefreshCw className="animate-spin text-neon-green" size={24} />
+              <span className="ml-3 text-sm font-mono text-white">Loading images...</span>
             </div>
           ) : imagesError ? (
             <InfoBox type="warning" message={imagesError} />
           ) : images.length === 0 ? (
             <div className="text-center py-8">
-              <ImageIcon className="mx-auto text-green-600/40 mb-3" size={48} />
-              <p className="text-sm font-mono text-brown-900/60">
+              <ImageIcon className="mx-auto text-neon-green/40 mb-3" size={48} />
+              <p className="text-sm font-mono text-white/60">
                 No Docker images found. Build an image to get started.
               </p>
             </div>
@@ -609,16 +609,16 @@ export const DockerfileToK8s: React.FC = () => {
               {images.map((image, index) => (
                 <div
                   key={image.id || index}
-                  className="flex items-center justify-between p-4 bg-brown-50 border-2 border-brown-200 rounded-xl hover:border-accent/50 transition-all"
+                  className="flex items-center justify-between p-4 bg-cyber-800/50 border-2 border-neon-green/20 rounded-xl hover:border-neon-cyan/50 transition-all"
                 >
                   <div className="flex-1 min-w-0">
                     <div className="flex items-center gap-2 mb-1">
-                      <ImageIcon className="text-green-600 flex-shrink-0" size={18} />
-                      <p className="text-sm font-mono font-semibold text-green-600 truncate">
+                      <ImageIcon className="text-neon-green flex-shrink-0" size={18} />
+                      <p className="text-sm font-mono font-semibold text-neon-green truncate">
                         {image.name}
                       </p>
                     </div>
-                    <div className="flex items-center gap-4 text-xs font-mono text-brown-900/60 ml-6">
+                    <div className="flex items-center gap-4 text-xs font-mono text-white/60 ml-6">
                       <span>ID: {image.id?.substring(0, 12) || 'N/A'}{image.id && image.id.length > 12 ? '...' : ''}</span>
                       <span>Size: {image.size}</span>
                       <span>Created: {image.created}</span>
@@ -629,7 +629,7 @@ export const DockerfileToK8s: React.FC = () => {
                     variant="ghost"
                     size="sm"
                     onClick={() => handleDeleteImage(image.name)}
-                    className="ml-4 text-red-400 hover:text-red-300 hover:bg-red-400/10 border-red-400/30"
+                    className="ml-4 text-neon-orange hover:text-neon-orange/80 hover:bg-neon-orange/10 border-neon-orange/30"
                   >
                     <Trash2 size={16} />
                   </Button>

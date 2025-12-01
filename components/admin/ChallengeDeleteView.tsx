@@ -135,10 +135,10 @@ export const ChallengeDeleteView: React.FC = () => {
     <div className="space-y-6">
       <div className="flex items-center justify-between flex-wrap gap-4">
         <div className="flex items-center gap-3">
-          <div className="w-10 h-10 bg-orange-100 rounded-xl flex items-center justify-center">
-            <Trash2 className="text-orange-600" size={20} />
+          <div className="w-10 h-10 bg-neon-orange/20 backdrop-blur-sm rounded-xl flex items-center justify-center border border-neon-orange/40">
+            <Trash2 className="text-neon-orange" size={20} />
           </div>
-          <h3 className="text-2xl font-bold text-brown-900">
+          <h3 className="text-2xl font-bold text-white gradient-text">
             Deleted Challenges
           </h3>
         </div>
@@ -147,6 +147,7 @@ export const ChallengeDeleteView: React.FC = () => {
           size="sm"
           onClick={fetchDeletedChallenges}
           disabled={isRefreshing}
+          className="border-neon-orange/30 hover:bg-neon-orange/10 text-white"
         >
           <RefreshCw size={16} className={`mr-2 ${isRefreshing ? 'animate-spin' : ''}`} />
           Refresh
@@ -160,52 +161,52 @@ export const ChallengeDeleteView: React.FC = () => {
       />
 
       {/* Deleted Challenges Table */}
-      <div className="bg-white rounded-2xl shadow-md border border-orange-200 overflow-x-auto">
+      <div className="bg-cyber-900/80 backdrop-blur-xl rounded-2xl shadow-lg border border-neon-orange/20 terminal-border overflow-x-auto">
         {isLoading ? (
           <div className="p-12 text-center">
             <div className="inline-block animate-spin mb-4">
-              <RefreshCw className="text-orange-600" size={32} />
+              <RefreshCw className="text-neon-orange" size={32} />
             </div>
-            <p className="text-brown-600">Loading deleted challenges...</p>
+            <p className="text-white/60">Loading deleted challenges...</p>
           </div>
         ) : deletedChallenges.length === 0 ? (
           <div className="p-12 text-center">
-            <div className="w-16 h-16 bg-orange-100 rounded-2xl flex items-center justify-center mx-auto mb-4">
-              <Trash2 className="text-orange-400" size={32} />
+            <div className="w-16 h-16 bg-cyber-800/50 rounded-2xl flex items-center justify-center mx-auto mb-4 border border-neon-orange/20">
+              <Trash2 className="text-neon-orange/60" size={32} />
             </div>
-            <p className="text-brown-600">
+            <p className="text-white/60">
               No deleted challenges found.
             </p>
           </div>
         ) : (
           <table className="w-full">
             <thead>
-              <tr className="bg-orange-50 border-b border-orange-200">
-                <th className="px-4 py-3 text-left text-sm font-semibold text-brown-700">Name</th>
-                <th className="px-4 py-3 text-left text-sm font-semibold text-brown-700">Category</th>
-                <th className="px-4 py-3 text-left text-sm font-semibold text-brown-700">Type</th>
-                <th className="px-4 py-3 text-left text-sm font-semibold text-brown-700">Points</th>
-                <th className="px-4 py-3 text-left text-sm font-semibold text-brown-700">Deleted At</th>
-                <th className="px-4 py-3 text-left text-sm font-semibold text-brown-700">Actions</th>
+              <tr className="bg-cyber-800/50 border-b border-neon-orange/20">
+                <th className="px-4 py-3 text-left text-sm font-semibold text-white">Name</th>
+                <th className="px-4 py-3 text-left text-sm font-semibold text-white">Category</th>
+                <th className="px-4 py-3 text-left text-sm font-semibold text-white">Type</th>
+                <th className="px-4 py-3 text-left text-sm font-semibold text-white">Points</th>
+                <th className="px-4 py-3 text-left text-sm font-semibold text-white">Deleted At</th>
+                <th className="px-4 py-3 text-left text-sm font-semibold text-white">Actions</th>
               </tr>
             </thead>
             <tbody>
               {deletedChallenges.map((challenge) => (
                 <tr
                   key={challenge.id}
-                  className="border-b border-orange-100 hover:bg-orange-50 transition-colors"
+                  className="border-b border-neon-orange/10 hover:bg-cyber-800/30 transition-colors"
                 >
                   <td className="px-4 py-3">
                     <div className="flex items-center gap-2">
                       {challenge.challenge_category === 'containerized' ? (
-                        <Container className="text-green-600" size={16} />
+                        <Container className="text-neon-green" size={16} />
                       ) : (
-                        <Folder className="text-orange-600" size={16} />
+                        <Folder className="text-neon-cyan" size={16} />
                       )}
                       <div>
-                        <div className="text-brown-900 font-semibold">{challenge.name}</div>
+                        <div className="text-white font-semibold">{challenge.name}</div>
                         {challenge.description && (
-                          <div className="text-brown-600 text-xs mt-1 line-clamp-1">
+                          <div className="text-white/60 text-xs mt-1 line-clamp-1">
                             {challenge.description}
                           </div>
                         )}
@@ -213,20 +214,20 @@ export const ChallengeDeleteView: React.FC = () => {
                     </div>
                   </td>
                   <td className="px-4 py-3">
-                    <span className="text-brown-700 capitalize">
+                    <span className="text-white/80 capitalize">
                       {challenge.challenge_category}
                     </span>
                   </td>
                   <td className="px-4 py-3">
-                    <span className="text-brown-700">
+                    <span className="text-white/80">
                       {challenge.config?.challenge_type || 'N/A'}
                     </span>
                   </td>
                   <td className="px-4 py-3">
-                    <span className="text-orange-600 font-semibold">{challenge.points}</span>
+                    <span className="text-neon-orange font-semibold">{challenge.points}</span>
                   </td>
                   <td className="px-4 py-3">
-                    <span className="text-brown-600 text-xs">
+                    <span className="text-white/60 text-xs">
                       {challenge.deleted_at 
                         ? formatDate(challenge.deleted_at)
                         : challenge.updated_at 
@@ -239,7 +240,7 @@ export const ChallengeDeleteView: React.FC = () => {
                       <button
                         onClick={() => handleRestore(challenge.id, challenge.name)}
                         disabled={restoringId === challenge.id || deletingId === challenge.id}
-                        className="p-2 text-green-600 hover:bg-green-50 rounded-lg border border-green-200 hover:border-green-300 transition-all disabled:opacity-50 disabled:cursor-not-allowed"
+                        className="p-2 text-neon-green hover:bg-neon-green/10 rounded-lg border border-neon-green/30 hover:border-neon-green/50 transition-all disabled:opacity-50 disabled:cursor-not-allowed"
                         title="Restore Challenge"
                       >
                         {restoringId === challenge.id ? (
@@ -251,7 +252,7 @@ export const ChallengeDeleteView: React.FC = () => {
                       <button
                         onClick={() => handlePermanentDelete(challenge.id, challenge.name)}
                         disabled={restoringId === challenge.id || deletingId === challenge.id}
-                        className="p-2 text-orange-600 hover:bg-orange-50 rounded-lg border border-orange-200 hover:border-orange-300 transition-all disabled:opacity-50 disabled:cursor-not-allowed"
+                        className="p-2 text-neon-orange hover:bg-neon-orange/10 rounded-lg border border-neon-orange/30 hover:border-neon-orange/50 transition-all disabled:opacity-50 disabled:cursor-not-allowed"
                         title="Permanently Delete"
                       >
                         {deletingId === challenge.id ? (
@@ -272,19 +273,19 @@ export const ChallengeDeleteView: React.FC = () => {
       {/* Summary Stats */}
       {deletedChallenges.length > 0 && (
         <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
-          <div className="bg-white rounded-xl shadow-md border border-orange-200 p-6">
-            <div className="text-brown-600 text-sm mb-1">Total Deleted</div>
-            <div className="text-orange-600 text-3xl font-bold">{deletedChallenges.length}</div>
+          <div className="bg-cyber-900/80 backdrop-blur-xl rounded-xl shadow-lg border border-neon-orange/20 terminal-border p-6">
+            <div className="text-white/60 text-sm mb-1">Total Deleted</div>
+            <div className="text-neon-orange text-3xl font-bold">{deletedChallenges.length}</div>
           </div>
-          <div className="bg-white rounded-xl shadow-md border border-orange-200 p-6">
-            <div className="text-brown-600 text-sm mb-1">Containerized</div>
-            <div className="text-orange-600 text-3xl font-bold">
+          <div className="bg-cyber-900/80 backdrop-blur-xl rounded-xl shadow-lg border border-neon-orange/20 terminal-border p-6">
+            <div className="text-white/60 text-sm mb-1">Containerized</div>
+            <div className="text-neon-orange text-3xl font-bold">
               {deletedChallenges.filter((c) => c.challenge_category === 'containerized').length}
             </div>
           </div>
-          <div className="bg-white rounded-xl shadow-md border border-orange-200 p-6">
-            <div className="text-brown-600 text-sm mb-1">Static</div>
-            <div className="text-orange-600 text-3xl font-bold">
+          <div className="bg-cyber-900/80 backdrop-blur-xl rounded-xl shadow-lg border border-neon-orange/20 terminal-border p-6">
+            <div className="text-white/60 text-sm mb-1">Static</div>
+            <div className="text-neon-orange text-3xl font-bold">
               {deletedChallenges.filter((c) => c.challenge_category === 'static').length}
             </div>
           </div>

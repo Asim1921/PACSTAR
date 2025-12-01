@@ -183,8 +183,8 @@ export const SnapshotDevelopment: React.FC = () => {
       {/* Header */}
       <div className="flex items-center justify-between flex-wrap gap-4">
         <div className="flex items-center gap-3">
-          <Camera className="text-green-600" size={24} />
-          <h2 className="text-2xl font-bold text-brown-900">
+          <Camera className="text-neon-green" size={24} />
+          <h2 className="text-2xl font-bold gradient-text">
             SNAPSHOT DEVELOPMENT
           </h2>
         </div>
@@ -212,15 +212,15 @@ export const SnapshotDevelopment: React.FC = () => {
         {/* Left Column - Configuration */}
         <div className="space-y-6">
           {/* Snapshot Selection */}
-          <div className="bg-white rounded-2xl shadow-md border border-brown-200 p-4 lg:p-6">
+          <div className="bg-cyber-900/80 backdrop-blur-xl rounded-2xl shadow-md border border-neon-green/20 terminal-border p-4 lg:p-6">
             <div className="flex items-center gap-2 mb-4">
-              <Camera className="text-green-600" size={18} />
-              <h3 className="text-lg font-bold text-brown-900">Snapshot Selection</h3>
+              <Camera className="text-neon-green" size={18} />
+              <h3 className="text-lg font-bold gradient-text">Snapshot Selection</h3>
             </div>
             
             <div className="space-y-4">
               <div>
-                <label className="block text-brown-600 text-sm mb-2">
+                <label className="block text-white/60 text-sm mb-2">
                   Select Snapshot *
                 </label>
                 <Select
@@ -238,12 +238,12 @@ export const SnapshotDevelopment: React.FC = () => {
               </div>
               
               {selectedSnapshot && (
-                <div className="p-3 bg-accent/10 border border-accent/30 rounded">
-                  <div className="text-xs font-mono text-brown-900/80 space-y-1">
+                <div className="p-3 bg-neon-green/10 border border-neon-green/30 rounded">
+                  <div className="text-xs font-mono text-white/80 space-y-1">
                     {snapshots.find(s => s.id === selectedSnapshot) && (
                       <>
-                        <div>Status: <span className="text-green-600">{snapshots.find(s => s.id === selectedSnapshot)?.status || 'N/A'}</span></div>
-                        <div>Created: <span className="text-green-600">{snapshots.find(s => s.id === selectedSnapshot)?.created_at || 'N/A'}</span></div>
+                        <div>Status: <span className="text-neon-green">{snapshots.find(s => s.id === selectedSnapshot)?.status || 'N/A'}</span></div>
+                        <div>Created: <span className="text-neon-green">{snapshots.find(s => s.id === selectedSnapshot)?.created_at || 'N/A'}</span></div>
                       </>
                     )}
                   </div>
@@ -253,14 +253,14 @@ export const SnapshotDevelopment: React.FC = () => {
           </div>
           
           {/* Flavor Selection */}
-          <div className="bg-white rounded-2xl shadow-md border border-brown-200 p-4 lg:p-6">
+          <div className="bg-cyber-900/80 backdrop-blur-xl rounded-2xl shadow-md border border-neon-green/20 terminal-border p-4 lg:p-6">
             <div className="flex items-center gap-2 mb-4">
-              <Settings className="text-green-600" size={18} />
-              <h3 className="text-lg font-bold text-brown-900">Flavor Configuration</h3>
+              <Settings className="text-neon-green" size={18} />
+              <h3 className="text-lg font-bold gradient-text">Flavor Configuration</h3>
             </div>
             
             <div>
-              <label className="block text-brown-600 text-sm mb-2">
+              <label className="block text-white/60 text-sm mb-2">
                 Select Flavor *
               </label>
               <Input
@@ -270,18 +270,18 @@ export const SnapshotDevelopment: React.FC = () => {
                 placeholder="e.g., m1.small, m1.medium"
                 className="font-mono text-sm"
               />
-              <p className="text-xs text-brown-900/60 font-mono mt-1">
+              <p className="text-xs text-white/60 font-mono mt-1">
                 Enter the flavor ID (e.g., m1.small, m1.medium, m1.large)
               </p>
             </div>
           </div>
           
           {/* Team Selection */}
-          <div className="bg-white rounded-2xl shadow-md border border-brown-200 p-4 lg:p-6">
+          <div className="bg-cyber-900/80 backdrop-blur-xl rounded-2xl shadow-md border border-neon-green/20 terminal-border p-4 lg:p-6">
             <div className="flex items-center justify-between mb-4">
               <div className="flex items-center gap-2">
-                <Users className="text-green-600" size={18} />
-                <h3 className="text-lg font-bold text-brown-900">Team Selection</h3>
+                <Users className="text-neon-green" size={18} />
+                <h3 className="text-lg font-bold gradient-text">Team Selection</h3>
               </div>
               <Button
                 variant="outline"
@@ -297,7 +297,7 @@ export const SnapshotDevelopment: React.FC = () => {
             
             <div className="space-y-3">
               <div>
-                <label className="block text-brown-600 text-sm mb-2">
+                <label className="block text-white/60 text-sm mb-2">
                   Instances Per Team
                 </label>
                 <Input
@@ -311,12 +311,12 @@ export const SnapshotDevelopment: React.FC = () => {
               </div>
               
               <div>
-                <label className="block text-brown-600 text-sm mb-2">
+                <label className="block text-white/60 text-sm mb-2">
                   Select Teams * ({selectedTeams.length} selected)
                 </label>
-                <div className="max-h-48 overflow-y-auto space-y-2 p-2 bg-brown-50 border border-brown-200 rounded-xl">
+                <div className="max-h-48 overflow-y-auto space-y-2 p-2 bg-cyber-800/50 border border-neon-green/20 terminal-border rounded-xl">
                   {teams.length === 0 ? (
-                    <p className="text-brown-900/60 font-mono text-xs text-center py-4">
+                    <p className="text-white/60 font-mono text-xs text-center py-4">
                       No teams available
                     </p>
                   ) : (
@@ -329,9 +329,9 @@ export const SnapshotDevelopment: React.FC = () => {
                           type="checkbox"
                           checked={selectedTeams.includes(team.id || team.team_id)}
                           onChange={() => toggleTeam(team.id || team.team_id)}
-                          className="accent-green-500"
+                          className="accent-neon-green"
                         />
-                        <span className="text-brown-700 text-sm">
+                        <span className="text-white/80 text-sm">
                           {team.name || team.team_name || team.id || team.team_id}
                         </span>
                       </label>
@@ -346,11 +346,11 @@ export const SnapshotDevelopment: React.FC = () => {
         {/* Right Column - Network & Security */}
         <div className="space-y-6">
           {/* Network Configuration */}
-          <div className="bg-white rounded-2xl shadow-md border border-brown-200 p-4 lg:p-6">
+          <div className="bg-cyber-900/80 backdrop-blur-xl rounded-2xl shadow-md border border-neon-green/20 terminal-border p-4 lg:p-6">
             <div className="flex items-center justify-between mb-4">
               <div className="flex items-center gap-2">
-                <Network className="text-green-600" size={18} />
-                <h3 className="text-lg font-bold text-brown-900">Network Configuration</h3>
+                <Network className="text-neon-green" size={18} />
+                <h3 className="text-lg font-bold gradient-text">Network Configuration</h3>
               </div>
               <Button
                 variant="outline"
@@ -366,7 +366,7 @@ export const SnapshotDevelopment: React.FC = () => {
             
             <div className="space-y-4">
               <div>
-                <label className="block text-brown-600 text-sm mb-2">
+                <label className="block text-white/60 text-sm mb-2">
                   Network Strategy
                 </label>
                 <Select
@@ -383,7 +383,7 @@ export const SnapshotDevelopment: React.FC = () => {
               
               {networkStrategy === 'custom' && (
                 <div>
-                  <label className="block text-brown-600 text-sm mb-2">
+                  <label className="block text-white/60 text-sm mb-2">
                     Select Network
                   </label>
                   <Select
@@ -404,15 +404,15 @@ export const SnapshotDevelopment: React.FC = () => {
           </div>
           
           {/* Security Groups */}
-          <div className="bg-white rounded-2xl shadow-md border border-brown-200 p-4 lg:p-6">
+          <div className="bg-cyber-900/80 backdrop-blur-xl rounded-2xl shadow-md border border-neon-green/20 terminal-border p-4 lg:p-6">
             <div className="flex items-center gap-2 mb-4">
-              <Shield className="text-green-600" size={18} />
-              <h3 className="text-lg font-bold text-brown-900">Security Groups</h3>
+              <Shield className="text-neon-green" size={18} />
+              <h3 className="text-lg font-bold gradient-text">Security Groups</h3>
             </div>
             
             <div className="space-y-3">
               <div>
-                <label className="block text-brown-600 text-sm mb-2">
+                <label className="block text-white/60 text-sm mb-2">
                   Security Group Names ({selectedSecurityGroups.length} selected)
                 </label>
                 <Input
@@ -429,7 +429,7 @@ export const SnapshotDevelopment: React.FC = () => {
                     }
                   }}
                 />
-                <p className="text-xs text-brown-900/60 font-mono">
+                <p className="text-xs text-white/60 font-mono">
                   Press Enter to add security group
                 </p>
               </div>
@@ -439,7 +439,7 @@ export const SnapshotDevelopment: React.FC = () => {
                   {selectedSecurityGroups.map((sg) => (
                     <span
                       key={sg}
-                      className="inline-flex items-center gap-1 px-2 py-1 bg-green-100 border border-green-200 text-green-700 text-xs rounded-lg"
+                      className="inline-flex items-center gap-1 px-2 py-1 bg-neon-green/10 border border-neon-green/30 text-neon-green text-xs rounded-lg"
                     >
                       {sg}
                       <button
@@ -457,18 +457,18 @@ export const SnapshotDevelopment: React.FC = () => {
           
           {/* Deployment Plan Preview */}
           {deploymentPlan && (
-            <div className="bg-white rounded-2xl shadow-md border border-brown-200 p-4 lg:p-6">
+            <div className="bg-cyber-900/80 backdrop-blur-xl rounded-2xl shadow-md border border-neon-green/20 terminal-border p-4 lg:p-6">
               <div className="flex items-center gap-2 mb-4">
-                <CheckCircle className="text-green-600" size={18} />
-                <h3 className="text-lg font-bold text-brown-900">Deployment Plan</h3>
+                <CheckCircle className="text-neon-green" size={18} />
+                <h3 className="text-lg font-bold gradient-text">Deployment Plan</h3>
               </div>
               
               <div className="space-y-2 text-sm font-mono">
-                <div className="p-3 bg-accent/10 border border-accent/30 rounded">
-                  <div className="text-brown-900/80 space-y-1">
-                    <div>Total Instances: <span className="text-green-600 font-semibold">{deploymentPlan.total_instances || 'N/A'}</span></div>
-                    <div>Teams: <span className="text-green-600 font-semibold">{deploymentPlan.teams_count || selectedTeams.length}</span></div>
-                    <div>Instances per Team: <span className="text-green-600 font-semibold">{instancesPerTeam}</span></div>
+                <div className="p-3 bg-neon-green/10 border border-neon-green/30 rounded">
+                  <div className="text-white/80 space-y-1">
+                    <div>Total Instances: <span className="text-neon-green font-semibold">{deploymentPlan.total_instances || 'N/A'}</span></div>
+                    <div>Teams: <span className="text-neon-green font-semibold">{deploymentPlan.teams_count || selectedTeams.length}</span></div>
+                    <div>Instances per Team: <span className="text-neon-green font-semibold">{instancesPerTeam}</span></div>
                   </div>
                 </div>
               </div>

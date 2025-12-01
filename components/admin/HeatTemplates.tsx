@@ -188,14 +188,14 @@ export const HeatTemplates: React.FC = () => {
   return (
     <div className="space-y-8">
       {/* Stack Name Section */}
-      <div className="bg-gradient-to-r from-white to-brown-50 rounded-2xl p-6 border border-brown-200 shadow-sm">
+      <div className="bg-gradient-to-r from-cyber-900 to-cyber-800 rounded-2xl p-6 border border-neon-green/20 terminal-border shadow-sm">
         <div className="flex items-center gap-3 mb-4">
-          <div className="w-10 h-10 bg-orange-100 rounded-xl flex items-center justify-center">
-            <FileCode className="text-orange-600" size={20} />
+          <div className="w-10 h-10 bg-neon-orange/10 rounded-xl flex items-center justify-center">
+            <FileCode className="text-neon-orange" size={20} />
           </div>
           <div>
-            <h3 className="text-lg font-bold text-brown-900">Stack Configuration</h3>
-            <p className="text-sm text-brown-600">Define your Heat stack name</p>
+            <h3 className="text-lg font-bold gradient-text">Stack Configuration</h3>
+            <p className="text-sm text-white/60">Define your Heat stack name</p>
           </div>
         </div>
         <Input
@@ -206,21 +206,21 @@ export const HeatTemplates: React.FC = () => {
           label="Stack Name"
           className="w-full"
         />
-        <p className="text-xs text-brown-500 mt-2 flex items-center gap-1">
-          <span className="text-orange-600">*</span>
+        <p className="text-xs text-white/50 mt-2 flex items-center gap-1">
+          <span className="text-neon-orange">*</span>
           Required field
         </p>
       </div>
 
       {/* Template Source Section */}
-      <div className="bg-white rounded-2xl p-6 border border-brown-200 shadow-sm">
+      <div className="bg-cyber-900/80 backdrop-blur-xl rounded-2xl p-6 border border-neon-green/20 terminal-border shadow-sm">
         <div className="flex items-center gap-3 mb-6">
-          <div className="w-10 h-10 bg-green-100 rounded-xl flex items-center justify-center">
-            <Code className="text-green-600" size={20} />
+          <div className="w-10 h-10 bg-neon-green/10 rounded-xl flex items-center justify-center">
+            <Code className="text-neon-green" size={20} />
           </div>
           <div>
-            <h3 className="text-lg font-bold text-brown-900">Template Source</h3>
-            <p className="text-sm text-brown-600">Choose how to provide your Heat template</p>
+            <h3 className="text-lg font-bold gradient-text">Template Source</h3>
+            <p className="text-sm text-white/60">Choose how to provide your Heat template</p>
           </div>
         </div>
         <RadioGroup
@@ -247,16 +247,16 @@ export const HeatTemplates: React.FC = () => {
       </div>
 
       {/* Template Input Section */}
-      <div className="bg-white rounded-2xl p-6 border border-brown-200 shadow-sm">
+      <div className="bg-cyber-900/80 backdrop-blur-xl rounded-2xl p-6 border border-neon-green/20 terminal-border shadow-sm">
         {templateSource === 'upload' && (
           <>
             <div className="flex items-center gap-3 mb-4">
-              <div className="w-10 h-10 bg-green-100 rounded-xl flex items-center justify-center">
-                <Upload className="text-green-600" size={20} />
+              <div className="w-10 h-10 bg-neon-green/10 rounded-xl flex items-center justify-center">
+                <Upload className="text-neon-green" size={20} />
               </div>
               <div>
-                <h3 className="text-lg font-bold text-brown-900">Upload HOT/YAML Template</h3>
-                <p className="text-sm text-brown-600">Select your Heat template file</p>
+                <h3 className="text-lg font-bold gradient-text">Upload HOT/YAML Template</h3>
+                <p className="text-sm text-white/60">Select your Heat template file</p>
               </div>
             </div>
             <div className="flex flex-col lg:flex-row gap-4">
@@ -271,8 +271,8 @@ export const HeatTemplates: React.FC = () => {
                   cursor-pointer transition-all
                   ${
                     isDragging
-                      ? 'border-green-500 bg-green-50 shadow-md'
-                      : 'border-brown-300 hover:border-green-400 bg-brown-50/50 hover:bg-brown-50'
+                      ? 'border-neon-cyan bg-neon-cyan/10 shadow-md'
+                      : 'border-neon-cyan/30 hover:border-neon-cyan/50 bg-cyber-800/50/50 hover:bg-cyber-800/50'
                   }
                 `}
               >
@@ -286,17 +286,17 @@ export const HeatTemplates: React.FC = () => {
                 
                 {selectedFile ? (
                   <>
-                    <div className="w-16 h-16 bg-green-100 rounded-xl flex items-center justify-center">
-                      <FileText className="text-green-600" size={32} />
+                    <div className="w-16 h-16 bg-neon-green/10 rounded-xl flex items-center justify-center">
+                      <FileText className="text-neon-green" size={32} />
                     </div>
                     <div className="text-center">
                       <p className="text-base text-green-700 font-semibold mb-2">
                         {selectedFile.name}
                       </p>
-                      <p className="text-sm text-brown-600 mb-1">
+                      <p className="text-sm text-white/60 mb-1">
                         {(selectedFile.size / (1024 * 1024)).toFixed(2)} MB
                       </p>
-                      <p className="text-xs text-brown-500">
+                      <p className="text-xs text-white/50">
                         Click to change file
                       </p>
                     </div>
@@ -304,16 +304,16 @@ export const HeatTemplates: React.FC = () => {
                 ) : (
                   <>
                     <div className="w-16 h-16 bg-brown-100 rounded-xl flex items-center justify-center">
-                      <Cloud className="text-brown-400" size={32} />
+                      <Cloud className="text-white/40" size={32} />
                     </div>
                     <div className="text-center">
-                      <p className="text-base text-brown-700 font-semibold mb-2">
+                      <p className="text-base text-white/80 font-semibold mb-2">
                         Drag and drop file here
                       </p>
-                      <p className="text-sm text-brown-600 mb-1">
+                      <p className="text-sm text-white/60 mb-1">
                         or click to browse
                       </p>
-                      <p className="text-xs text-brown-500">
+                      <p className="text-xs text-white/50">
                         Limit 200MB • YAML, YML, JSON, TEMPLATE, HOT
                       </p>
                     </div>
@@ -340,14 +340,14 @@ export const HeatTemplates: React.FC = () => {
         {templateSource === 'paste' && (
           <>
             <div className="flex items-center gap-3 mb-4">
-              <div className="w-10 h-10 bg-green-100 rounded-xl flex items-center justify-center">
-                <Code className="text-green-600" size={20} />
+              <div className="w-10 h-10 bg-neon-green/10 rounded-xl flex items-center justify-center">
+                <Code className="text-neon-green" size={20} />
               </div>
               <div className="flex-1">
-                <h3 className="text-lg font-bold text-brown-900">Template Body</h3>
-                <p className="text-sm text-brown-600">Paste your Heat Orchestration Template YAML content</p>
+                <h3 className="text-lg font-bold gradient-text">Template Body</h3>
+                <p className="text-sm text-white/60">Paste your Heat Orchestration Template YAML content</p>
               </div>
-              <span className="text-orange-600 font-semibold text-sm">*</span>
+              <span className="text-neon-orange font-semibold text-sm">*</span>
             </div>
             <div className="relative">
               <textarea
@@ -355,9 +355,9 @@ export const HeatTemplates: React.FC = () => {
                 onChange={(e) => setYamlContent(e.target.value)}
                 placeholder="# Paste full HOT template here&#10;&#10;heat_template_version: '2013-05-23'&#10;description: Your template description&#10;..."
                 rows={16}
-                className="w-full px-4 py-3 bg-brown-50 border-2 border-brown-200 rounded-xl text-brown-900 placeholder:text-brown-400 focus:outline-none focus:border-green-500 focus:ring-2 focus:ring-green-500/20 transition-all resize-y font-mono text-sm leading-relaxed"
+                className="w-full px-4 py-3 bg-cyber-800/50 border-2 border-neon-green/20 terminal-border rounded-xl text-white placeholder:text-white/40 focus:outline-none focus:border-neon-cyan focus:ring-2 focus:ring-neon-cyan/20 transition-all resize-y font-mono text-sm leading-relaxed"
               />
-              <div className="absolute bottom-3 right-3 flex items-center gap-2 text-xs text-brown-400">
+              <div className="absolute bottom-3 right-3 flex items-center gap-2 text-xs text-white/40">
                 <Code size={12} />
                 <span>YAML</span>
               </div>
@@ -368,17 +368,17 @@ export const HeatTemplates: React.FC = () => {
         {templateSource === 'url' && (
           <>
             <div className="flex items-center gap-3 mb-4">
-              <div className="w-10 h-10 bg-green-100 rounded-xl flex items-center justify-center">
-                <LinkIcon className="text-green-600" size={20} />
+              <div className="w-10 h-10 bg-neon-green/10 rounded-xl flex items-center justify-center">
+                <LinkIcon className="text-neon-green" size={20} />
               </div>
               <div className="flex-1">
-                <h3 className="text-lg font-bold text-brown-900">Template URL</h3>
-                <p className="text-sm text-brown-600">Provide a URL to fetch the template</p>
+                <h3 className="text-lg font-bold gradient-text">Template URL</h3>
+                <p className="text-sm text-white/60">Provide a URL to fetch the template</p>
               </div>
-              <span className="text-orange-600 font-semibold text-sm">*</span>
+              <span className="text-neon-orange font-semibold text-sm">*</span>
             </div>
             <div className="flex items-center gap-3">
-              <LinkIcon className="text-brown-400 flex-shrink-0" size={20} />
+              <LinkIcon className="text-white/40 flex-shrink-0" size={20} />
               <Input
                 type="url"
                 value={templateUrl}
@@ -392,14 +392,14 @@ export const HeatTemplates: React.FC = () => {
       </div>
 
       {/* Advanced Configuration */}
-      <div className="bg-white rounded-2xl p-6 border border-brown-200 shadow-sm">
+      <div className="bg-cyber-900/80 backdrop-blur-xl rounded-2xl p-6 border border-neon-green/20 terminal-border shadow-sm">
         <div className="flex items-center gap-3 mb-6">
           <div className="w-10 h-10 bg-brown-100 rounded-xl flex items-center justify-center">
-            <HelpCircle className="text-brown-600" size={20} />
+            <HelpCircle className="text-white/60" size={20} />
           </div>
           <div>
-            <h3 className="text-lg font-bold text-brown-900">Advanced Configuration</h3>
-            <p className="text-sm text-brown-600">Optional settings for deployment</p>
+            <h3 className="text-lg font-bold gradient-text">Advanced Configuration</h3>
+            <p className="text-sm text-white/60">Optional settings for deployment</p>
           </div>
         </div>
 
@@ -407,11 +407,11 @@ export const HeatTemplates: React.FC = () => {
           {/* Parameters */}
           <div>
             <div className="flex items-center gap-2 mb-3">
-              <label className="text-sm font-semibold text-brown-700">
+              <label className="text-sm font-semibold text-white/80">
                 Parameters (JSON)
               </label>
-              <HelpCircle className="text-brown-400" size={16} />
-              <span className="text-xs text-brown-500">Optional</span>
+              <HelpCircle className="text-white/40" size={16} />
+              <span className="text-xs text-white/50">Optional</span>
             </div>
             <div className="relative">
               <textarea
@@ -419,9 +419,9 @@ export const HeatTemplates: React.FC = () => {
                 onChange={(e) => setParameters(e.target.value)}
                 placeholder='{"param1": "value1", "param2": "value2"}'
                 rows={6}
-                className="w-full px-4 py-3 bg-brown-50 border-2 border-brown-200 rounded-xl text-brown-900 placeholder:text-brown-400 focus:outline-none focus:border-green-500 focus:ring-2 focus:ring-green-500/20 transition-all resize-y font-mono text-sm"
+                className="w-full px-4 py-3 bg-cyber-800/50 border-2 border-neon-green/20 terminal-border rounded-xl text-white placeholder:text-white/40 focus:outline-none focus:border-neon-cyan focus:ring-2 focus:ring-neon-cyan/20 transition-all resize-y font-mono text-sm"
               />
-              <div className="absolute bottom-3 right-3 flex items-center gap-2 text-xs text-brown-400">
+              <div className="absolute bottom-3 right-3 flex items-center gap-2 text-xs text-white/40">
                 <Code size={12} />
                 <span>JSON</span>
               </div>
@@ -430,14 +430,14 @@ export const HeatTemplates: React.FC = () => {
 
           {/* Timeout */}
           <div>
-            <label className="block text-sm font-semibold text-brown-700 mb-3">
+            <label className="block text-sm font-semibold text-white/80 mb-3">
               Timeout (minutes)
             </label>
             <div className="flex items-center gap-3">
               <button
                 type="button"
                 onClick={() => handleTimeoutChange(-1)}
-                className="w-12 h-12 flex items-center justify-center bg-brown-50 border-2 border-brown-200 rounded-xl hover:border-green-500 hover:bg-green-50 transition-all text-brown-700 hover:text-green-600 shadow-sm"
+                className="w-12 h-12 flex items-center justify-center bg-cyber-800/50 border-2 border-neon-green/20 terminal-border rounded-xl hover:border-neon-cyan hover:bg-neon-cyan/10 transition-all text-white/80 hover:text-neon-green shadow-sm"
               >
                 <Minus size={18} />
               </button>
@@ -454,32 +454,32 @@ export const HeatTemplates: React.FC = () => {
               <button
                 type="button"
                 onClick={() => handleTimeoutChange(1)}
-                className="w-12 h-12 flex items-center justify-center bg-brown-50 border-2 border-brown-200 rounded-xl hover:border-green-500 hover:bg-green-50 transition-all text-brown-700 hover:text-green-600 shadow-sm"
+                className="w-12 h-12 flex items-center justify-center bg-cyber-800/50 border-2 border-neon-green/20 terminal-border rounded-xl hover:border-neon-cyan hover:bg-neon-cyan/10 transition-all text-white/80 hover:text-neon-green shadow-sm"
               >
                 <Plus size={18} />
               </button>
-              <span className="text-sm text-brown-600 ml-2">minutes</span>
+              <span className="text-sm text-white/60 ml-2">minutes</span>
             </div>
-            <p className="text-xs text-brown-500 mt-2">Range: 1 minute to 24 hours (1440 minutes)</p>
+            <p className="text-xs text-white/50 mt-2">Range: 1 minute to 24 hours (1440 minutes)</p>
           </div>
 
           {/* Rollback */}
-          <div className="flex items-start gap-3 p-4 bg-brown-50 rounded-xl border border-brown-200">
+          <div className="flex items-start gap-3 p-4 bg-cyber-800/50 rounded-xl border border-neon-green/20 terminal-border">
             <input
               type="checkbox"
               id="rollbackOnFailure"
               checked={rollbackOnFailure}
               onChange={(e) => setRollbackOnFailure(e.target.checked)}
-              className="w-5 h-5 mt-0.5 text-green-500 focus:ring-green-500 focus:ring-2 accent-green-500"
+              className="w-5 h-5 mt-0.5 text-green-500 focus:ring-neon-cyan focus:ring-2 accent-green-500"
             />
             <div className="flex-1">
               <div className="flex items-center gap-2 mb-1">
-                <label htmlFor="rollbackOnFailure" className="text-sm font-semibold text-brown-700 cursor-pointer">
+                <label htmlFor="rollbackOnFailure" className="text-sm font-semibold text-white/80 cursor-pointer">
                   Rollback on failure
                 </label>
-                <HelpCircle className="text-brown-400" size={14} />
+                <HelpCircle className="text-white/40" size={14} />
               </div>
-              <p className="text-xs text-brown-600">
+              <p className="text-xs text-white/60">
                 Automatically rollback the stack if deployment fails
               </p>
             </div>
@@ -495,7 +495,7 @@ export const HeatTemplates: React.FC = () => {
           onClick={handleDeploy}
           disabled={isDeploying}
           isLoading={isDeploying}
-          className="px-10 py-4 text-lg bg-gradient-to-r from-orange-500 to-orange-600 hover:from-orange-600 hover:to-orange-700 shadow-lg hover:shadow-xl"
+          className="px-10 py-4 text-lg bg-gradient-to-r from-neon-green to-neon-cyan hover:from-neon-cyan hover:to-neon-green shadow-lg hover:shadow-xl"
         >
           <Flame size={20} className="mr-2" />
           {isDeploying ? 'Deploying Stack...' : 'Deploy Heat Template'}

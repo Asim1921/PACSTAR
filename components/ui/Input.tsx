@@ -21,26 +21,26 @@ export const Input: React.FC<InputProps> = ({
   return (
     <div className="w-full">
       {label && (
-        <label className="block text-sm font-semibold text-brown-700 mb-2">
+        <label className="block text-sm font-semibold text-white/90 mb-2">
           {label}
         </label>
       )}
-      <div className="relative">
+      <div className="relative group">
         {icon && (
-          <div className="absolute left-4 top-1/2 transform -translate-y-1/2 text-brown-400">
+          <div className="absolute left-4 top-1/2 transform -translate-y-1/2 text-neon-green/60 group-focus-within:text-neon-green transition-colors">
             {icon}
           </div>
         )}
         <input
           type={isPassword && showPassword ? 'text' : type}
           className={`
-            w-full px-4 py-3.5 bg-brown-50 border-2 rounded-xl
-            text-brown-900 placeholder:text-brown-400
-            focus:outline-none focus:ring-2 focus:ring-green-500/20
+            w-full px-4 py-3.5 bg-cyber-800/50 border-2 rounded-xl
+            text-white placeholder:text-white/30
+            focus:outline-none focus:ring-4 focus:ring-neon-green/20
             transition-all duration-300
             ${icon ? 'pl-12' : ''}
             ${isPassword ? 'pr-12' : ''}
-            ${error ? 'border-orange-500 focus:border-orange-500' : 'border-brown-200 focus:border-green-500'}
+            ${error ? 'border-neon-orange/50 focus:border-neon-orange' : 'border-neon-green/20 focus:border-neon-green'}
             ${className}
           `}
           {...props}
@@ -49,7 +49,7 @@ export const Input: React.FC<InputProps> = ({
           <button
             type="button"
             onClick={() => setShowPassword(!showPassword)}
-            className="absolute right-4 top-1/2 transform -translate-y-1/2 text-brown-400 hover:text-brown-600 transition-colors"
+            className="absolute right-4 top-1/2 transform -translate-y-1/2 text-white/40 hover:text-neon-green transition-colors"
           >
             {showPassword ? (
               <EyeOff size={18} />
@@ -60,7 +60,7 @@ export const Input: React.FC<InputProps> = ({
         )}
       </div>
       {error && (
-        <p className="mt-2 text-sm text-orange-600 flex items-center gap-1">
+        <p className="mt-2 text-sm text-neon-orange flex items-center gap-1">
           <span>⚠</span> {error}
         </p>
       )}

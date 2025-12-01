@@ -27,36 +27,37 @@ export const ToastComponent: React.FC<ToastProps> = ({ toast, onClose }) => {
   }, [toast.id, toast.duration, onClose]);
 
   const icons = {
-    success: <CheckCircle className="text-green-600" size={20} />,
-    error: <XCircle className="text-orange-600" size={20} />,
-    info: <Info className="text-green-600" size={20} />,
-    warning: <AlertCircle className="text-orange-600" size={20} />,
+    success: <CheckCircle className="text-neon-green" size={20} />,
+    error: <XCircle className="text-neon-orange" size={20} />,
+    info: <Info className="text-neon-cyan" size={20} />,
+    warning: <AlertCircle className="text-neon-orange" size={20} />,
   };
 
   const bgColors = {
-    success: 'bg-green-50 border-green-200',
-    error: 'bg-orange-50 border-orange-200',
-    info: 'bg-green-50 border-green-200',
-    warning: 'bg-orange-50 border-orange-200',
+    success: 'bg-neon-green/10 border-neon-green/30',
+    error: 'bg-neon-orange/10 border-neon-orange/30',
+    info: 'bg-neon-cyan/10 border-neon-cyan/30',
+    warning: 'bg-neon-orange/10 border-neon-orange/30',
   };
 
   const textColors = {
-    success: 'text-green-700',
-    error: 'text-orange-700',
-    info: 'text-green-700',
-    warning: 'text-orange-700',
+    success: 'text-neon-green',
+    error: 'text-neon-orange',
+    info: 'text-neon-cyan',
+    warning: 'text-neon-orange',
   };
 
   return (
     <div
       className={`
         ${bgColors[toast.type]}
+        bg-cyber-900/95 backdrop-blur-xl
         border-2 rounded-xl
         p-4 mb-3 min-w-[300px] max-w-[500px]
         flex items-start gap-3
-        shadow-lg
+        shadow-lg shadow-neon-green/20
         animate-slide-in
-        bg-white
+        terminal-border
       `}
     >
       <div className="flex-shrink-0 mt-0.5">{icons[toast.type]}</div>
@@ -67,13 +68,13 @@ export const ToastComponent: React.FC<ToastProps> = ({ toast, onClose }) => {
           {toast.type === 'info' && 'Info'}
           {toast.type === 'warning' && 'Warning'}
         </p>
-        <p className={`${textColors[toast.type]} text-sm`}>
+        <p className="text-white/90 text-sm">
           {toast.message}
         </p>
       </div>
       <button
         onClick={() => onClose(toast.id)}
-        className="flex-shrink-0 text-brown-400 hover:text-brown-600 transition-colors"
+        className="flex-shrink-0 text-white/40 hover:text-white/80 transition-colors"
         aria-label="Close"
       >
         <X size={18} />

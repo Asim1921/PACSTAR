@@ -12,6 +12,7 @@ import { DockerfileToK8s } from '@/components/admin/DockerfileToK8s';
 import { OpenStack } from '@/components/admin/OpenStack';
 import { UserChallenges } from '@/components/user/UserChallenges';
 import { Scoreboard } from '@/components/user/Scoreboard';
+import ParticleBackground from '@/components/auth/ParticleBackground';
 
 interface UserProfile {
   id?: string;
@@ -337,15 +338,16 @@ export default function Dashboard() {
 
   if (isLoading) {
     return (
-      <div className="min-h-screen w-full bg-gradient-to-br from-white via-brown-50 to-orange-50 flex items-center justify-center">
-        <div className="bg-white rounded-2xl shadow-xl p-8 border border-brown-200">
+      <div className="min-h-screen w-full bg-cyber-darker flex items-center justify-center relative overflow-hidden">
+        <div className="absolute inset-0 security-pattern opacity-20" />
+        <div className="bg-cyber-900/90 backdrop-blur-xl rounded-2xl shadow-2xl p-8 border border-neon-green/20 terminal-border relative z-10">
           <div className="flex items-center gap-4">
-            <div className="w-12 h-12 bg-green-100 rounded-xl flex items-center justify-center">
-              <Shield className="text-green-600" size={24} />
+            <div className="w-12 h-12 bg-neon-green/20 backdrop-blur-sm rounded-xl flex items-center justify-center border-2 border-neon-green/50 glow-accent">
+              <Shield className="text-neon-green" size={24} />
             </div>
             <div>
-              <h2 className="text-xl font-bold text-brown-900">Loading...</h2>
-              <p className="text-brown-600 text-sm">Verifying credentials...</p>
+              <h2 className="text-xl font-bold text-white gradient-text">Loading...</h2>
+              <p className="text-white/60 text-sm">Verifying credentials...</p>
             </div>
           </div>
         </div>
@@ -354,38 +356,46 @@ export default function Dashboard() {
   }
 
   return (
-    <div className="min-h-screen w-full bg-gradient-to-br from-white via-brown-50 to-orange-50">
+    <div className="min-h-screen w-full bg-cyber-darker relative overflow-hidden">
+      {/* Background Effects */}
+      <div className="absolute inset-0 overflow-hidden pointer-events-none">
+        <div className="absolute inset-0 security-pattern opacity-20" />
+        <div className="absolute top-0 right-0 w-[800px] h-[800px] bg-neon-green/5 rounded-full blur-3xl animate-pulse" />
+        <div className="absolute bottom-0 left-0 w-[600px] h-[600px] bg-neon-cyan/5 rounded-full blur-3xl animate-pulse" style={{ animationDelay: '1s' }} />
+      </div>
+      <ParticleBackground />
+
       {/* Top Navigation Bar */}
-      <div className="bg-white border-b border-brown-200 shadow-sm sticky top-0 z-50">
+      <div className="bg-cyber-900/90 backdrop-blur-xl border-b border-neon-green/20 shadow-lg sticky top-0 z-50 relative">
         <div className="flex items-center justify-between px-4 lg:px-6 py-4">
           <div className="flex items-center gap-4">
             <button
               onClick={() => setSidebarOpen(!sidebarOpen)}
-              className="lg:hidden p-2 hover:bg-brown-50 rounded-lg transition-colors"
+              className="lg:hidden p-2 hover:bg-cyber-800 rounded-lg transition-colors text-white/80 hover:text-white"
             >
-              {sidebarOpen ? <X size={24} className="text-brown-700" /> : <Menu size={24} className="text-brown-700" />}
+              {sidebarOpen ? <X size={24} /> : <Menu size={24} />}
             </button>
             <div className="flex items-center gap-3">
-              <div className="w-10 h-10 bg-gradient-to-br from-green-500 to-green-600 rounded-xl flex items-center justify-center shadow-md">
-                <Shield className="text-white" size={20} />
+              <div className="w-10 h-10 bg-gradient-to-br from-neon-green to-neon-cyan rounded-xl flex items-center justify-center shadow-lg shadow-neon-green/30">
+                <Shield className="text-cyber-darker" size={20} />
               </div>
               <div>
-                <h1 className="text-xl font-bold text-brown-900">PACSTAR</h1>
-                <p className="text-xs text-brown-600">Challenge Management</p>
+                <h1 className="text-xl font-bold text-white neon-text">PACSTAR</h1>
+                <p className="text-xs text-white/60">Challenge Management</p>
               </div>
             </div>
           </div>
           
           <div className="flex items-center gap-3">
-            <div className="hidden sm:flex items-center gap-2 px-4 py-2 bg-green-50 rounded-lg border border-green-200">
-              <div className="w-2 h-2 bg-green-500 rounded-full animate-pulse" />
-              <span className="text-sm font-medium text-green-700">Online</span>
+            <div className="hidden sm:flex items-center gap-2 px-4 py-2 bg-neon-green/10 rounded-lg border border-neon-green/30 backdrop-blur-sm">
+              <div className="w-2 h-2 bg-neon-green rounded-full animate-pulse" />
+              <span className="text-sm font-medium text-neon-green">Online</span>
             </div>
             <Button
               variant="outline"
               size="sm"
               onClick={handleLogout}
-              className="flex items-center gap-2"
+              className="flex items-center gap-2 border-neon-orange/30 hover:bg-neon-orange/10 text-white hover:text-neon-orange"
             >
               <LogOut size={16} />
               <span className="hidden sm:inline">Logout</span>
@@ -394,37 +404,42 @@ export default function Dashboard() {
         </div>
       </div>
 
-      <div className="flex">
+      <div className="flex relative z-10">
         {/* Sidebar */}
         <div className={`
           ${sidebarOpen ? 'translate-x-0' : '-translate-x-full lg:translate-x-0'}
           fixed lg:static inset-y-0 left-0 z-40
-          w-80 bg-white border-r border-brown-200 shadow-lg lg:shadow-none
+          w-80 bg-cyber-900/90 backdrop-blur-xl border-r border-neon-green/20 shadow-lg lg:shadow-none
           transition-transform duration-300 ease-in-out
           pt-20 lg:pt-0
         `}>
           <div className="h-full overflow-y-auto p-6 space-y-6">
             {/* User Info Card */}
-            <div className="bg-gradient-to-br from-brown-600 to-brown-700 rounded-2xl p-6 text-white shadow-lg">
-              <div className="flex items-center gap-4 mb-4">
-                <div className="w-16 h-16 bg-white/20 backdrop-blur-sm rounded-xl flex items-center justify-center border-2 border-white/30">
-                  <User className="text-white" size={28} />
-                </div>
-                <div className="flex-1">
-                  <h3 className="font-bold text-lg">{userProfile.username || 'User'}</h3>
-                  <p className="text-white/80 text-sm">{userProfile.role || 'User'}</p>
-                </div>
+            <div className="bg-gradient-to-br from-cyber-800 via-cyber-900 to-cyber-darker rounded-2xl p-6 text-white shadow-lg border border-neon-green/20 terminal-border relative overflow-hidden">
+              <div className="absolute inset-0 opacity-10">
+                <div className="absolute top-0 left-0 w-full h-full circuit-lines" />
               </div>
-              <div className="space-y-2 text-sm">
-                <div className="flex items-center gap-2">
-                  <Mail size={16} className="text-white/70" />
-                  <span className="text-white/90">{userProfile.email || 'N/A'}</span>
+              <div className="relative z-10">
+                <div className="flex items-center gap-4 mb-4">
+                  <div className="w-16 h-16 bg-neon-green/20 backdrop-blur-sm rounded-xl flex items-center justify-center border-2 border-neon-green/50 glow-accent">
+                    <User className="text-neon-green" size={28} />
+                  </div>
+                  <div className="flex-1">
+                    <h3 className="font-bold text-lg text-white">{userProfile.username || 'User'}</h3>
+                    <p className="text-white/60 text-sm">{userProfile.role || 'User'}</p>
+                  </div>
                 </div>
-                <div className="flex items-center gap-2">
-                  <Target size={16} className="text-white/70" />
-                  <span className="text-white/90">
-                    {team ? `Team: ${team.team_code}` : (userProfile.zone || 'N/A')}
-                  </span>
+                <div className="space-y-2 text-sm">
+                  <div className="flex items-center gap-2">
+                    <Mail size={16} className="text-neon-cyan/70" />
+                    <span className="text-white/80">{userProfile.email || 'N/A'}</span>
+                  </div>
+                  <div className="flex items-center gap-2">
+                    <Target size={16} className="text-neon-purple/70" />
+                    <span className="text-white/80">
+                      {team ? `Team: ${team.team_code}` : (userProfile.zone || 'N/A')}
+                    </span>
+                  </div>
                 </div>
               </div>
             </div>
@@ -432,27 +447,33 @@ export default function Dashboard() {
             {/* Navigation for Master Users */}
             {isMaster && (
               <div className="space-y-2">
-                <label className="block text-sm font-semibold text-brown-700 mb-2">View Mode</label>
-                <div className="flex gap-2 p-1 bg-brown-50 rounded-xl">
+                <label className="block text-sm font-semibold text-white/90 mb-2">View Mode</label>
+                <div className="flex gap-2 p-1 bg-cyber-800/50 rounded-xl border border-neon-green/20">
                   <button
                     onClick={() => setViewMode('user')}
-                    className={`flex-1 px-4 py-2 rounded-lg font-semibold text-sm transition-all ${
+                    className={`flex-1 px-4 py-2 rounded-lg font-semibold text-sm transition-all relative overflow-hidden ${
                       viewMode === 'user'
-                        ? 'bg-white text-brown-900 shadow-sm'
-                        : 'text-brown-600 hover:text-brown-900'
+                        ? 'bg-neon-green/20 text-neon-green border border-neon-green/50 shadow-lg shadow-neon-green/20'
+                        : 'text-white/60 hover:text-white hover:bg-cyber-700/50'
                     }`}
                   >
-                    User
+                    {viewMode === 'user' && (
+                      <div className="absolute inset-0 bg-neon-green/10 animate-pulse" />
+                    )}
+                    <span className="relative z-10">User</span>
                   </button>
                   <button
                     onClick={() => setViewMode('admin')}
-                    className={`flex-1 px-4 py-2 rounded-lg font-semibold text-sm transition-all ${
+                    className={`flex-1 px-4 py-2 rounded-lg font-semibold text-sm transition-all relative overflow-hidden ${
                       viewMode === 'admin'
-                        ? 'bg-white text-brown-900 shadow-sm'
-                        : 'text-brown-600 hover:text-brown-900'
+                        ? 'bg-neon-green/20 text-neon-green border border-neon-green/50 shadow-lg shadow-neon-green/20'
+                        : 'text-white/60 hover:text-white hover:bg-cyber-700/50'
                     }`}
                   >
-                    Admin
+                    {viewMode === 'admin' && (
+                      <div className="absolute inset-0 bg-neon-green/10 animate-pulse" />
+                    )}
+                    <span className="relative z-10">Admin</span>
                   </button>
                 </div>
               </div>
@@ -461,76 +482,76 @@ export default function Dashboard() {
         </div>
 
         {/* Main Content */}
-        <div className="flex-1 min-h-screen">
+        <div className="flex-1 min-h-screen relative">
           <div className="p-4 lg:p-8">
             {/* User View */}
             {viewMode === 'user' && (
               <div className="space-y-6">
                 <div className="flex items-center justify-between">
                   <div>
-                    <h2 className="text-3xl font-bold text-brown-900">Dashboard</h2>
-                    <p className="text-brown-600 mt-1">Welcome back, {userProfile.username}!</p>
+                    <h2 className="text-3xl font-bold text-white gradient-text">Dashboard</h2>
+                    <p className="text-white/60 mt-1">Welcome back, {userProfile.username}!</p>
                   </div>
                 </div>
 
                 {/* Profile Section */}
-                <div className="bg-white rounded-2xl shadow-md border border-brown-200 overflow-hidden">
+                <div className="bg-cyber-900/80 backdrop-blur-xl rounded-2xl shadow-lg border border-neon-green/20 terminal-border overflow-hidden">
                   <button
                     onClick={() => setIsProfileOpen(!isProfileOpen)}
-                    className="w-full flex items-center justify-between p-6 hover:bg-brown-50 transition-colors"
+                    className="w-full flex items-center justify-between p-6 hover:bg-cyber-800/50 transition-colors"
                   >
                     <div className="flex items-center gap-3">
-                      <div className="w-12 h-12 bg-green-100 rounded-xl flex items-center justify-center">
-                        <FileText className="text-green-600" size={24} />
+                      <div className="w-12 h-12 bg-neon-green/20 backdrop-blur-sm rounded-xl flex items-center justify-center border border-neon-green/40">
+                        <FileText className="text-neon-green" size={24} />
                       </div>
                       <div className="text-left">
-                        <h3 className="text-lg font-bold text-brown-900">My Profile</h3>
-                        <p className="text-sm text-brown-600">View your account information</p>
+                        <h3 className="text-lg font-bold text-white">My Profile</h3>
+                        <p className="text-sm text-white/60">View your account information</p>
                       </div>
                     </div>
-                    {isProfileOpen ? <ChevronUp className="text-brown-400" size={20} /> : <ChevronDown className="text-brown-400" size={20} />}
+                    {isProfileOpen ? <ChevronUp className="text-neon-green" size={20} /> : <ChevronDown className="text-white/60" size={20} />}
                   </button>
                   {isProfileOpen && (
-                    <div className="px-6 pb-6 border-t border-brown-100">
+                    <div className="px-6 pb-6 border-t border-neon-green/20">
                       <div className="grid grid-cols-1 md:grid-cols-2 gap-6 pt-6">
                         <div className="space-y-4">
                           <div>
-                            <label className="text-sm font-semibold text-brown-600">Username</label>
-                            <p className="text-brown-900 font-medium mt-1">{userProfile.username || 'N/A'}</p>
+                            <label className="text-sm font-semibold text-white/60">Username</label>
+                            <p className="text-white font-medium mt-1">{userProfile.username || 'N/A'}</p>
                           </div>
                           <div>
-                            <label className="text-sm font-semibold text-brown-600">Email</label>
+                            <label className="text-sm font-semibold text-white/60">Email</label>
                             {userProfile.email ? (
-                              <a href={`mailto:${userProfile.email}`} className="text-green-600 hover:text-green-700 font-medium mt-1 block">
+                              <a href={`mailto:${userProfile.email}`} className="text-neon-cyan hover:text-neon-cyan/80 font-medium mt-1 block">
                                 {userProfile.email}
                               </a>
                             ) : (
-                              <p className="text-brown-400 mt-1">N/A</p>
+                              <p className="text-white/40 mt-1">N/A</p>
                             )}
                           </div>
                           <div>
-                            <label className="text-sm font-semibold text-brown-600">Role</label>
-                            <p className="text-brown-900 font-medium mt-1">{userProfile.role || 'User'}</p>
+                            <label className="text-sm font-semibold text-white/60">Role</label>
+                            <p className="text-white font-medium mt-1">{userProfile.role || 'User'}</p>
                           </div>
                         </div>
                         <div className="space-y-4">
                           <div>
-                            <label className="text-sm font-semibold text-brown-600">Zone</label>
-                            <p className="text-brown-900 font-medium mt-1">
+                            <label className="text-sm font-semibold text-white/60">Zone</label>
+                            <p className="text-white font-medium mt-1">
                               {team ? `Team: ${team.team_code}` : (userProfile.zone || 'N/A')}
                             </p>
                           </div>
                           {team && (
                             <>
                               <div>
-                                <label className="text-sm font-semibold text-brown-600">Team Code</label>
-                                <p className="text-green-600 font-bold mt-1">{team.team_code}</p>
+                                <label className="text-sm font-semibold text-white/60">Team Code</label>
+                                <p className="text-neon-green font-bold mt-1">{team.team_code}</p>
                               </div>
                               <div>
-                                <label className="text-sm font-semibold text-brown-600">Status</label>
+                                <label className="text-sm font-semibold text-white/60">Status</label>
                                 <div className="flex items-center gap-2 mt-1">
-                                  <CheckCircle className="text-green-600" size={18} />
-                                  <span className="text-green-600 font-medium">Active</span>
+                                  <CheckCircle className="text-neon-green" size={18} />
+                                  <span className="text-neon-green font-medium">Active</span>
                                 </div>
                               </div>
                             </>
@@ -543,50 +564,50 @@ export default function Dashboard() {
 
                 {/* Team Section */}
                 {team && (
-                  <div className="bg-white rounded-2xl shadow-md border border-brown-200 overflow-hidden">
+                  <div className="bg-cyber-900/80 backdrop-blur-xl rounded-2xl shadow-lg border border-neon-cyan/20 terminal-border overflow-hidden">
                     <button
                       onClick={() => setIsTeamOpen(!isTeamOpen)}
-                      className="w-full flex items-center justify-between p-6 hover:bg-brown-50 transition-colors"
+                      className="w-full flex items-center justify-between p-6 hover:bg-cyber-800/50 transition-colors"
                     >
                       <div className="flex items-center gap-3">
-                        <div className="w-12 h-12 bg-orange-100 rounded-xl flex items-center justify-center">
-                          <Users className="text-orange-600" size={24} />
+                        <div className="w-12 h-12 bg-neon-cyan/20 backdrop-blur-sm rounded-xl flex items-center justify-center border border-neon-cyan/40">
+                          <Users className="text-neon-cyan" size={24} />
                         </div>
                         <div className="text-left">
-                          <h3 className="text-lg font-bold text-brown-900">My Team</h3>
-                          <p className="text-sm text-brown-600">{team.name}</p>
+                          <h3 className="text-lg font-bold text-white">My Team</h3>
+                          <p className="text-sm text-white/60">{team.name}</p>
                         </div>
                       </div>
-                      {isTeamOpen ? <ChevronUp className="text-brown-400" size={20} /> : <ChevronDown className="text-brown-400" size={20} />}
+                      {isTeamOpen ? <ChevronUp className="text-neon-cyan" size={20} /> : <ChevronDown className="text-white/60" size={20} />}
                     </button>
                     {isTeamOpen && (
-                      <div className="px-6 pb-6 border-t border-brown-100">
+                      <div className="px-6 pb-6 border-t border-neon-cyan/20">
                         <div className="grid grid-cols-1 md:grid-cols-2 gap-6 pt-6">
                           <div className="space-y-4">
                             <div>
-                              <label className="text-sm font-semibold text-brown-600">Team Name</label>
-                              <p className="text-brown-900 font-medium mt-1">{team.name}</p>
+                              <label className="text-sm font-semibold text-white/60">Team Name</label>
+                              <p className="text-white font-medium mt-1">{team.name}</p>
                             </div>
                             <div>
-                              <label className="text-sm font-semibold text-brown-600">Team Code</label>
-                              <p className="text-green-600 font-bold mt-1">{team.team_code}</p>
+                              <label className="text-sm font-semibold text-white/60">Team Code</label>
+                              <p className="text-neon-cyan font-bold mt-1">{team.team_code}</p>
                             </div>
                             <div>
-                              <label className="text-sm font-semibold text-brown-600">Members</label>
-                              <p className="text-brown-900 font-medium mt-1">
+                              <label className="text-sm font-semibold text-white/60">Members</label>
+                              <p className="text-white font-medium mt-1">
                                 {team.member_count}/{team.max_members}
                               </p>
                             </div>
                           </div>
                           <div className="space-y-4">
                             <div>
-                              <label className="text-sm font-semibold text-brown-600">Leader</label>
-                              <p className="text-brown-900 font-medium mt-1">{team.leader_username}</p>
+                              <label className="text-sm font-semibold text-white/60">Leader</label>
+                              <p className="text-white font-medium mt-1">{team.leader_username}</p>
                             </div>
                             <div>
                               <button
                                 onClick={() => setIsTeamMembersOpen(!isTeamMembersOpen)}
-                                className="text-green-600 hover:text-green-700 font-semibold text-sm flex items-center gap-2"
+                                className="text-neon-cyan hover:text-neon-cyan/80 font-semibold text-sm flex items-center gap-2"
                               >
                                 View Team Members
                                 {isTeamMembersOpen ? <ChevronUp size={16} /> : <ChevronDown size={16} />}
@@ -594,14 +615,14 @@ export default function Dashboard() {
                               {isTeamMembersOpen && team.members && team.members.length > 0 && (
                                 <div className="mt-3 space-y-2">
                                   {team.members.map((member) => (
-                                    <div key={member.user_id} className="flex items-center gap-2 p-2 bg-brown-50 rounded-lg">
+                                    <div key={member.user_id} className="flex items-center gap-2 p-2 bg-cyber-800/50 rounded-lg border border-neon-cyan/10 hover:border-neon-cyan/30 transition-colors">
                                       {member.role === 'leader' ? (
-                                        <Crown className="text-orange-600" size={16} />
+                                        <Crown className="text-neon-purple" size={16} />
                                       ) : (
-                                        <User className="text-brown-400" size={16} />
+                                        <User className="text-white/60" size={16} />
                                       )}
-                                      <span className="text-sm text-brown-900">{member.username}</span>
-                                      <a href={`mailto:${member.email}`} className="text-green-600 hover:text-green-700 text-xs ml-auto">
+                                      <span className="text-sm text-white">{member.username}</span>
+                                      <a href={`mailto:${member.email}`} className="text-neon-cyan hover:text-neon-cyan/80 text-xs ml-auto">
                                         {member.email}
                                       </a>
                                     </div>
@@ -630,12 +651,12 @@ export default function Dashboard() {
             {viewMode === 'admin' && isMaster && (
               <div className="space-y-6">
                 <div>
-                  <h2 className="text-3xl font-bold text-brown-900">Admin Panel</h2>
-                  <p className="text-brown-600 mt-1">Manage users, challenges, and system settings</p>
+                  <h2 className="text-3xl font-bold text-white gradient-text">Admin Panel</h2>
+                  <p className="text-white/60 mt-1">Manage users, challenges, and system settings</p>
                 </div>
 
                 {/* Admin Tabs */}
-                <div className="bg-white rounded-2xl shadow-md border border-brown-200 p-2">
+                <div className="bg-cyber-900/80 backdrop-blur-xl rounded-2xl shadow-lg border border-neon-green/20 p-2 terminal-border">
                   <div className="flex flex-wrap gap-2">
                     {[
                       { id: 'users', label: 'Users', icon: User },
@@ -649,14 +670,17 @@ export default function Dashboard() {
                         <button
                           key={tab.id}
                           onClick={() => setActiveAdminTab(tab.id as AdminTab)}
-                          className={`flex items-center gap-2 px-6 py-3 rounded-xl font-semibold text-sm transition-all ${
+                          className={`flex items-center gap-2 px-6 py-3 rounded-xl font-semibold text-sm transition-all relative overflow-hidden ${
                             activeAdminTab === tab.id
-                              ? 'bg-green-500 text-white shadow-md'
-                              : 'text-brown-700 hover:bg-brown-50'
+                              ? 'bg-neon-green/20 text-neon-green border border-neon-green/50 shadow-lg shadow-neon-green/20'
+                              : 'text-white/60 hover:text-white hover:bg-cyber-800/50'
                           }`}
                         >
-                          <Icon size={18} />
-                          {tab.label}
+                          {activeAdminTab === tab.id && (
+                            <div className="absolute inset-0 bg-neon-green/10 animate-pulse" />
+                          )}
+                          <Icon size={18} className="relative z-10" />
+                          <span className="relative z-10">{tab.label}</span>
                         </button>
                       );
                     })}
@@ -665,19 +689,19 @@ export default function Dashboard() {
 
                 {/* Users Tab Content */}
                 {activeAdminTab === 'users' && (
-                  <div className="bg-white rounded-2xl shadow-md border border-brown-200 p-6">
+                  <div className="bg-cyber-900/80 backdrop-blur-xl rounded-2xl shadow-lg border border-neon-green/20 terminal-border p-6">
                     <div className="mb-6">
-                      <h3 className="text-xl font-bold text-brown-900 mb-4">User Management</h3>
+                      <h3 className="text-xl font-bold text-white mb-4 gradient-text">User Management</h3>
                       
                       <div className="flex flex-col sm:flex-row gap-3 mb-4">
-                        <div className="flex-1 relative">
-                          <Search className="absolute left-4 top-1/2 transform -translate-y-1/2 text-brown-400" size={18} />
+                        <div className="flex-1 relative group">
+                          <Search className="absolute left-4 top-1/2 transform -translate-y-1/2 text-neon-green/60 group-focus-within:text-neon-green transition-colors" size={18} />
                           <input
                             type="text"
                             placeholder="Search users..."
                             value={userSearchTerm}
                             onChange={(e) => setUserSearchTerm(e.target.value)}
-                            className="w-full pl-12 pr-4 py-3 bg-brown-50 border-2 border-brown-200 rounded-xl focus:outline-none focus:border-green-500 focus:ring-2 focus:ring-green-500/20 text-brown-900"
+                            className="w-full pl-12 pr-4 py-3 bg-cyber-800/50 border-2 border-neon-green/20 rounded-xl focus:outline-none focus:border-neon-green focus:ring-4 focus:ring-neon-green/20 text-white placeholder:text-white/30"
                           />
                         </div>
                         <Button
@@ -685,6 +709,7 @@ export default function Dashboard() {
                           size="md"
                           onClick={handleAdminRefresh}
                           disabled={isLoadingUsers}
+                          className="border-neon-green/30 hover:bg-neon-green/10 text-white"
                         >
                           <RefreshCw size={16} className={`mr-2 ${isLoadingUsers ? 'animate-spin' : ''}`} />
                           Refresh
@@ -692,32 +717,32 @@ export default function Dashboard() {
                       </div>
 
                       <div className="mb-4">
-                        <span className="text-brown-700 font-medium">
-                          Total Users: <span className="text-green-600 font-bold">{filteredUsers.length}</span>
+                        <span className="text-white/80 font-medium">
+                          Total Users: <span className="text-neon-green font-bold">{filteredUsers.length}</span>
                         </span>
                       </div>
 
-                      <div className="overflow-x-auto border border-brown-200 rounded-xl">
+                      <div className="overflow-x-auto border border-neon-green/20 rounded-xl">
                         <table className="w-full">
-                          <thead className="bg-brown-50 border-b border-brown-200">
+                          <thead className="bg-cyber-800/50 border-b border-neon-green/20">
                             <tr>
-                              <th className="px-4 py-3 text-left text-sm font-semibold text-brown-700">Username</th>
-                              <th className="px-4 py-3 text-left text-sm font-semibold text-brown-700">Email</th>
-                              <th className="px-4 py-3 text-left text-sm font-semibold text-brown-700">Role</th>
-                              <th className="px-4 py-3 text-left text-sm font-semibold text-brown-700">Zone</th>
-                              <th className="px-4 py-3 text-left text-sm font-semibold text-brown-700">Active</th>
+                              <th className="px-4 py-3 text-left text-sm font-semibold text-white">Username</th>
+                              <th className="px-4 py-3 text-left text-sm font-semibold text-white">Email</th>
+                              <th className="px-4 py-3 text-left text-sm font-semibold text-white">Role</th>
+                              <th className="px-4 py-3 text-left text-sm font-semibold text-white">Zone</th>
+                              <th className="px-4 py-3 text-left text-sm font-semibold text-white">Active</th>
                             </tr>
                           </thead>
                           <tbody>
                             {isLoadingUsers ? (
                               <tr>
-                                <td colSpan={5} className="px-4 py-8 text-center text-brown-600">
+                                <td colSpan={5} className="px-4 py-8 text-center text-white/60">
                                   Loading users...
                                 </td>
                               </tr>
                             ) : filteredUsers.length === 0 ? (
                               <tr>
-                                <td colSpan={5} className="px-4 py-8 text-center text-brown-600">
+                                <td colSpan={5} className="px-4 py-8 text-center text-white/60">
                                   {userSearchTerm ? 'No users found matching your search.' : 'No users available.'}
                                 </td>
                               </tr>
@@ -725,24 +750,24 @@ export default function Dashboard() {
                               filteredUsers.map((user) => (
                                 <tr
                                   key={user.id}
-                                  className="border-b border-brown-100 hover:bg-brown-50 transition-colors"
+                                  className="border-b border-neon-green/10 hover:bg-cyber-800/30 transition-colors"
                                 >
-                                  <td className="px-4 py-3 text-brown-900 font-medium">{user.username}</td>
+                                  <td className="px-4 py-3 text-white font-medium">{user.username}</td>
                                   <td className="px-4 py-3">
                                     <a
                                       href={`mailto:${user.email}`}
-                                      className="text-green-600 hover:text-green-700 hover:underline"
+                                      className="text-neon-cyan hover:text-neon-cyan/80 hover:underline"
                                     >
                                       {user.email}
                                     </a>
                                   </td>
-                                  <td className="px-4 py-3 text-brown-700">{user.role}</td>
-                                  <td className="px-4 py-3 text-brown-700">{user.zone || 'N/A'}</td>
+                                  <td className="px-4 py-3 text-white/80">{user.role}</td>
+                                  <td className="px-4 py-3 text-white/80">{user.zone || 'N/A'}</td>
                                   <td className="px-4 py-3">
                                     {user.is_active ? (
-                                      <CheckCircle className="text-green-600" size={20} />
+                                      <CheckCircle className="text-neon-green" size={20} />
                                     ) : (
-                                      <span className="text-brown-400">—</span>
+                                      <span className="text-white/40">—</span>
                                     )}
                                   </td>
                                 </tr>
@@ -772,13 +797,13 @@ export default function Dashboard() {
 
                 {/* Stats Tab Content */}
                 {activeAdminTab === 'stats' && (
-                  <div className="bg-white rounded-2xl shadow-md border border-brown-200 p-12">
+                  <div className="bg-cyber-900/80 backdrop-blur-xl rounded-2xl shadow-lg border border-neon-green/20 terminal-border p-12">
                     <div className="text-center">
-                      <div className="w-20 h-20 bg-brown-100 rounded-2xl flex items-center justify-center mx-auto mb-4">
-                        <BarChart3 className="text-brown-600" size={40} />
+                      <div className="w-20 h-20 bg-neon-green/20 backdrop-blur-sm rounded-2xl flex items-center justify-center mx-auto mb-4 border border-neon-green/40 glow-accent">
+                        <BarChart3 className="text-neon-green" size={40} />
                       </div>
-                      <h3 className="text-xl font-bold text-brown-900 mb-2">Statistics Dashboard</h3>
-                      <p className="text-brown-600">Coming soon...</p>
+                      <h3 className="text-xl font-bold text-white mb-2 gradient-text">Statistics Dashboard</h3>
+                      <p className="text-white/60">Coming soon...</p>
                     </div>
                   </div>
                 )}

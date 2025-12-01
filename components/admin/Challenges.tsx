@@ -339,44 +339,53 @@ export const Challenges: React.FC = () => {
     <div className="space-y-6">
       {/* Challenge Management Header */}
       <div>
-        <h3 className="text-2xl font-bold text-brown-900 mb-4">
+        <h3 className="text-2xl font-bold text-white mb-4 gradient-text">
           Challenge Management
         </h3>
         
         {/* Action Buttons */}
-        <div className="flex flex-wrap gap-3 mb-6 bg-white rounded-xl shadow-md border border-brown-200 p-2">
+        <div className="flex flex-wrap gap-3 mb-6 bg-cyber-900/80 backdrop-blur-xl rounded-xl shadow-lg border border-neon-green/20 p-2 terminal-border">
           <button
             onClick={() => setActiveAction('create')}
-            className={`flex items-center gap-2 px-6 py-3 rounded-lg font-semibold text-sm transition-all ${
+            className={`flex items-center gap-2 px-6 py-3 rounded-lg font-semibold text-sm transition-all relative overflow-hidden ${
               activeAction === 'create'
-                ? 'bg-green-500 text-white shadow-md'
-                : 'text-brown-700 hover:bg-brown-50'
+                ? 'bg-neon-green/20 text-neon-green border border-neon-green/50 shadow-lg shadow-neon-green/20'
+                : 'text-white/60 hover:text-white hover:bg-cyber-800/50'
             }`}
           >
-            <Plus size={16} />
-            Create
+            {activeAction === 'create' && (
+              <div className="absolute inset-0 bg-neon-green/10 animate-pulse" />
+            )}
+            <Plus size={16} className="relative z-10" />
+            <span className="relative z-10">Create</span>
           </button>
           <button
             onClick={() => setActiveAction('list')}
-            className={`flex items-center gap-2 px-6 py-3 rounded-lg font-semibold text-sm transition-all ${
+            className={`flex items-center gap-2 px-6 py-3 rounded-lg font-semibold text-sm transition-all relative overflow-hidden ${
               activeAction === 'list'
-                ? 'bg-green-500 text-white shadow-md'
-                : 'text-brown-700 hover:bg-brown-50'
+                ? 'bg-neon-green/20 text-neon-green border border-neon-green/50 shadow-lg shadow-neon-green/20'
+                : 'text-white/60 hover:text-white hover:bg-cyber-800/50'
             }`}
           >
-            <List size={16} />
-            List All
+            {activeAction === 'list' && (
+              <div className="absolute inset-0 bg-neon-green/10 animate-pulse" />
+            )}
+            <List size={16} className="relative z-10" />
+            <span className="relative z-10">List All</span>
           </button>
           <button
             onClick={() => setActiveAction('delete')}
-            className={`flex items-center gap-2 px-6 py-3 rounded-lg font-semibold text-sm transition-all ${
+            className={`flex items-center gap-2 px-6 py-3 rounded-lg font-semibold text-sm transition-all relative overflow-hidden ${
               activeAction === 'delete'
-                ? 'bg-green-500 text-white shadow-md'
-                : 'text-brown-700 hover:bg-brown-50'
+                ? 'bg-neon-orange/20 text-neon-orange border border-neon-orange/50 shadow-lg shadow-neon-orange/20'
+                : 'text-white/60 hover:text-white hover:bg-cyber-800/50'
             }`}
           >
-            <Trash2 size={16} />
-            Delete
+            {activeAction === 'delete' && (
+              <div className="absolute inset-0 bg-neon-orange/10 animate-pulse" />
+            )}
+            <Trash2 size={16} className="relative z-10" />
+            <span className="relative z-10">Delete</span>
           </button>
         </div>
       </div>
@@ -385,17 +394,17 @@ export const Challenges: React.FC = () => {
       {activeAction === 'create' && (
         <form onSubmit={handleSubmit} className="space-y-6">
           <div>
-            <h4 className="text-xl font-bold text-brown-900 mb-4">
+            <h4 className="text-xl font-bold text-white mb-4 gradient-text">
               {editingChallengeId ? 'Edit Challenge' : 'Create New Challenge'}
             </h4>
 
             {/* Challenge Category */}
             <div className="mb-6">
               <div className="flex items-center gap-2 mb-3">
-                <label className="block text-sm font-semibold text-brown-700">
+                <label className="block text-sm font-semibold text-white/90">
                   Challenge Category *
                 </label>
-                <HelpCircle className="text-brown-400" size={16} />
+                <HelpCircle className="text-white/60" size={16} />
               </div>
               <RadioGroup
                 options={[
@@ -412,12 +421,12 @@ export const Challenges: React.FC = () => {
 
             {/* Containerized Challenge Section */}
             {category === 'containerized' && (
-              <div className="bg-white rounded-2xl shadow-md border border-brown-200 p-6 space-y-6">
+              <div className="bg-cyber-900/80 backdrop-blur-xl rounded-2xl shadow-lg border border-neon-green/20 terminal-border p-6 space-y-6">
                 <div className="flex items-center gap-3 mb-4">
-                  <div className="w-10 h-10 bg-green-100 rounded-xl flex items-center justify-center">
-                    <Container className="text-green-600" size={20} />
+                  <div className="w-10 h-10 bg-neon-green/20 backdrop-blur-sm rounded-xl flex items-center justify-center border border-neon-green/40">
+                    <Container className="text-neon-green" size={20} />
                   </div>
-                  <h5 className="text-lg font-bold text-brown-900">
+                  <h5 className="text-lg font-bold text-white">
                     Containerized Challenge
                   </h5>
                 </div>
@@ -433,7 +442,7 @@ export const Challenges: React.FC = () => {
                     />
 
                     <div>
-                      <label className="block text-sm font-semibold text-brown-700 mb-2">
+                      <label className="block text-sm font-semibold text-white/90 mb-2">
                         &gt; DESCRIPTION *
                       </label>
                       <textarea
@@ -441,7 +450,7 @@ export const Challenges: React.FC = () => {
                         onChange={(e) => handleInputChange('description', e.target.value)}
                         placeholder="Enter challenge description"
                         rows={4}
-                        className="w-full px-4 py-3 bg-brown-50 border-2 border-brown-200 rounded-xl text-brown-900 placeholder:text-brown-400 focus:outline-none focus:border-green-500 focus:ring-2 focus:ring-green-500/20 transition-all resize-y"
+                        className="w-full px-4 py-3 bg-cyber-800/50 border-2 border-neon-green/20 rounded-xl text-white placeholder:text-white/40 focus:outline-none focus:border-neon-green focus:ring-2 focus:ring-neon-green/20 transition-all resize-y"
                       />
                     </div>
 
@@ -479,10 +488,10 @@ export const Challenges: React.FC = () => {
 
                     <div>
                       <div className="flex items-center gap-2 mb-2">
-                        <label className="block text-xs font-mono font-semibold text-accent tracking-wider">
+                        <label className="block text-xs font-mono font-semibold text-neon-green tracking-wider">
                           &gt; FLAG (SECRET)
                         </label>
-                        <HelpCircle className="text-brown-400" size={16} />
+                        <HelpCircle className="text-white/60" size={16} />
                       </div>
                       <div className="relative">
                         <input
@@ -490,12 +499,12 @@ export const Challenges: React.FC = () => {
                           value={formData.flag}
                           onChange={(e) => handleInputChange('flag', e.target.value)}
                           placeholder="Enter flag"
-                          className="w-full px-4 py-3 pr-10 bg-brown-50 border-2 border-brown-200 rounded-xl text-brown-900 placeholder:text-brown-400 focus:outline-none focus:border-green-500 focus:ring-2 focus:ring-green-500/20 transition-all"
+                          className="w-full px-4 py-3 pr-10 bg-cyber-800/50 border-2 border-neon-green/20 rounded-xl text-white placeholder:text-white/30 focus:outline-none focus:border-neon-green focus:ring-4 focus:ring-neon-green/20 transition-all"
                         />
                         <button
                           type="button"
                           onClick={() => setShowFlag(!showFlag)}
-                          className="absolute right-3 top-1/2 transform -translate-y-1/2 text-secondary hover:text-accent transition-colors"
+                          className="absolute right-3 top-1/2 transform -translate-y-1/2 text-white/40 hover:text-neon-green transition-colors"
                         >
                           {showFlag ? <EyeOff size={18} /> : <Eye size={18} />}
                         </button>
@@ -517,14 +526,14 @@ export const Challenges: React.FC = () => {
                     />
 
                     <div>
-                      <label className="block text-sm font-semibold text-brown-700 mb-2">
+                      <label className="block text-sm font-semibold text-white/90 mb-2">
                         &gt; MAX TEAMS *
                       </label>
                       <div className="flex items-center gap-3">
                         <button
                           type="button"
                           onClick={() => handleNumberChange('maxTeams', -1)}
-                          className="w-10 h-10 flex items-center justify-center bg-brown-50 border-2 border-brown-200 rounded-lg hover:border-green-500 transition-all text-brown-700 hover:text-green-600"
+                          className="w-10 h-10 flex items-center justify-center bg-cyber-800/50 border-2 border-neon-green/20 rounded-lg hover:border-neon-green transition-all text-white/90 hover:text-neon-green"
                         >
                           <Minus size={16} />
                         </button>
@@ -533,12 +542,12 @@ export const Challenges: React.FC = () => {
                           value={formData.maxTeams}
                           onChange={(e) => handleInputChange('maxTeams', parseInt(e.target.value) || 0)}
                           min="0"
-                          className="w-20 px-3 py-2 bg-secondary/20 border-2 border-secondary font-mono text-sm text-text text-center focus:outline-none focus:border-accent focus:bg-secondary/30 transition-all"
+                          className="w-20 px-3 py-2 bg-cyber-800/50 border-2 border-neon-green/20 font-mono text-sm text-white text-center focus:outline-none focus:border-neon-green focus:bg-cyber-800/70 transition-all"
                         />
                         <button
                           type="button"
                           onClick={() => handleNumberChange('maxTeams', 1)}
-                          className="w-10 h-10 flex items-center justify-center bg-brown-50 border-2 border-brown-200 rounded-lg hover:border-green-500 transition-all text-brown-700 hover:text-green-600"
+                          className="w-10 h-10 flex items-center justify-center bg-cyber-800/50 border-2 border-neon-green/20 rounded-lg hover:border-neon-green transition-all text-white/90 hover:text-neon-green"
                         >
                           <PlusIcon size={16} />
                         </button>
@@ -554,14 +563,14 @@ export const Challenges: React.FC = () => {
                   {/* Right Column */}
                   <div className="space-y-4">
                     <div>
-                      <label className="block text-sm font-semibold text-brown-700 mb-2">
+                      <label className="block text-sm font-semibold text-white/90 mb-2">
                         &gt; POINTS
                       </label>
                       <div className="flex items-center gap-3">
                         <button
                           type="button"
                           onClick={() => handleNumberChange('points', -10)}
-                          className="w-10 h-10 flex items-center justify-center bg-brown-50 border-2 border-brown-200 rounded-lg hover:border-green-500 transition-all text-brown-700 hover:text-green-600"
+                          className="w-10 h-10 flex items-center justify-center bg-cyber-800/50 border-2 border-neon-green/20 rounded-lg hover:border-neon-green transition-all text-white/90 hover:text-neon-green"
                         >
                           <Minus size={16} />
                         </button>
@@ -570,12 +579,12 @@ export const Challenges: React.FC = () => {
                           value={formData.points}
                           onChange={(e) => handleInputChange('points', parseInt(e.target.value) || 0)}
                           min="0"
-                          className="w-24 px-3 py-2 bg-secondary/20 border-2 border-secondary font-mono text-sm text-text text-center focus:outline-none focus:border-accent focus:bg-secondary/30 transition-all"
+                          className="w-24 px-3 py-2 bg-cyber-800/50 border-2 border-neon-green/20 font-mono text-sm text-white text-center focus:outline-none focus:border-neon-green focus:bg-cyber-800/70 transition-all"
                         />
                         <button
                           type="button"
                           onClick={() => handleNumberChange('points', 10)}
-                          className="w-10 h-10 flex items-center justify-center bg-brown-50 border-2 border-brown-200 rounded-lg hover:border-green-500 transition-all text-brown-700 hover:text-green-600"
+                          className="w-10 h-10 flex items-center justify-center bg-cyber-800/50 border-2 border-neon-green/20 rounded-lg hover:border-neon-green transition-all text-white/90 hover:text-neon-green"
                         >
                           <PlusIcon size={16} />
                         </button>
@@ -604,7 +613,7 @@ export const Challenges: React.FC = () => {
                     />
 
                     <div>
-                      <label className="block text-sm font-semibold text-brown-700 mb-2">
+                      <label className="block text-sm font-semibold text-white/90 mb-2">
                         Environment Variables (JSON Format)
                       </label>
                       <textarea
@@ -612,7 +621,7 @@ export const Challenges: React.FC = () => {
                         onChange={(e) => handleInputChange('environmentVariables', e.target.value)}
                         placeholder='{"FLAG": "CTF{example}"}'
                         rows={4}
-                        className="w-full px-4 py-3 bg-brown-50 border-2 border-brown-200 rounded-xl text-brown-900 placeholder:text-brown-400 focus:outline-none focus:border-green-500 focus:ring-2 focus:ring-green-500/20 transition-all resize-y font-mono text-sm"
+                        className="w-full px-4 py-3 bg-cyber-800/50 border-2 border-neon-green/20 rounded-xl text-white placeholder:text-white/40 focus:outline-none focus:border-neon-green focus:ring-2 focus:ring-neon-green/20 transition-all resize-y font-mono text-sm"
                       />
                     </div>
 
@@ -622,9 +631,9 @@ export const Challenges: React.FC = () => {
                         id="isActive"
                         checked={formData.isActive}
                         onChange={(e) => handleInputChange('isActive', e.target.checked)}
-                        className="w-4 h-4 text-green-500 focus:ring-green-500 focus:ring-2 accent-green-500"
+                        className="w-4 h-4 text-neon-green focus:ring-neon-green focus:ring-2 accent-neon-green"
                       />
-                      <label htmlFor="isActive" className="text-sm text-brown-700 cursor-pointer">
+                      <label htmlFor="isActive" className="text-sm text-white/90 cursor-pointer">
                         Active (visible to teams)
                       </label>
                     </div>
@@ -632,7 +641,7 @@ export const Challenges: React.FC = () => {
                 </div>
 
                 {/* Team Restrictions Section */}
-                <div className="mt-6 pt-6 border-t border-brown-200">
+                <div className="mt-6 pt-6 border-t border-neon-green/20">
                   <InfoBox
                     type="info"
                     message="Leave empty to allow ALL teams to see this challenge. Select specific teams to restrict access."
@@ -645,9 +654,9 @@ export const Challenges: React.FC = () => {
                         id="restrictToTeams"
                         checked={formData.restrictToTeams}
                         onChange={(e) => handleInputChange('restrictToTeams', e.target.checked)}
-                        className="w-4 h-4 text-green-500 focus:ring-green-500 focus:ring-2 accent-green-500"
+                        className="w-4 h-4 text-neon-green focus:ring-neon-green focus:ring-2 accent-neon-green"
                       />
-                      <label htmlFor="restrictToTeams" className="text-sm text-brown-700 cursor-pointer">
+                      <label htmlFor="restrictToTeams" className="text-sm text-white/90 cursor-pointer">
                         Restrict to specific teams
                       </label>
                     </div>
@@ -681,12 +690,12 @@ export const Challenges: React.FC = () => {
 
             {/* Static Challenge Section */}
             {category === 'static' && (
-              <div className="bg-white rounded-2xl shadow-md border border-brown-200 p-6 space-y-6">
+              <div className="bg-cyber-900/80 backdrop-blur-xl rounded-2xl shadow-lg border border-neon-cyan/20 terminal-border p-6 space-y-6">
                 <div className="flex items-center gap-3 mb-4">
-                  <div className="w-10 h-10 bg-orange-100 rounded-xl flex items-center justify-center">
-                    <Folder className="text-orange-600" size={20} />
+                  <div className="w-10 h-10 bg-neon-cyan/20 backdrop-blur-sm rounded-xl flex items-center justify-center border border-neon-cyan/40">
+                    <Folder className="text-neon-cyan" size={20} />
                   </div>
-                  <h5 className="text-lg font-bold text-brown-900">
+                  <h5 className="text-lg font-bold text-white">
                     Static Challenge
                   </h5>
                 </div>
@@ -708,7 +717,7 @@ export const Challenges: React.FC = () => {
                     />
 
                     <div>
-                      <label className="block text-sm font-semibold text-brown-700 mb-2">
+                      <label className="block text-sm font-semibold text-white/90 mb-2">
                         &gt; DESCRIPTION *
                       </label>
                       <textarea
@@ -716,7 +725,7 @@ export const Challenges: React.FC = () => {
                         onChange={(e) => handleInputChange('description', e.target.value)}
                         placeholder="Enter challenge description"
                         rows={4}
-                        className="w-full px-4 py-3 bg-brown-50 border-2 border-brown-200 rounded-xl text-brown-900 placeholder:text-brown-400 focus:outline-none focus:border-green-500 focus:ring-2 focus:ring-green-500/20 transition-all resize-y"
+                        className="w-full px-4 py-3 bg-cyber-800/50 border-2 border-neon-green/20 rounded-xl text-white placeholder:text-white/40 focus:outline-none focus:border-neon-green focus:ring-2 focus:ring-neon-green/20 transition-all resize-y"
                       />
                     </div>
 
@@ -744,7 +753,7 @@ export const Challenges: React.FC = () => {
 
                     {/* Upload Challenge File */}
                     <div>
-                      <label className="block text-sm font-semibold text-brown-700 mb-3">
+                      <label className="block text-sm font-semibold text-white/90 mb-3">
                         Upload Challenge File *
                       </label>
                       
@@ -760,8 +769,8 @@ export const Challenges: React.FC = () => {
                             cursor-pointer transition-all
                             ${
                               isDraggingStatic
-                                ? 'border-green-500 bg-green-50'
-                                : 'border-brown-300 hover:border-green-400 bg-brown-50'
+                                ? 'border-neon-cyan bg-neon-cyan/10'
+                                : 'border-neon-cyan/30 hover:border-neon-cyan/50 bg-cyber-800/30'
                             }
                           `}
                         >
@@ -775,30 +784,30 @@ export const Challenges: React.FC = () => {
                           
                           {staticChallengeFile ? (
                             <>
-                              <FileArchive className="text-green-600" size={40} />
+                              <FileArchive className="text-neon-cyan" size={40} />
                               <div className="text-center">
-                                <p className="text-sm text-green-700 font-semibold mb-1">
+                                <p className="text-sm text-neon-cyan font-semibold mb-1">
                                   {staticChallengeFile.name}
                                 </p>
-                                <p className="text-xs text-brown-600">
+                                <p className="text-xs text-white/60">
                                   {(staticChallengeFile.size / (1024 * 1024)).toFixed(2)} MB
                                 </p>
-                                <p className="text-xs text-brown-500 mt-2">
+                                <p className="text-xs text-white/40 mt-2">
                                   Click to change file
                                 </p>
                               </div>
                             </>
                           ) : (
                             <>
-                              <Upload className="text-brown-400" size={40} />
+                              <Upload className="text-white/40" size={40} />
                               <div className="text-center">
-                                <p className="text-sm text-brown-700 mb-1">
+                                <p className="text-sm text-white/80 mb-1">
                                   Drag and drop file here
                                 </p>
-                                <p className="text-xs text-brown-600">
+                                <p className="text-xs text-white/60">
                                   Limit 200MB per file
                                 </p>
-                                <p className="text-xs text-brown-500 mt-1">
+                                <p className="text-xs text-white/40 mt-1">
                                   EXE, ZIP, RAR, 7Z, PDF, TXT, BIN, ELF, PY, JS, HTML, PCAP, PCAPNG, DLL, SO, DYLIB, HTM
                                 </p>
                               </div>
@@ -821,14 +830,14 @@ export const Challenges: React.FC = () => {
                     </div>
 
                     <div>
-                      <label className="block text-sm font-semibold text-brown-700 mb-2">
+                      <label className="block text-sm font-semibold text-white/90 mb-2">
                         &gt; MAX TEAMS *
                       </label>
                       <div className="flex items-center gap-3">
                         <button
                           type="button"
                           onClick={() => handleNumberChange('maxTeams', -1)}
-                          className="w-10 h-10 flex items-center justify-center bg-brown-50 border-2 border-brown-200 rounded-lg hover:border-green-500 transition-all text-brown-700 hover:text-green-600"
+                          className="w-10 h-10 flex items-center justify-center bg-cyber-800/50 border-2 border-neon-green/20 rounded-lg hover:border-neon-green transition-all text-white/90 hover:text-neon-green"
                         >
                           <Minus size={16} />
                         </button>
@@ -837,12 +846,12 @@ export const Challenges: React.FC = () => {
                           value={formData.maxTeams}
                           onChange={(e) => handleInputChange('maxTeams', parseInt(e.target.value) || 0)}
                           min="0"
-                          className="w-20 px-3 py-2 bg-secondary/20 border-2 border-secondary font-mono text-sm text-text text-center focus:outline-none focus:border-accent focus:bg-secondary/30 transition-all"
+                          className="w-20 px-3 py-2 bg-cyber-800/50 border-2 border-neon-green/20 font-mono text-sm text-white text-center focus:outline-none focus:border-neon-green focus:bg-cyber-800/70 transition-all"
                         />
                         <button
                           type="button"
                           onClick={() => handleNumberChange('maxTeams', 1)}
-                          className="w-10 h-10 flex items-center justify-center bg-brown-50 border-2 border-brown-200 rounded-lg hover:border-green-500 transition-all text-brown-700 hover:text-green-600"
+                          className="w-10 h-10 flex items-center justify-center bg-cyber-800/50 border-2 border-neon-green/20 rounded-lg hover:border-neon-green transition-all text-white/90 hover:text-neon-green"
                         >
                           <PlusIcon size={16} />
                         </button>
@@ -859,26 +868,26 @@ export const Challenges: React.FC = () => {
                   <div className="space-y-4">
                     <div>
                       <div className="flex items-center gap-2 mb-2">
-                        <label className="block text-sm font-semibold text-brown-700">
+                        <label className="block text-sm font-semibold text-white/90">
                           Flag Format
                         </label>
-                        <HelpCircle className="text-brown-400" size={16} />
+                        <HelpCircle className="text-white/40" size={16} />
                       </div>
                       <input
                         type="text"
                         value={formData.flagFormat}
                         onChange={(e) => handleInputChange('flagFormat', e.target.value)}
                         placeholder="CTF{}"
-                        className="w-full px-4 py-3 bg-brown-50 border-2 border-brown-200 rounded-xl text-brown-900 placeholder:text-brown-400 focus:outline-none focus:border-green-500 focus:ring-2 focus:ring-green-500/20 transition-all"
+                        className="w-full px-4 py-3 bg-cyber-800/50 border-2 border-neon-green/20 rounded-xl text-white placeholder:text-white/40 focus:outline-none focus:border-neon-green focus:ring-2 focus:ring-neon-green/20 transition-all"
                       />
                     </div>
 
                     <div>
                       <div className="flex items-center gap-2 mb-2">
-                        <label className="block text-sm font-semibold text-brown-700">
+                        <label className="block text-sm font-semibold text-white/90">
                           Flag (Secret) *
                         </label>
-                        <HelpCircle className="text-brown-400" size={16} />
+                        <HelpCircle className="text-white/40" size={16} />
                       </div>
                       <div className="relative">
                         <input
@@ -886,12 +895,12 @@ export const Challenges: React.FC = () => {
                           value={formData.flag}
                           onChange={(e) => handleInputChange('flag', e.target.value)}
                           placeholder="Enter flag"
-                          className="w-full px-4 py-3 pr-10 bg-brown-50 border-2 border-brown-200 rounded-xl text-brown-900 placeholder:text-brown-400 focus:outline-none focus:border-green-500 focus:ring-2 focus:ring-green-500/20 transition-all"
+                          className="w-full px-4 py-3 pr-10 bg-cyber-800/50 border-2 border-neon-green/20 rounded-xl text-white placeholder:text-white/40 focus:outline-none focus:border-neon-green focus:ring-2 focus:ring-neon-green/20 transition-all"
                         />
                         <button
                           type="button"
                           onClick={() => setShowFlag(!showFlag)}
-                          className="absolute right-3 top-1/2 transform -translate-y-1/2 text-brown-400 hover:text-brown-600 transition-colors"
+                          className="absolute right-3 top-1/2 transform -translate-y-1/2 text-white/40 hover:text-white/60 transition-colors"
                         >
                           {showFlag ? <EyeOff size={18} /> : <Eye size={18} />}
                         </button>
@@ -899,14 +908,14 @@ export const Challenges: React.FC = () => {
                     </div>
 
                     <div>
-                      <label className="block text-sm font-semibold text-brown-700 mb-2">
+                      <label className="block text-sm font-semibold text-white/90 mb-2">
                         Points
                       </label>
                       <div className="flex items-center gap-3">
                         <button
                           type="button"
                           onClick={() => handleNumberChange('points', -10)}
-                          className="w-10 h-10 flex items-center justify-center bg-brown-50 border-2 border-brown-200 rounded-lg hover:border-green-500 transition-all text-brown-700 hover:text-green-600"
+                          className="w-10 h-10 flex items-center justify-center bg-cyber-800/50 border-2 border-neon-green/20 rounded-lg hover:border-neon-green transition-all text-white/90 hover:text-neon-green"
                         >
                           <Minus size={16} />
                         </button>
@@ -915,12 +924,12 @@ export const Challenges: React.FC = () => {
                           value={formData.points}
                           onChange={(e) => handleInputChange('points', parseInt(e.target.value) || 0)}
                           min="0"
-                          className="w-24 px-3 py-2 bg-brown-50 border-2 border-brown-200 rounded-lg text-brown-900 text-center focus:outline-none focus:border-green-500 focus:ring-2 focus:ring-green-500/20 transition-all"
+                          className="w-24 px-3 py-2 bg-cyber-800/50 border-2 border-neon-green/20 font-mono text-sm text-white text-center focus:outline-none focus:border-neon-green focus:bg-cyber-800/70 transition-all"
                         />
                         <button
                           type="button"
                           onClick={() => handleNumberChange('points', 10)}
-                          className="w-10 h-10 flex items-center justify-center bg-brown-50 border-2 border-brown-200 rounded-lg hover:border-green-500 transition-all text-brown-700 hover:text-green-600"
+                          className="w-10 h-10 flex items-center justify-center bg-cyber-800/50 border-2 border-neon-green/20 rounded-lg hover:border-neon-green transition-all text-white/90 hover:text-neon-green"
                         >
                           <PlusIcon size={16} />
                         </button>
@@ -940,9 +949,9 @@ export const Challenges: React.FC = () => {
                         id="staticIsActive"
                         checked={formData.isActive}
                         onChange={(e) => handleInputChange('isActive', e.target.checked)}
-                        className="w-4 h-4 text-green-500 focus:ring-green-500 focus:ring-2 accent-green-500"
+                        className="w-4 h-4 text-neon-green focus:ring-neon-green focus:ring-2 accent-neon-green"
                       />
-                      <label htmlFor="staticIsActive" className="text-sm text-brown-700 cursor-pointer">
+                      <label htmlFor="staticIsActive" className="text-sm text-white/90 cursor-pointer">
                         Active (visible to teams)
                       </label>
                     </div>
@@ -955,10 +964,10 @@ export const Challenges: React.FC = () => {
                 </div>
 
                 {/* Team Restrictions Section */}
-                <div className="mt-6 pt-6 border-t border-brown-200">
+                <div className="mt-6 pt-6 border-t border-neon-green/20">
                   <div className="flex items-center gap-2 mb-4">
-                    <Lock className="text-brown-600" size={18} />
-                    <h6 className="text-base font-bold text-brown-900">
+                    <Lock className="text-white/60" size={18} />
+                    <h6 className="text-base font-bold text-white">
                       Team Restrictions (Optional)
                     </h6>
                   </div>
@@ -975,9 +984,9 @@ export const Challenges: React.FC = () => {
                         id="staticRestrictToTeams"
                         checked={formData.restrictToTeams}
                         onChange={(e) => handleInputChange('restrictToTeams', e.target.checked)}
-                        className="w-4 h-4 text-green-500 focus:ring-green-500 focus:ring-2 accent-green-500"
+                        className="w-4 h-4 text-neon-green focus:ring-neon-green focus:ring-2 accent-neon-green"
                       />
-                      <label htmlFor="staticRestrictToTeams" className="text-sm text-brown-700 cursor-pointer">
+                      <label htmlFor="staticRestrictToTeams" className="text-sm text-white/90 cursor-pointer">
                         Restrict to specific teams
                       </label>
                     </div>
