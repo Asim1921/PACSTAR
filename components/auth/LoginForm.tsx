@@ -2,8 +2,7 @@
 
 import React, { useState } from 'react';
 import { useRouter } from 'next/navigation';
-import { User, Lock, ArrowRight, Mail } from 'lucide-react';
-import { Input } from '@/components/ui/Input';
+import { User, Lock, ArrowRight, Mail, Eye, EyeOff } from 'lucide-react';
 import { Button } from '@/components/ui/Button';
 import { authAPI } from '@/lib/api';
 import { useToast } from '@/components/ui/ToastProvider';
@@ -21,6 +20,7 @@ export default function LoginForm({ onSwitchToRegister }: LoginFormProps) {
   });
   const [errors, setErrors] = useState<{ [key: string]: string }>({});
   const [isLoading, setIsLoading] = useState(false);
+  const [showPassword, setShowPassword] = useState(false);
 
   const handleChange = (e: React.ChangeEvent<HTMLInputElement>) => {
     const { name, value } = e.target;
@@ -101,17 +101,17 @@ export default function LoginForm({ onSwitchToRegister }: LoginFormProps) {
     <div className="w-full">
       {/* Header */}
       <div className="mb-8">
-        <h2 className="text-3xl font-bold text-brown-900 mb-2">Welcome Back</h2>
-        <p className="text-brown-600">Sign in to continue to your account</p>
+        <h2 className="text-3xl font-bold text-white mb-2 gradient-text">Welcome Back</h2>
+        <p className="text-white/60">Sign in to continue to your account</p>
       </div>
 
       <form onSubmit={handleSubmit} className="space-y-6">
         <div>
-          <label className="block text-sm font-semibold text-brown-700 mb-2">
+          <label className="block text-sm font-semibold text-white/90 mb-2">
             Username
           </label>
-          <div className="relative">
-            <div className="absolute left-4 top-1/2 transform -translate-y-1/2 text-brown-400">
+          <div className="relative group">
+            <div className="absolute left-4 top-1/2 transform -translate-y-1/2 text-neon-green/60 group-focus-within:text-neon-green transition-colors">
               <User size={20} />
             </div>
             <input
@@ -121,52 +121,59 @@ export default function LoginForm({ onSwitchToRegister }: LoginFormProps) {
               onChange={handleChange}
               placeholder="Enter your username"
               autoComplete="username"
-              className={`w-full pl-12 pr-4 py-3.5 bg-brown-50 border-2 rounded-xl focus:outline-none focus:ring-2 focus:ring-green-500/20 transition-all ${
+              className={`w-full pl-12 pr-4 py-3.5 bg-cyber-900/50 border-2 rounded-xl focus:outline-none transition-all text-white placeholder:text-white/30 ${
                 errors.username 
-                  ? 'border-orange-500 focus:border-orange-500' 
-                  : 'border-brown-200 focus:border-green-500'
+                  ? 'border-neon-orange/50 focus:border-neon-orange focus:ring-4 focus:ring-neon-orange/20' 
+                  : 'border-neon-green/20 focus:border-neon-green focus:ring-4 focus:ring-neon-green/20'
               }`}
             />
           </div>
           {errors.username && (
-            <p className="mt-2 text-sm text-orange-600 flex items-center gap-1">
+            <p className="mt-2 text-sm text-neon-orange flex items-center gap-1">
               <span>⚠</span> {errors.username}
             </p>
           )}
         </div>
 
         <div>
-          <label className="block text-sm font-semibold text-brown-700 mb-2">
+          <label className="block text-sm font-semibold text-white/90 mb-2">
             Password
           </label>
-          <div className="relative">
-            <div className="absolute left-4 top-1/2 transform -translate-y-1/2 text-brown-400">
+          <div className="relative group">
+            <div className="absolute left-4 top-1/2 transform -translate-y-1/2 text-neon-green/60 group-focus-within:text-neon-green transition-colors">
               <Lock size={20} />
             </div>
             <input
-              type="password"
+              type={showPassword ? 'text' : 'password'}
               name="password"
               value={formData.password}
               onChange={handleChange}
               placeholder="Enter your password"
               autoComplete="current-password"
-              className={`w-full pl-12 pr-4 py-3.5 bg-brown-50 border-2 rounded-xl focus:outline-none focus:ring-2 focus:ring-green-500/20 transition-all ${
+              className={`w-full pl-12 pr-12 py-3.5 bg-cyber-900/50 border-2 rounded-xl focus:outline-none transition-all text-white placeholder:text-white/30 ${
                 errors.password 
-                  ? 'border-orange-500 focus:border-orange-500' 
-                  : 'border-brown-200 focus:border-green-500'
+                  ? 'border-neon-orange/50 focus:border-neon-orange focus:ring-4 focus:ring-neon-orange/20' 
+                  : 'border-neon-green/20 focus:border-neon-green focus:ring-4 focus:ring-neon-green/20'
               }`}
             />
+            <button
+              type="button"
+              onClick={() => setShowPassword(!showPassword)}
+              className="absolute right-4 top-1/2 transform -translate-y-1/2 text-white/40 hover:text-neon-green transition-colors"
+            >
+              {showPassword ? <EyeOff size={20} /> : <Eye size={20} />}
+            </button>
           </div>
           {errors.password && (
-            <p className="mt-2 text-sm text-orange-600 flex items-center gap-1">
+            <p className="mt-2 text-sm text-neon-orange flex items-center gap-1">
               <span>⚠</span> {errors.password}
             </p>
           )}
         </div>
 
         {errors.submit && (
-          <div className="p-4 bg-orange-50 border-2 border-orange-200 rounded-xl">
-            <p className="text-orange-700 text-sm font-medium">{errors.submit}</p>
+          <div className="p-4 bg-neon-orange/10 border-2 border-neon-orange/30 rounded-xl backdrop-blur-sm">
+            <p className="text-neon-orange text-sm font-medium">{errors.submit}</p>
           </div>
         )}
 
@@ -175,19 +182,19 @@ export default function LoginForm({ onSwitchToRegister }: LoginFormProps) {
           variant="primary"
           size="lg"
           isLoading={isLoading}
-          className="w-full bg-gradient-to-r from-green-500 to-green-600 hover:from-green-600 hover:to-green-700 text-white font-semibold py-4 rounded-xl shadow-lg hover:shadow-xl transition-all duration-300 flex items-center justify-center gap-2"
+          className="w-full bg-gradient-to-r from-neon-green to-neon-cyan hover:from-neon-green hover:to-neon-cyan/80 text-cyber-darker font-bold py-4 rounded-xl shadow-lg shadow-neon-green/20 hover:shadow-xl hover:shadow-neon-green/30 transition-all duration-300 flex items-center justify-center gap-2 btn-primary"
         >
           {!isLoading && <ArrowRight size={20} />}
           {isLoading ? 'Signing in...' : 'Sign In'}
         </Button>
 
         <div className="text-center pt-4">
-          <p className="text-sm text-brown-600">
+          <p className="text-sm text-white/60">
             Don't have an account?{' '}
             <button
               type="button"
               onClick={onSwitchToRegister}
-              className="text-green-600 hover:text-green-700 font-semibold transition-colors cursor-pointer underline"
+              className="text-neon-green hover:text-neon-cyan font-semibold transition-colors cursor-pointer underline decoration-neon-green/50 hover:decoration-neon-cyan"
             >
               Sign up here
             </button>

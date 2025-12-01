@@ -18,6 +18,7 @@ import { Input } from '@/components/ui/Input';
 import { RadioGroup } from '@/components/ui/RadioGroup';
 import { InfoBox } from '@/components/ui/InfoBox';
 import { useToast } from '@/components/ui/ToastProvider';
+import { openStackAPI } from '@/lib/api';
 
 export const HeatTemplates: React.FC = () => {
   const { showToast } = useToast();
@@ -90,6 +91,23 @@ export const HeatTemplates: React.FC = () => {
     setTimeoutMinutes((prev) => Math.max(1, Math.min(1440, prev + delta)));
   };
 
+  // Helper function to read file content as text
+  const readFileAsText = (file: File): Promise<string> => {
+    return new Promise((resolve, reject) => {
+      const reader = new FileReader();
+      reader.onload = (e) => {
+        const content = e.target?.result;
+        if (typeof content === 'string') {
+          resolve(content);
+        } else {
+          reject(new Error('Failed to read file as text'));
+        }
+      };
+      reader.onerror = () => reject(new Error('Error reading file'));
+      reader.readAsText(file);
+    });
+  };
+
   const handleDeploy = async () => {
     if (!stackName.trim()) {
       showToast('Please enter a stack name', 'error');
@@ -112,8 +130,9 @@ export const HeatTemplates: React.FC = () => {
     }
 
     // Validate JSON parameters
+    let parsedParameters: Record<string, any> = {};
     try {
-      JSON.parse(parameters);
+      parsedParameters = JSON.parse(parameters);
     } catch (e) {
       showToast('Invalid JSON in parameters field', 'error');
       return;
@@ -121,9 +140,34 @@ export const HeatTemplates: React.FC = () => {
 
     setIsDeploying(true);
     try {
-      // TODO: Implement API call when backend is ready
-      await new Promise(resolve => setTimeout(resolve, 1000));
-      showToast('Heat template deployment initiated successfully', 'success');
+      // Build the API payload
+      let templateBody: string | undefined;
+      let templateUrlValue: string | undefined;
+
+      if (templateSource === 'upload' && selectedFile) {
+        // Read file content for upload
+        templateBody = await readFileAsText(selectedFile);
+      } else if (templateSource === 'paste') {
+        templateBody = yamlContent;
+      } else if (templateSource === 'url') {
+        templateUrlValue = templateUrl;
+      }
+
+      // Call the Heat deployment API
+      const response = await openStackAPI.deployHeatTemplate({
+        stack_name: stackName.trim(),
+        template_body: templateBody,
+        template_url: templateUrlValue,
+        parameters: parsedParameters,
+        timeout_minutes: timeoutMinutes,
+        rollback_on_failure: rollbackOnFailure,
+      });
+
+      // Show success with stack details
+      const successMessage = response.stack_id 
+        ? `Heat stack "${response.stack_name}" created successfully! Stack ID: ${response.stack_id}`
+        : 'Heat template deployment initiated successfully';
+      showToast(successMessage, 'success');
       
       // Reset form after successful deployment
       setStackName('pacstar-ctf-stack');

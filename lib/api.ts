@@ -5,7 +5,7 @@ import axios from 'axios';
 const USE_PROXY = true; // Set to false to call backend directly (requires CORS fix on backend)
 const API_BASE_URL = USE_PROXY 
   ? '/api/proxy'  // Next.js API route proxy
-  : 'http://10.10.101.69:8000/api/v1';  // Direct backend URL
+  : 'http://localhost:8000/api/v1';  // Direct backend URL
 
 // Helper function to decode JWT token and extract user ID
 const decodeJWT = (token: string): any => {
@@ -661,6 +661,22 @@ export const openStackAPI = {
     const path = USE_PROXY 
       ? '/openstack/deployments' 
       : '/openstack/deployments';
+    const response = await apiClient.post(path, payload);
+    return response.data;
+  },
+
+  // Deploy Heat template
+  deployHeatTemplate: async (payload: {
+    stack_name: string;
+    template_body?: string;
+    template_url?: string;
+    parameters?: Record<string, any>;
+    timeout_minutes?: number;
+    rollback_on_failure?: boolean;
+  }) => {
+    const path = USE_PROXY 
+      ? '/openstack/heat/deploy' 
+      : '/openstack/heat/deploy';
     const response = await apiClient.post(path, payload);
     return response.data;
   },

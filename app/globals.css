@@ -328,24 +328,23 @@ body::before {
   }
 }
 
-/* Terminal/Cyber aesthetic - Light Theme */
+/* Terminal/Cyber aesthetic - Dark Theme */
 .terminal-border {
-  border: 2px solid #00FF88;
+  border: 2px solid rgba(0, 255, 136, 0.3);
   box-shadow: 
-    0 0 20px rgba(0, 255, 136, 0.25),
-    0 0 40px rgba(0, 255, 136, 0.1),
-    inset 0 0 20px rgba(0, 255, 136, 0.05);
+    0 0 20px rgba(0, 255, 136, 0.15),
+    0 0 40px rgba(0, 255, 136, 0.08),
+    inset 0 0 20px rgba(0, 255, 136, 0.03);
   position: relative;
   transition: all 0.3s cubic-bezier(0.4, 0, 0.2, 1);
-  background: rgba(255, 255, 255, 0.9);
 }
 
 .terminal-border:hover {
-  border-color: #00D9FF;
+  border-color: rgba(0, 217, 255, 0.4);
   box-shadow: 
-    0 0 30px rgba(0, 217, 255, 0.3),
-    0 0 60px rgba(0, 217, 255, 0.15),
-    inset 0 0 30px rgba(0, 217, 255, 0.08);
+    0 0 30px rgba(0, 217, 255, 0.2),
+    0 0 60px rgba(0, 217, 255, 0.1),
+    inset 0 0 30px rgba(0, 217, 255, 0.05);
 }
 
 .terminal-border::before,
@@ -354,7 +353,7 @@ body::before {
   position: absolute;
   width: 12px;
   height: 12px;
-  border: 2px solid #00FF88;
+  border: 2px solid rgba(0, 255, 136, 0.4);
   transition: all 0.3s ease;
 }
 
@@ -364,8 +363,8 @@ body::before {
   border-right: none;
   border-bottom: none;
   box-shadow: 
-    -2px -2px 5px rgba(0, 255, 136, 0.4),
-    inset -1px -1px 2px rgba(0, 255, 136, 0.2);
+    -2px -2px 5px rgba(0, 255, 136, 0.3),
+    inset -1px -1px 2px rgba(0, 255, 136, 0.15);
 }
 
 .terminal-border::after {
@@ -374,16 +373,16 @@ body::before {
   border-left: none;
   border-top: none;
   box-shadow: 
-    2px 2px 5px rgba(0, 255, 136, 0.4),
-    inset 1px 1px 2px rgba(0, 255, 136, 0.2);
+    2px 2px 5px rgba(0, 255, 136, 0.3),
+    inset 1px 1px 2px rgba(0, 255, 136, 0.15);
 }
 
 .terminal-border:hover::before,
 .terminal-border:hover::after {
-  border-color: #00D9FF;
+  border-color: rgba(0, 217, 255, 0.5);
   box-shadow: 
-    0 0 10px rgba(0, 217, 255, 0.5),
-    inset 0 0 5px rgba(0, 217, 255, 0.3);
+    0 0 10px rgba(0, 217, 255, 0.4),
+    inset 0 0 5px rgba(0, 217, 255, 0.2);
 }
 
 /* Hexagon pattern - Light Theme */

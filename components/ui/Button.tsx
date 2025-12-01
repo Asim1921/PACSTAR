@@ -19,10 +19,10 @@ export const Button: React.FC<ButtonProps> = ({
   const baseStyles = 'font-semibold transition-all duration-300 disabled:opacity-50 disabled:cursor-not-allowed relative overflow-hidden rounded-xl';
   
   const variants = {
-    primary: 'bg-gradient-to-r from-green-500 to-green-600 hover:from-green-600 hover:to-green-700 text-white shadow-lg hover:shadow-xl border-0',
-    secondary: 'bg-white text-brown-700 hover:bg-brown-50 border-2 border-brown-200 shadow-md hover:shadow-lg',
-    outline: 'border-2 border-green-500 text-green-600 hover:bg-green-50 bg-white shadow-sm hover:shadow-md',
-    ghost: 'text-brown-700 hover:bg-brown-50 border-0 bg-transparent',
+    primary: 'bg-gradient-to-r from-neon-green to-neon-cyan hover:from-neon-green hover:to-neon-cyan/80 text-cyber-darker shadow-lg shadow-neon-green/20 hover:shadow-xl hover:shadow-neon-green/30 border-0',
+    secondary: 'bg-cyber-700 text-white hover:bg-cyber-600 border-2 border-neon-green/30 shadow-md hover:shadow-lg',
+    outline: 'border-2 border-neon-green text-neon-green hover:bg-neon-green/10 bg-transparent shadow-sm hover:shadow-md',
+    ghost: 'text-white/80 hover:text-white hover:bg-cyber-700/50 border-0 bg-transparent',
   };
 
   const sizes = {
