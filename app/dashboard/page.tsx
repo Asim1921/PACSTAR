@@ -96,79 +96,83 @@ export default function Dashboard() {
 
         setIsDataLoading(true);
 
+        // Fetch current user profile using the auth token (most reliable method)
         try {
-          const usersList = await userAPI.listUsers();
-          if (Array.isArray(usersList) && usersList.length > 0) {
-            const storedUser = localStorage.getItem('user_info');
-            if (storedUser) {
+          // First, try to get current user from /auth/me endpoint
+          try {
+            const currentUser = await authAPI.me();
+            if (currentUser && currentUser.id) {
+              setUserProfile(currentUser);
+              localStorage.setItem('user_info', JSON.stringify(currentUser));
+              localStorage.setItem('user_id', currentUser.id);
+            }
+          } catch (meError: any) {
+            console.log('auth/me failed, trying alternative method:', meError);
+            
+            // Fallback: Try to get user ID from token and use getCurrentUser
+            let userId = localStorage.getItem('user_id');
+            
+            if (!userId) {
+              // Try to extract from token
               try {
-                const parsed = JSON.parse(storedUser);
-                const currentUser = usersList.find((u: any) => u.username === parsed.username);
-                if (currentUser) {
-                  setUserProfile(currentUser);
-                  localStorage.setItem('user_info', JSON.stringify(currentUser));
-                  if (currentUser.id) {
-                    localStorage.setItem('user_id', currentUser.id);
+                const token = localStorage.getItem('auth_token');
+                if (token) {
+                  const decoded = JSON.parse(atob(token.split('.')[1]));
+                  userId = decoded.sub || decoded.user_id || decoded.id;
+                  if (userId) {
+                    localStorage.setItem('user_id', userId);
                   }
                 }
-              } catch (e) {
-                console.error('Error parsing stored user:', e);
+              } catch (tokenError) {
+                console.error('Error extracting user ID from token:', tokenError);
               }
             }
-          }
-        } catch (listError: any) {
-          console.error('Failed to list users:', listError);
-        }
 
-        try {
-          const storedUser = localStorage.getItem('user_info');
-          let userId = localStorage.getItem('user_id');
-          
-          if (!userId && storedUser) {
-            try {
-              const parsedUser = JSON.parse(storedUser);
-              if (parsedUser.id) {
-                userId = parsedUser.id;
-                localStorage.setItem('user_id', parsedUser.id);
+            if (userId) {
+              try {
+                const userResponse = await userAPI.getCurrentUser(userId);
+                setUserProfile(userResponse);
+                localStorage.setItem('user_info', JSON.stringify(userResponse));
+                if (userResponse.id) {
+                  localStorage.setItem('user_id', userResponse.id);
+                }
+              } catch (userError: any) {
+                console.error('Failed to fetch user profile by ID:', userError);
+                // Last resort: use stored user info if available
+                const storedUser = localStorage.getItem('user_info');
+                if (storedUser) {
+                  try {
+                    const parsed = JSON.parse(storedUser);
+                    setUserProfile(parsed);
+                  } catch (e) {
+                    console.error('Error parsing stored user info:', e);
+                  }
+                }
               }
-            } catch (e) {
-              console.error('Error parsing stored user info:', e);
-            }
-          }
-
-          if (userId) {
-            try {
-              const userResponse = await userAPI.getCurrentUser(userId);
-              setUserProfile(userResponse);
-              localStorage.setItem('user_info', JSON.stringify(userResponse));
-              if (userResponse.id) {
-                localStorage.setItem('user_id', userResponse.id);
-              }
-            } catch (error: any) {
-              console.error('Failed to fetch user profile by ID:', error);
+            } else {
+              // Last resort: use stored user info if available
+              const storedUser = localStorage.getItem('user_info');
               if (storedUser) {
                 try {
-                  setUserProfile(JSON.parse(storedUser));
+                  const parsed = JSON.parse(storedUser);
+                  setUserProfile(parsed);
+                  if (parsed.id) {
+                    localStorage.setItem('user_id', parsed.id);
+                  }
                 } catch (e) {
                   console.error('Error parsing stored user info:', e);
                 }
               }
             }
-          } else {
-            if (storedUser) {
-              try {
-                setUserProfile(JSON.parse(storedUser));
-              } catch (e) {
-                console.error('Error parsing stored user info:', e);
-              }
-            }
           }
         } catch (error: any) {
           console.error('Error in user profile fetch:', error);
+          // Last resort: use stored user info if available
           const storedUser = localStorage.getItem('user_info');
           if (storedUser) {
             try {
-              setUserProfile(JSON.parse(storedUser));
+              const parsed = JSON.parse(storedUser);
+              setUserProfile(parsed);
             } catch (e) {
               console.error('Error parsing stored user info:', e);
             }

@@ -138,10 +138,20 @@ export const authAPI = {
 
   logout: () => {
     localStorage.removeItem('auth_token');
+    localStorage.removeItem('user_info');
+    localStorage.removeItem('user_id');
+    localStorage.removeItem('team_info');
   },
 
   getZones: async () => {
     const response = await apiClient.get('/zones');
+    return response.data;
+  },
+
+  // Get current authenticated user
+  me: async () => {
+    const path = USE_PROXY ? '/auth/me' : '/auth/me';
+    const response = await apiClient.get(path);
     return response.data;
   },
 };

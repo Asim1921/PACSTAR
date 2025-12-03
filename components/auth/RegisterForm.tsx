@@ -157,21 +157,59 @@ export default function RegisterForm({ onSwitchToLogin }: RegisterFormProps) {
         registrationData.team_name = formData.teamName;
       }
 
+      // Clear old user data before registration
+      localStorage.removeItem('user_info');
+      localStorage.removeItem('user_id');
+      localStorage.removeItem('team_info');
+      
       const response = await authAPI.register(registrationData);
       
-      if (response.user) {
-        localStorage.setItem('user_info', JSON.stringify(response.user));
-        if (response.user.id) {
-          localStorage.setItem('user_id', response.user.id);
+      // Check if token was saved
+      const token = localStorage.getItem('auth_token');
+      if (token) {
+        // Try to fetch current user profile using the token
+        try {
+          const userProfile = await authAPI.me();
+          if (userProfile && userProfile.id) {
+            localStorage.setItem('user_info', JSON.stringify(userProfile));
+            localStorage.setItem('user_id', userProfile.id);
+          }
+        } catch (meError: any) {
+          console.log('auth/me failed after registration, using response data:', meError);
+          // Fallback: Use response data
+          if (response.id) {
+            localStorage.setItem('user_id', response.id);
+            localStorage.setItem('user_info', JSON.stringify({
+              id: response.id,
+              username: response.username || formData.username,
+              email: response.email || formData.email,
+              role: response.role || 'User',
+              zone: response.zone || (formData.registrationType === 'individual' ? formData.zone : 'zone1'),
+            }));
+          } else if (response.user) {
+            localStorage.setItem('user_info', JSON.stringify(response.user));
+            if (response.user.id) {
+              localStorage.setItem('user_id', response.user.id);
+            }
+          }
         }
-      } else if (response.id) {
-        localStorage.setItem('user_id', response.id);
-        localStorage.setItem('user_info', JSON.stringify({
-          id: response.id,
-          username: formData.username,
-          role: 'User',
-          zone: formData.registrationType === 'individual' ? formData.zone : 'zone1',
-        }));
+      } else {
+        // No token, use response data if available
+        if (response.id) {
+          localStorage.setItem('user_id', response.id);
+          localStorage.setItem('user_info', JSON.stringify({
+            id: response.id,
+            username: response.username || formData.username,
+            email: response.email || formData.email,
+            role: response.role || 'User',
+            zone: response.zone || (formData.registrationType === 'individual' ? formData.zone : 'zone1'),
+          }));
+        } else if (response.user) {
+          localStorage.setItem('user_info', JSON.stringify(response.user));
+          if (response.user.id) {
+            localStorage.setItem('user_id', response.user.id);
+          }
+        }
       }
       
       showToast('User registration successful', 'success');

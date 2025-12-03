@@ -13,6 +13,7 @@ interface Particle {
   baseY: number;
   angle: number;
   speed: number;
+  mass: number;
 }
 
 export default function ParticleBackground() {
@@ -52,7 +53,8 @@ export default function ParticleBackground() {
         const offsetY = (Math.random() - 0.5) * 80;
         
         const angle = Math.random() * Math.PI * 2;
-        const speed = 0.2 + Math.random() * 0.2; // Slower, more controlled movement
+        const speed = 0.3 + Math.random() * 0.3; // Slightly faster for more dynamic movement
+        const radius = 2.5 + Math.random() * 2; // Bigger particles
         
         return {
           x: clusterX + offsetX,
@@ -61,7 +63,8 @@ export default function ParticleBackground() {
           baseY: clusterY + offsetY,
           vx: Math.cos(angle) * speed,
           vy: Math.sin(angle) * speed,
-          radius: 1.5 + Math.random() * 1, // Slightly smaller, more uniform
+          radius: radius,
+          mass: radius, // Mass proportional to radius
           color: colors[Math.floor(Math.random() * colors.length)],
           angle: angle,
           speed: speed,
@@ -89,49 +92,130 @@ export default function ParticleBackground() {
 
     window.addEventListener('mousemove', handleMouseMove);
 
+    // Collision detection and response function
+    const handleCollision = (p1: Particle, p2: Particle) => {
+      const dx = p2.x - p1.x;
+      const dy = p2.y - p1.y;
+      const distance = Math.sqrt(dx * dx + dy * dy);
+      const minDist = p1.radius + p2.radius;
+
+      if (distance < minDist && distance > 0) {
+        // Collision detected - calculate collision response
+        const angle = Math.atan2(dy, dx);
+        const sin = Math.sin(angle);
+        const cos = Math.cos(angle);
+
+        // Rotate particle positions
+        const x1 = 0;
+        const y1 = 0;
+        const x2 = dx * cos + dy * sin;
+        const y2 = dy * cos - dx * sin;
+
+        // Rotate particle velocities
+        const vx1 = p1.vx * cos + p1.vy * sin;
+        const vy1 = p1.vy * cos - p1.vx * sin;
+        const vx2 = p2.vx * cos + p2.vy * sin;
+        const vy2 = p2.vy * cos - p2.vx * sin;
+
+        // Collision reaction (elastic collision)
+        const vx1Final = ((p1.mass - p2.mass) * vx1 + 2 * p2.mass * vx2) / (p1.mass + p2.mass);
+        const vx2Final = ((p2.mass - p1.mass) * vx2 + 2 * p1.mass * vx1) / (p1.mass + p2.mass);
+
+        // Separate particles to prevent overlap
+        const overlap = minDist - distance;
+        const separationX = (overlap / 2) * cos;
+        const separationY = (overlap / 2) * sin;
+        p1.x -= separationX;
+        p1.y -= separationY;
+        p2.x += separationX;
+        p2.y += separationY;
+
+        // Rotate velocities back
+        p1.vx = vx1Final * cos - vy1 * sin;
+        p1.vy = vy1 * cos + vx1Final * sin;
+        p2.vx = vx2Final * cos - vy2 * sin;
+        p2.vy = vy2 * cos + vx2Final * sin;
+
+        // Add some bounce dampening for stability (optional)
+        p1.vx *= 0.95;
+        p1.vy *= 0.95;
+        p2.vx *= 0.95;
+        p2.vy *= 0.95;
+      }
+    };
+
     // Animation loop
     const animate = () => {
       timeRef.current += 0.01;
       ctx.clearRect(0, 0, canvas.width, canvas.height);
 
-      // Update and draw particles
+      // First pass: Handle collisions between all particles
+      for (let i = 0; i < particlesRef.current.length; i++) {
+        for (let j = i + 1; j < particlesRef.current.length; j++) {
+          handleCollision(particlesRef.current[i], particlesRef.current[j]);
+        }
+      }
+
+      // Second pass: Update positions and handle mouse interaction
       particlesRef.current.forEach((particle, i) => {
-        // More controlled movement - return to base position with oscillation
-        const targetX = particle.baseX + Math.cos(timeRef.current + particle.angle) * 30;
-        const targetY = particle.baseY + Math.sin(timeRef.current + particle.angle) * 30;
-        
-        // Smooth movement towards target
-        particle.x += (targetX - particle.x) * 0.05 + particle.vx;
-        particle.y += (targetY - particle.y) * 0.05 + particle.vy;
-
-        // Keep particles in bounds
-        if (particle.x < 0 || particle.x > canvas.width) {
-          particle.vx *= -1;
-          particle.x = Math.max(0, Math.min(canvas.width, particle.x));
-        }
-        if (particle.y < 0 || particle.y > canvas.height) {
-          particle.vy *= -1;
-          particle.y = Math.max(0, Math.min(canvas.height, particle.y));
-        }
-
-        // Enhanced mouse interaction - particles react more strongly
+        // Enhanced mouse interaction - particles are pushed away more strongly
         const dx = mouseRef.current.x - particle.x;
         const dy = mouseRef.current.y - particle.y;
         const distance = Math.sqrt(dx * dx + dy * dy);
+        const mouseRadius = 200; // Increased interaction radius
 
-        if (distance < 150) {
-          const force = (150 - distance) / 150;
-          particle.vx -= (dx / distance) * force * 0.02;
-          particle.vy -= (dy / distance) * force * 0.02;
+        if (distance < mouseRadius && distance > 0) {
+          const force = (mouseRadius - distance) / mouseRadius;
+          const pushStrength = force * 0.15; // Stronger push force
+          
+          // Push particles away from cursor
+          particle.vx -= (dx / distance) * pushStrength;
+          particle.vy -= (dy / distance) * pushStrength;
         }
 
-        // Draw particle with glow effect
+        // Gentle return to base position (reduced force for more dynamic movement)
+        const targetX = particle.baseX + Math.cos(timeRef.current + particle.angle) * 40;
+        const targetY = particle.baseY + Math.sin(timeRef.current + particle.angle) * 40;
+        
+        const returnForce = 0.02; // Reduced return force to allow more free movement
+        particle.vx += (targetX - particle.x) * returnForce;
+        particle.vy += (targetY - particle.y) * returnForce;
+
+        // Apply velocity damping for smoother motion
+        particle.vx *= 0.98;
+        particle.vy *= 0.98;
+
+        // Update position
+        particle.x += particle.vx;
+        particle.y += particle.vy;
+
+        // Bounce off walls with energy loss
+        const bounceDamping = 0.7;
+        if (particle.x - particle.radius < 0) {
+          particle.x = particle.radius;
+          particle.vx *= -bounceDamping;
+        }
+        if (particle.x + particle.radius > canvas.width) {
+          particle.x = canvas.width - particle.radius;
+          particle.vx *= -bounceDamping;
+        }
+        if (particle.y - particle.radius < 0) {
+          particle.y = particle.radius;
+          particle.vy *= -bounceDamping;
+        }
+        if (particle.y + particle.radius > canvas.height) {
+          particle.y = canvas.height - particle.radius;
+          particle.vy *= -bounceDamping;
+        }
+
+        // Draw particle with enhanced glow effect (bigger for larger particles)
         const gradient = ctx.createRadialGradient(
           particle.x, particle.y, 0,
-          particle.x, particle.y, particle.radius * 3
+          particle.x, particle.y, particle.radius * 4
         );
         gradient.addColorStop(0, particle.color);
-        gradient.addColorStop(0.5, particle.color.replace('0.8', '0.4').replace('0.7', '0.3'));
+        gradient.addColorStop(0.4, particle.color.replace('0.8', '0.5').replace('0.7', '0.4'));
+        gradient.addColorStop(0.7, particle.color.replace('0.8', '0.2').replace('0.7', '0.15'));
         gradient.addColorStop(1, particle.color.replace('0.8', '0').replace('0.7', '0'));
         
         ctx.beginPath();
@@ -139,9 +223,9 @@ export default function ParticleBackground() {
         ctx.fillStyle = gradient;
         ctx.fill();
 
-        // Draw inner bright core
+        // Draw inner bright core (bigger for visibility)
         ctx.beginPath();
-        ctx.arc(particle.x, particle.y, particle.radius * 0.5, 0, Math.PI * 2);
+        ctx.arc(particle.x, particle.y, particle.radius * 0.6, 0, Math.PI * 2);
         ctx.fillStyle = particle.color.replace('0.8', '1').replace('0.7', '1');
         ctx.fill();
 
