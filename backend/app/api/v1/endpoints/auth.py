@@ -41,6 +41,12 @@ async def register_user(request: RegisterRequest):
             user_dict["team_code"] = user_doc["team_code"]
         if user_doc.get("team_id"):
             user_dict["team_id"] = str(user_doc["team_id"])
+    
+    # If team was created, also return team name for display
+    if request.create_team and user_doc and user_doc.get("team_code"):
+        user_dict["team_created"] = True
+        user_dict["team_name"] = request.team_name
+    
     return user_dict
 
 

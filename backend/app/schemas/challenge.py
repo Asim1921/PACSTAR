@@ -94,6 +94,7 @@ class ChallengeBase(BaseModel):
     name: str = Field(..., min_length=3, max_length=50, description="Challenge name")
     description: str = Field(..., min_length=10, max_length=500, description="Challenge description")
     config: ChallengeConfig
+    zone: str = Field(default="zone1", min_length=2, max_length=50, description="Zone where this challenge is available (e.g., zone1, zone2, zone3)")
     # Scoring
     flag: Optional[str] = Field(None, description="Exact flag string teams must submit to solve the challenge (single-flag mode)")
     flags: Optional[List[FlagItem]] = Field(

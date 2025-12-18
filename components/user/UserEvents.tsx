@@ -151,21 +151,66 @@ export const UserEvents: React.FC = () => {
     }
   };
 
+  // Registration status tracking
+  const [registeredEvents, setRegisteredEvents] = useState<Set<string>>(new Set());
+  const [checkingRegistration, setCheckingRegistration] = useState<Set<string>>(new Set());
+
+  // Check registration status for events
+  const checkRegistrationStatus = async (eventId: string) => {
+    if (checkingRegistration.has(eventId)) return;
+    
+    try {
+      setCheckingRegistration(prev => new Set(prev).add(eventId));
+      const status = await eventAPI.checkRegistrationStatus(eventId);
+      if (status.is_registered) {
+        setRegisteredEvents(prev => new Set(prev).add(eventId));
+      }
+    } catch (error: any) {
+      // Silently fail - user might not be registered
+      console.error('Failed to check registration status:', error);
+    } finally {
+      setCheckingRegistration(prev => {
+        const newSet = new Set(prev);
+        newSet.delete(eventId);
+        return newSet;
+      });
+    }
+  };
+
   useEffect(() => {
     fetchEvents();
   }, [statusFilter]);
+
+  // Check registration for all events on load
+  useEffect(() => {
+    events.forEach(event => {
+      if (event.status === 'running' || event.status === 'scheduled' || event.status === 'approved') {
+        checkRegistrationStatus(event.id);
+      }
+    });
+  }, [events]);
+
+  // Check registration for all events on load
+  useEffect(() => {
+    events.forEach(event => {
+      if (event.status === 'running' || event.status === 'scheduled' || event.status === 'approved') {
+        checkRegistrationStatus(event.id);
+      }
+    });
+  }, [events]);
 
   // Register for event
   const handleRegister = async (eventId: string) => {
     try {
       await eventAPI.registerForEvent(eventId);
-      showToast('Successfully registered for event!', 'success');
+      setRegisteredEvents(prev => new Set(prev).add(eventId));
+      showToast('Successfully joined the event! You can now see challenges.', 'success');
       fetchEvents();
       if (selectedEvent?.id === eventId) {
         fetchEventDetails(eventId);
       }
     } catch (error: any) {
-      showToast(error.response?.data?.detail || 'Failed to register for event', 'error');
+      showToast(error.response?.data?.detail || 'Failed to join event', 'error');
     }
   };
 
@@ -325,7 +370,11 @@ export const UserEvents: React.FC = () => {
             </div>
           ) : (
             <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-              {filteredEvents.map((event) => (
+              {filteredEvents.map((event) => {
+                const isRegistered = registeredEvents.has(event.id);
+                const canJoin = (event.status === 'running' || event.status === 'scheduled' || event.status === 'approved') && !isRegistered;
+                
+                return (
                 <div
                   key={event.id}
                   className="group bg-cyber-800/50 rounded-xl p-6 border-2 border-neon-green/20 hover:border-neon-green/50 transition-all duration-300 hover:shadow-xl hover:shadow-neon-green/20 hover:-translate-y-1 relative overflow-hidden"
@@ -347,6 +396,11 @@ export const UserEvents: React.FC = () => {
                           }`}>
                             {event.event_type.toUpperCase()}
                           </span>
+                          {isRegistered && (
+                            <span className="px-3 py-1 rounded-lg text-xs font-semibold bg-neon-green/20 text-neon-green border border-neon-green/40">
+                              Joined
+                            </span>
+                          )}
                         </div>
                       </div>
                     </div>
@@ -373,7 +427,18 @@ export const UserEvents: React.FC = () => {
                         </span>
                         <div className="absolute inset-0 bg-gradient-to-r from-neon-green/0 via-neon-green/30 to-neon-cyan/0 translate-x-[-100%] group-hover:translate-x-[100%] transition-transform duration-700" />
                       </Button>
-                      {event.status === 'running' && (
+                      {canJoin ? (
+                        <Button
+                          onClick={() => handleRegister(event.id)}
+                          className="flex-1 relative overflow-hidden group bg-neon-green/20 hover:bg-neon-green/30 border-2 border-neon-green/40 hover:border-neon-green/60 text-neon-green transition-all duration-300 shadow-lg shadow-neon-green/10 hover:shadow-neon-green/20 font-bold py-3"
+                        >
+                          <span className="relative z-10 flex items-center justify-center gap-2">
+                            <Shield size={18} className="group-hover:scale-110 transition-transform" />
+                            Join Event
+                          </span>
+                          <div className="absolute inset-0 bg-gradient-to-r from-neon-green/0 via-neon-green/10 to-neon-green/0 translate-x-[-100%] group-hover:translate-x-[100%] transition-transform duration-700" />
+                        </Button>
+                      ) : event.status === 'running' && isRegistered && (
                         <Button
                           onClick={() => fetchScoreboard(event.id)}
                           variant="outline"
@@ -385,7 +450,8 @@ export const UserEvents: React.FC = () => {
                     </div>
                   </div>
                 </div>
-              ))}
+                );
+              })}
             </div>
           )}
         </div>

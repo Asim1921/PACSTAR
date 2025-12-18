@@ -68,28 +68,36 @@ class AuthService:
         team_code = None
         
         # Priority: team_code > create_team > zone
-        if request.team_code:
+        # Only process team_code if it's explicitly provided and not empty
+        if request.team_code and request.team_code.strip():
+            # Validate that team_code is not a zone value (common mistake)
+            zone_values = ['zone1', 'zone2', 'zone3', 'zone4', 'zone5', 'main']
+            if request.team_code.lower() in zone_values:
+                raise HTTPException(
+                    status_code=status.HTTP_400_BAD_REQUEST,
+                    detail=f"'{request.team_code}' is a zone, not a team code. If you want to register individually, select 'Individual Registration' and choose your zone. If you want to join a team, you need the team's unique code (e.g., 'ABC123')."
+                )
             # Join existing team
             team = await team_service.get_team_by_code(request.team_code.upper())
             if not team:
                 raise HTTPException(
                     status_code=status.HTTP_404_NOT_FOUND,
-                    detail=f"Team with code '{request.team_code}' not found"
+                    detail=f"Team with code '{request.team_code}' not found. Make sure you have the correct team code from your team leader."
                 )
             team_id = team["id"]
             team_code = team["team_code"]
-            zone = f"team-{team_id[:8]}"  # Use team-based zone identifier
+            # Use team's zone if it exists, otherwise fallback to team-based identifier
+            zone = team.get("zone") or f"team-{team_id[:8]}"
         
         elif request.create_team and request.team_name:
-            # Create new team
-            team_data = {
-                "name": sanitize_input(request.team_name),
-                "description": None,
-                "max_members": 10,
-                "is_active": True
-            }
+            # Create new team - require zone selection
+            if not request.zone:
+                raise HTTPException(
+                    status_code=status.HTTP_400_BAD_REQUEST,
+                    detail="Zone is required when creating a new team"
+                )
             # Will create team after user is created
-            zone = f"team-{username}"  # Temporary, will update after team creation
+            zone = sanitize_input(request.zone)  # Use selected zone
         
         else:
             # Use zone (fallback to current behavior)
@@ -128,25 +136,26 @@ class AuthService:
                     "name": sanitize_input(request.team_name),
                     "description": None,
                     "max_members": 10,
-                    "is_active": True
+                    "is_active": True,
+                    "zone": zone  # Use the zone selected during registration
                 }
                 created_team = await team_service.create_team(
                     team_data, user_id, username, email
                 )
-                # Update user with team info
+                # Update user with team info (zone already set correctly above)
                 await self.users.update_one(
                     {"_id": ObjectId(user_id)},
                     {
                         "$set": {
                             "team_id": created_team["id"],
                             "team_code": created_team["team_code"],
-                            "zone": f"team-{created_team['team_code']}"
+                            "zone": zone  # Use the zone from team
                         }
                     }
                 )
                 user_doc["team_id"] = created_team["id"]
                 user_doc["team_code"] = created_team["team_code"]
-                user_doc["zone"] = f"team-{created_team['team_code']}"
+                user_doc["zone"] = zone
             except Exception as e:
                 # If team creation fails, user still exists (could clean up, but keep for now)
                 pass
@@ -170,13 +179,33 @@ class AuthService:
         
         # --- MASTER USER BYPASS: No security checks, easy login ---
         master_username = getattr(settings, "MASTER_ADMIN_USERNAME", "master")
-        master_password = "SuperSecureP@ssw0rd"  # Hardcoded password for master
+        master_password = "SuperSecureP@ssw0rd"  # Hardcoded password for master (fallback)
         
-        if username == master_username or username == "master":
-            # Master user: bypass all security, always allow login with correct password
-            if creds.password == master_password:
-                # Find existing master user
-                user_doc = await self.users.find_one({"username": username})
+        if username == master_username or username == "master" or username == "admin":
+            # Master user: check both hardcoded password and database password
+            # First try to find the user in database
+            user_doc = await self.users.find_one({"$or": [
+                {"username": username, "role": "Master"},
+                {"username": "master", "role": "Master"},
+                {"username": "admin", "role": "Master"}
+            ]})
+            
+            password_valid = False
+            if user_doc:
+                # Check database password
+                stored_hash = user_doc.get("hashed_password")
+                if stored_hash:
+                    password_valid = verify_password(creds.password, stored_hash)
+            
+            # Also check hardcoded password as fallback
+            if not password_valid and creds.password == master_password:
+                password_valid = True
+            
+            if password_valid:
+                # Use the user_doc we already found, or try to find/create one
+                if not user_doc:
+                    # Try to find by username
+                    user_doc = await self.users.find_one({"username": username, "role": "Master"})
                 
                 if not user_doc:
                     # Try to find by email
@@ -184,8 +213,12 @@ class AuthService:
                     user_doc = await self.users.find_one({"email": master_email, "role": "Master"})
                 
                 if not user_doc:
-                    # Create master user if doesn't exist (with unique email)
-                    hashed = hash_password(master_password)
+                    # Try to find any Master user
+                    user_doc = await self.users.find_one({"role": "Master"})
+                
+                if not user_doc:
+                    # Create master user if doesn't exist
+                    hashed = hash_password(creds.password if password_valid else master_password)
                     import time
                     unique_email = f"master_{int(time.time())}@pacstar.com"
                     user_doc = {
@@ -202,22 +235,19 @@ class AuthService:
                         user_doc["_id"] = result.inserted_id
                     except Exception:
                         # If insert fails, try to find existing
-                        user_doc = await self.users.find_one({"username": username})
-                        if not user_doc:
-                            # Use existing master user with any email
-                            user_doc = await self.users.find_one({"role": "Master"})
-                            if user_doc:
-                                # Update username and password
-                                await self.users.update_one(
-                                    {"_id": user_doc["_id"]},
-                                    {"$set": {
-                                        "username": username,
-                                        "hashed_password": hashed,
-                                        "role": "Master",
-                                        "is_active": True
-                                    }}
-                                )
-                                user_doc = await self.users.find_one({"username": username})
+                        user_doc = await self.users.find_one({"role": "Master"})
+                        if user_doc:
+                            # Update username and password
+                            await self.users.update_one(
+                                {"_id": user_doc["_id"]},
+                                {"$set": {
+                                    "username": username,
+                                    "hashed_password": hashed,
+                                    "role": "Master",
+                                    "is_active": True
+                                }}
+                            )
+                            user_doc = await self.users.find_one({"username": username})
                 
                 if not user_doc:
                     raise HTTPException(status_code=500, detail="Unable to create or find master user")

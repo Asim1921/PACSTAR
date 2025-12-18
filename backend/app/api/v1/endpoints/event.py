@@ -142,12 +142,13 @@ async def list_events(
     "/available-challenges",
     response_model=List[AvailableChallengeResponse],
     summary="Get available challenges for event creation",
-    description="Get all active challenges created by Master Admin that can be added to events."
+    description="Get all active challenges that can be added to events. Filtered by zone if zone parameter provided."
 )
 async def get_available_challenges(
+    zone: Optional[str] = Query(None, description="Filter challenges by zone (required when creating event)"),
     current_user: UserResponse = Depends(get_current_user)
 ):
-    """Get available challenges for event creation"""
+    """Get available challenges for event creation, filtered by zone"""
     if current_user.role not in ["Master", "Admin"]:
         raise HTTPException(
             status_code=status.HTTP_403_FORBIDDEN,
@@ -155,7 +156,7 @@ async def get_available_challenges(
         )
     
     try:
-        challenges = await event_service.get_available_challenges()
+        challenges = await event_service.get_available_challenges(zone=zone, user_zone=current_user.zone, user_role=current_user.role)
         return [AvailableChallengeResponse(**c) for c in challenges]
     except Exception as e:
         logger.error(f"Failed to get available challenges: {e}")
@@ -191,6 +192,95 @@ async def get_pending_approvals(
             detail=f"Failed to get pending approvals: {str(e)}"
         )
 
+
+# =============================================================================
+# Notification Endpoints (Must come before /{event_id} routes)
+# =============================================================================
+
+@router.get(
+    "/notifications",
+    summary="Get user notifications",
+    description="Get all notifications for the current user."
+)
+async def get_notifications(
+    unread_only: bool = Query(False, description="Only return unread notifications"),
+    current_user: UserResponse = Depends(get_current_user)
+):
+    """Get notifications for the current user"""
+    try:
+        from app.services.event_service import event_service
+        
+        user_id = str(current_user.id)
+        query = {"user_id": user_id}
+        
+        if unread_only:
+            query["read"] = False
+        
+        notifications = await event_service.db["notifications"].find(query).sort("created_at", -1).limit(50).to_list(length=50)
+        
+        return {
+            "notifications": [
+                {
+                    "id": str(n["_id"]),
+                    "type": n.get("type", "event_started"),
+                    "event_id": n.get("event_id"),
+                    "event_name": n.get("event_name"),
+                    "message": n.get("message"),
+                    "action": n.get("action", "join_event"),
+                    "created_at": n.get("created_at").isoformat() if n.get("created_at") else None,
+                    "read": n.get("read", False)
+                }
+                for n in notifications
+            ],
+            "unread_count": await event_service.db["notifications"].count_documents({"user_id": user_id, "read": False})
+        }
+    except Exception as e:
+        logger.error(f"Failed to get notifications: {e}")
+        raise HTTPException(
+            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+            detail=f"Failed to get notifications: {str(e)}"
+        )
+
+
+@router.post(
+    "/notifications/{notification_id}/read",
+    summary="Mark notification as read",
+    description="Mark a notification as read."
+)
+async def mark_notification_read(
+    notification_id: str,
+    current_user: UserResponse = Depends(get_current_user)
+):
+    """Mark a notification as read"""
+    try:
+        from app.services.event_service import event_service
+        from bson import ObjectId
+        
+        result = await event_service.db["notifications"].update_one(
+            {"_id": ObjectId(notification_id), "user_id": str(current_user.id)},
+            {"$set": {"read": True}}
+        )
+        
+        if result.modified_count == 0:
+            raise HTTPException(
+                status_code=status.HTTP_404_NOT_FOUND,
+                detail="Notification not found"
+            )
+        
+        return {"success": True, "message": "Notification marked as read"}
+    except HTTPException:
+        raise
+    except Exception as e:
+        logger.error(f"Failed to mark notification as read: {e}")
+        raise HTTPException(
+            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+            detail=f"Failed to mark notification as read: {str(e)}"
+        )
+
+
+# =============================================================================
+# Event CRUD Endpoints (Parameterized routes come after specific ones)
+# =============================================================================
 
 @router.get(
     "/{event_id}",
@@ -261,7 +351,13 @@ async def update_event(
     except PermissionError as e:
         raise HTTPException(status_code=status.HTTP_403_FORBIDDEN, detail=str(e))
     except ValueError as e:
-        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail=str(e))
+        # Check if it's a validation error or "not found" error
+        error_msg = str(e).lower()
+        if "not found" in error_msg:
+            raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail=str(e))
+        else:
+            # Validation errors should be 400 Bad Request
+            raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail=str(e))
     except Exception as e:
         logger.error(f"Failed to update event: {e}")
         raise HTTPException(
@@ -556,7 +652,7 @@ async def update_challenge_visibility(
     "/{event_id}/register",
     response_model=EventRegistrationResponse,
     summary="Register for event",
-    description="Register the current user/team for an event."
+    description="Register the current user/team for an event. Users must register to see and solve challenges."
 )
 async def register_for_event(
     event_id: str,
@@ -592,6 +688,35 @@ async def register_for_event(
         raise HTTPException(
             status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
             detail=f"Failed to register: {str(e)}"
+        )
+
+
+@router.get(
+    "/{event_id}/registration-status",
+    summary="Check registration status",
+    description="Check if the current user/team is registered for an event."
+)
+async def check_registration_status(
+    event_id: str,
+    current_user: UserResponse = Depends(get_current_user)
+):
+    """Check if user is registered for an event"""
+    try:
+        user_dict = current_user.dict() if hasattr(current_user, 'dict') else dict(current_user)
+        team_id = user_dict.get('team_id')
+        
+        is_registered = await event_service.is_user_registered(
+            event_id=event_id,
+            user_id=str(current_user.id),
+            team_id=team_id
+        )
+        
+        return {"is_registered": is_registered, "event_id": event_id}
+    except Exception as e:
+        logger.error(f"Failed to check registration status: {e}")
+        raise HTTPException(
+            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+            detail=f"Failed to check registration status: {str(e)}"
         )
 
 

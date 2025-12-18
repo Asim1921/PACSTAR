@@ -124,13 +124,6 @@ class EventBase(BaseModel):
     end_time: datetime = Field(..., description="Event end date and time")
     max_participants: Optional[int] = Field(None, ge=1, description="Maximum participants (None = unlimited)")
     is_public: bool = Field(default=False, description="Whether event is visible to all zones")
-    
-    @field_validator('end_time')
-    @classmethod
-    def end_after_start(cls, v, info):
-        if 'start_time' in info.data and v <= info.data['start_time']:
-            raise ValueError('end_time must be after start_time')
-        return v
 
 
 class EventCreate(EventBase):
@@ -139,17 +132,29 @@ class EventCreate(EventBase):
         default_factory=list, 
         description="Challenges to include in this event (selected from master challenges)"
     )
+    
+    @field_validator('end_time')
+    @classmethod
+    def end_after_start(cls, v, info):
+        """Validate that end_time is after start_time (only for create/update)"""
+        if 'start_time' in info.data and v <= info.data['start_time']:
+            raise ValueError('end_time must be after start_time')
+        return v
 
 
 class EventUpdate(BaseModel):
     """Schema for updating an event"""
     name: Optional[str] = Field(None, min_length=3, max_length=100)
     description: Optional[str] = Field(None, min_length=10, max_length=2000)
+    zone: Optional[str] = Field(None, min_length=2, max_length=50, description="Zone where event is located")
     start_time: Optional[datetime] = None
     end_time: Optional[datetime] = None
     max_participants: Optional[int] = Field(None, ge=1)
     is_public: Optional[bool] = None
     challenges: Optional[List[EventChallengeConfig]] = None
+    
+    # Note: Validation for end_time > start_time is handled in the service layer
+    # where we have access to the existing event data from the database
 
 
 class EventApprovalRequest(BaseModel):
@@ -416,6 +421,7 @@ class AvailableChallengeResponse(BaseModel):
     challenge_type: str
     points: int
     is_active: bool
+    zone: str
     created_by: str
 
 

@@ -71,6 +71,10 @@ export const Events: React.FC = () => {
   const [statusFilter, setStatusFilter] = useState<string>('all');
   const [eventTypeFilter, setEventTypeFilter] = useState<string>('all');
   
+  // Get user role from localStorage to check if Master
+  const userRole = typeof window !== 'undefined' ? localStorage.getItem('role') : null;
+  const isMaster = userRole === 'Master';
+  
   // Create event form state
   const [formData, setFormData] = useState({
     name: '',
@@ -123,10 +127,27 @@ export const Events: React.FC = () => {
     }
   };
 
-  // Fetch available challenges
-  const fetchAvailableChallenges = async () => {
+  // Fetch available challenges (filtered by event zone)
+  const fetchAvailableChallenges = async (eventZone?: string) => {
     try {
-      const response = await eventAPI.getAvailableChallenges();
+      // For Master Admin creating an event, fetch all challenges (no zone filter)
+      // For editing, use the event's zone
+      // For Zone Admin, use their zone
+      const zone = eventZone || formData.zone;
+      
+      // If Master Admin is creating and no zone selected yet, fetch all challenges
+      if (isMaster && !zone && activeAction === 'create') {
+        const response = await eventAPI.getAvailableChallenges(); // No zone = all challenges for Master
+        setAvailableChallenges(Array.isArray(response) ? response : []);
+        return;
+      }
+      
+      // Otherwise, fetch challenges for the specific zone
+      if (!zone) {
+        setAvailableChallenges([]);
+        return;
+      }
+      const response = await eventAPI.getAvailableChallenges(zone);
       setAvailableChallenges(Array.isArray(response) ? response : []);
     } catch (error: any) {
       showToast(error.response?.data?.detail || 'Failed to fetch available challenges', 'error');
@@ -143,6 +164,24 @@ export const Events: React.FC = () => {
     }
   }, [activeAction, statusFilter, eventTypeFilter]);
 
+  // Helper function to convert datetime-local to ISO string (UTC)
+  // datetime-local format is "YYYY-MM-DDTHH:mm" and represents local browser time
+  const formatDateTimeForAPI = (dateTimeLocal: string): string => {
+    if (!dateTimeLocal) return '';
+    
+    // Create a Date object from the local datetime string
+    // The browser will interpret this as local time
+    const localDate = new Date(dateTimeLocal);
+    
+    if (isNaN(localDate.getTime())) {
+      console.error('Invalid date:', dateTimeLocal);
+      return '';
+    }
+    
+    // Convert to UTC ISO string for storage
+    return localDate.toISOString();
+  };
+
   // Create event (creates as draft, then submits for approval)
   const handleCreateEvent = async () => {
     if (!formData.name || !formData.description || !formData.zone || !formData.start_time || !formData.end_time) {
@@ -155,6 +194,8 @@ export const Events: React.FC = () => {
       // Create event as draft first
       const eventData = {
         ...formData,
+        start_time: formatDateTimeForAPI(formData.start_time),
+        end_time: formatDateTimeForAPI(formData.end_time),
         max_participants: formData.max_participants ? parseInt(formData.max_participants) : undefined,
         challenges: selectedChallenges.map((challengeId) => ({
           challenge_id: challengeId,
@@ -313,14 +354,31 @@ export const Events: React.FC = () => {
   // Edit event
   const handleEditEvent = async (event: Event) => {
     setEditingEventId(event.id);
+    
+    // Helper function to convert UTC datetime from backend to local datetime-local format
+    const utcToLocalDateTime = (utcDateString: string): string => {
+      if (!utcDateString) return '';
+      const date = new Date(utcDateString);
+      
+      // Get local time components (browser's timezone)
+      const year = date.getFullYear();
+      const month = String(date.getMonth() + 1).padStart(2, '0');
+      const day = String(date.getDate()).padStart(2, '0');
+      const hours = String(date.getHours()).padStart(2, '0');
+      const minutes = String(date.getMinutes()).padStart(2, '0');
+      
+      return `${year}-${month}-${day}T${hours}:${minutes}`;
+    };
+    
     setFormData({
       name: event.name,
       description: event.description,
       event_type: event.event_type,
       participation_type: event.participation_type,
       zone: event.zone,
-      start_time: new Date(event.start_time).toISOString().slice(0, 16),
-      end_time: new Date(event.end_time).toISOString().slice(0, 16),
+      // Convert UTC datetime from backend to local datetime for display in datetime-local input
+      start_time: utcToLocalDateTime(event.start_time),
+      end_time: utcToLocalDateTime(event.end_time),
       max_participants: event.max_participants?.toString() || '',
       is_public: event.is_public,
     });
@@ -341,7 +399,9 @@ export const Events: React.FC = () => {
         });
         setChallengeConfigs(configs);
       }
-      fetchAvailableChallenges();
+      
+      // Fetch challenges for the event's zone
+      fetchAvailableChallenges(event.zone);
       setActiveAction('edit');
     } catch (error: any) {
       showToast('Failed to load event details', 'error');
@@ -362,8 +422,9 @@ export const Events: React.FC = () => {
       const updateData = {
         name: formData.name,
         description: formData.description,
-        start_time: new Date(formData.start_time).toISOString(),
-        end_time: new Date(formData.end_time).toISOString(),
+        zone: formData.zone,
+        start_time: formatDateTimeForAPI(formData.start_time),
+        end_time: formatDateTimeForAPI(formData.end_time),
         max_participants: formData.max_participants ? parseInt(formData.max_participants) : undefined,
         is_public: formData.is_public,
       };
@@ -717,7 +778,13 @@ export const Events: React.FC = () => {
                 <label className="block text-sm font-semibold text-white/90 mb-2">Zone *</label>
                 <Input
                   value={formData.zone}
-                  onChange={(e) => setFormData({ ...formData, zone: e.target.value })}
+                  onChange={(e) => {
+                    setFormData({ ...formData, zone: e.target.value });
+                    // Fetch challenges for the selected zone
+                    if (e.target.value) {
+                      fetchAvailableChallenges(e.target.value);
+                    }
+                  }}
                   placeholder="zone1"
                   className="bg-cyber-800/50 border-neon-green/20 text-white"
                 />

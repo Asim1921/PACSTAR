@@ -1,6 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server';
 
-const API_BASE_URL = 'http://192.168.15.248:8001/api/v1';
+const API_BASE_URL = 'http://192.168.15.248:8000/api/v1';
 
 export async function GET(
   request: NextRequest,
@@ -146,31 +146,55 @@ async function handleRequest(
       if (timeoutId) clearTimeout(timeoutId);
     } catch (fetchError: any) {
       if (timeoutId) clearTimeout(timeoutId);
-      console.error('Fetch error:', {
+      
+      // Enhanced error logging
+      const errorDetails = {
         url: fullUrl,
         method,
         error: fetchError.message,
         name: fetchError.name,
         code: fetchError.code,
-      });
+        cause: fetchError.cause?.message || fetchError.cause,
+        stack: process.env.NODE_ENV === 'development' ? fetchError.stack : undefined,
+      };
+      console.error('Fetch error:', errorDetails);
       
       // Handle specific error types
-      if (fetchError.name === 'AbortError') {
+      if (fetchError.name === 'AbortError' || fetchError.name === 'TimeoutError') {
         return NextResponse.json(
           { error: 'Request timeout', detail: 'The request took too long to complete' },
           { status: 504 }
         );
       }
       
-      if (fetchError.code === 'ECONNREFUSED' || fetchError.code === 'ENOTFOUND') {
+      // Check for connection errors
+      const errorMessage = fetchError.message?.toLowerCase() || '';
+      const isConnectionError = 
+        fetchError.code === 'ECONNREFUSED' || 
+        fetchError.code === 'ENOTFOUND' ||
+        fetchError.code === 'ETIMEDOUT' ||
+        fetchError.code === 'ECONNRESET' ||
+        errorMessage.includes('fetch failed') ||
+        errorMessage.includes('network') ||
+        errorMessage.includes('connection');
+      
+      if (isConnectionError) {
         return NextResponse.json(
-          { error: 'Backend unavailable', detail: 'Cannot connect to the backend server' },
+          { 
+            error: 'Backend unavailable', 
+            detail: `Cannot connect to the backend server at ${fullUrl}. Please check if the backend is running and accessible.`,
+            code: fetchError.code || 'CONNECTION_ERROR'
+          },
           { status: 503 }
         );
       }
       
       return NextResponse.json(
-        { error: 'Network error', detail: fetchError.message },
+        { 
+          error: 'Network error', 
+          detail: fetchError.message || 'An unexpected network error occurred',
+          code: fetchError.code || 'UNKNOWN_ERROR'
+        },
         { status: 500 }
       );
     }

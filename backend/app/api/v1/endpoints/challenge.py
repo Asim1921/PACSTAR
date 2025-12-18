@@ -116,31 +116,59 @@ async def list_challenges(
     List all challenges visible to the current user's team.
     
     **All authenticated users can view challenges.**
-    - Master and Admin roles can see all challenges (active and inactive).
-    - Regular users can only see active challenges that are:
+    - Master role can see all challenges (active and inactive) in all zones.
+    - Admin role can see all challenges (active and inactive) in their zone only.
+    - Regular users can only see active challenges in their zone that are:
       - Not restricted to specific teams (allowed_teams is None/empty), OR
       - Restricted to teams that include their team
     """
     try:
         challenges = await challenge_service.list_challenges(skip=skip, limit=limit)
         
-        # Filter challenges based on user role and team restrictions
-        if current_user.role not in ["Master", "Admin"]:
-            # Regular users: filter by is_active and team restrictions
-            user_team_id = _get_user_team_id(current_user)
-            user_dict = current_user.dict() if hasattr(current_user, 'dict') else dict(current_user)
-            user_team_code = user_dict.get('team_code')
+        # Filter challenges based on user role, zone, and team restrictions
+        user_zone = current_user.zone or "zone1"  # Default zone if not set
+        
+        if current_user.role == "Master":
+            # Master can see all challenges (no filtering)
+            filtered_challenges = challenges
+        elif current_user.role == "Admin":
+            # Zone Admin: filter by zone only (can see active and inactive in their zone)
+            filtered_challenges = [
+                c for c in challenges 
+                if getattr(c, 'zone', 'zone1') == user_zone
+            ]
+        else:
+            # Regular users: Only show challenges from events they've joined
+            from app.services.event_service import event_service
             
+            user_dict = current_user.dict() if hasattr(current_user, 'dict') else dict(current_user)
+            user_id = str(current_user.id)
+            team_id = user_dict.get('team_id')
+            
+            # Get events user is registered for
+            registered_event_ids = await event_service.get_user_registered_events(user_id, team_id)
+            
+            # Get challenge IDs from those events (filtered by zone)
+            allowed_challenge_ids = await event_service.get_challenges_from_events(registered_event_ids, user_zone)
+            
+            # Filter challenges to only those from registered events
             filtered_challenges = []
             for c in challenges:
+                challenge_id = str(c.id)
+                
+                # Must be from an event user has joined
+                if challenge_id not in allowed_challenge_ids:
+                    continue
+                
                 # Must be active
                 if not c.is_active:
                     continue
                 
-                # Check team restrictions
+                # Check team restrictions (if any)
                 allowed_teams = getattr(c, 'allowed_teams', None)
                 if allowed_teams and len(allowed_teams) > 0:
-                    # Challenge is restricted - check if user's team is allowed
+                    user_team_id = _get_user_team_id(current_user)
+                    user_team_code = user_dict.get('team_code')
                     # Check both team_id (like team-001) and team_code
                     user_allowed = (user_team_id in allowed_teams) or (user_team_code and user_team_code in allowed_teams)
                     if not user_allowed:

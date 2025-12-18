@@ -14,6 +14,7 @@ import { Events } from '@/components/admin/Events';
 import { UserChallenges } from '@/components/user/UserChallenges';
 import { Scoreboard } from '@/components/user/Scoreboard';
 import { UserEvents } from '@/components/user/UserEvents';
+import { Notifications } from '@/components/user/Notifications';
 import ParticleBackground from '@/components/auth/ParticleBackground';
 
 interface UserProfile {
@@ -393,6 +394,15 @@ export default function Dashboard() {
           </div>
           
           <div className="flex items-center gap-3">
+            {/* Notifications - Only show for non-Master users */}
+            {!isMaster && (
+              <Notifications 
+                onJoinEvent={(eventId) => {
+                  // Refresh challenges when user joins an event
+                  window.location.reload();
+                }}
+              />
+            )}
             <div className="hidden sm:flex items-center gap-2 px-4 py-2 bg-neon-green/10 rounded-lg border border-neon-green/30 backdrop-blur-sm">
               <div className="w-2 h-2 bg-neon-green rounded-full animate-pulse" />
               <span className="text-sm font-medium text-neon-green">Online</span>

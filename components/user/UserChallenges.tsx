@@ -439,7 +439,7 @@ export const UserChallenges: React.FC<UserChallengesProps> = ({ teamId: propTeam
       showToast('Preparing download...', 'info');
       
       // Construct the full URL
-      const backendUrl = 'http://192.168.15.248:8001';
+      const backendUrl = 'http://192.168.15.248:8000';
       let fullUrl = downloadUrl;
       
       // If it's a relative URL, prepend backend URL
@@ -500,12 +500,16 @@ export const UserChallenges: React.FC<UserChallengesProps> = ({ teamId: propTeam
       ) : challenges.length === 0 ? (
         <div className="bg-cyber-900/80 backdrop-blur-xl rounded-2xl shadow-md border border-neon-green/20 terminal-border p-12">
           <div className="flex items-center justify-center py-8">
-            <div className="text-center">
+            <div className="text-center max-w-md">
               <div className="w-16 h-16 bg-cyber-800/30 rounded-2xl flex items-center justify-center mx-auto mb-4">
                 <BookOpen className="text-white/40" size={32} />
               </div>
-              <p className="text-white/60">
-                No challenges available at the moment.
+              <h3 className="text-xl font-bold text-white mb-2">No Challenges Available</h3>
+              <p className="text-white/60 mb-4">
+                Challenges are only available from events you've joined.
+              </p>
+              <p className="text-white/50 text-sm">
+                Go to the Events page to join an event and start solving challenges!
               </p>
             </div>
           </div>
@@ -537,14 +541,17 @@ export const UserChallenges: React.FC<UserChallengesProps> = ({ teamId: propTeam
               (challenge.access_info?.stack_id || challenge.access_info?.server_id || challenge.access_info?.public_ip);
             const isInstanceDeployed = deployedCount > 0 || hasAccessInfo || hasOpenStackInstance;
             
-            // Debug logging
-            if (isInstanceDeployed && !hasAccessInfo) {
-              console.log(`Challenge ${challenge.id} is deployed but missing access info:`, {
-                challenge,
-                access_info: challenge.access_info,
-                instances: challenge.instances,
-              });
-            }
+            // Debug logging to help troubleshoot button visibility
+            console.log(`Challenge "${challenge.name}" (${challenge.id}):`, {
+              category: challenge.challenge_category,
+              deployedCount,
+              hasAccessInfo: !!hasAccessInfo,
+              hasOpenStackInstance,
+              isInstanceDeployed,
+              shouldShowStartButton: !isInstanceDeployed && (challenge.challenge_category === 'containerized' || challenge.challenge_category === 'openstack'),
+              access_info: challenge.access_info,
+              instances_count: challenge.instances?.length || 0,
+            });
             
             return (
               <div

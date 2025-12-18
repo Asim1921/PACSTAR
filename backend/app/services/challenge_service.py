@@ -88,6 +88,7 @@ class ChallengeService:
                 "name": challenge_data.name,
                 "description": challenge_data.description,
                 "challenge_category": derived_category,
+                "zone": challenge_data.zone,  # Store zone for challenge segregation
                 "config": config_dict,
                 "flag": getattr(challenge_data, "flag", None),
                 "flags": getattr(challenge_data, "flags", None),
@@ -307,10 +308,12 @@ class ChallengeService:
             # Sequential format: team- followed by exactly 3 digits
             match = re.match(r"team-(\d{3})$", team_id)
             if match:
-                # Sequential format - validate against total_teams
+                # Sequential format - log info but DON'T reject
                 team_num = int(match.group(1))
-                if team_num < 1 or team_num > total_teams:
-                    raise ValueError(f"Team {team_id} is out of range (max teams: {total_teams})")
+                if team_num > total_teams:
+                    # In event-based system, teams can start challenges even if team_num > total_teams
+                    # total_teams is now just a suggestion/metadata, not a hard limit
+                    logger.info(f"Team {team_id} (number {team_num}) is deploying challenge with total_teams={total_teams}. Allowing deployment for event-based access.")
             else:
                 # Non-sequential format (e.g., team-690193a1 from real team hash)
                 # Allow it - real teams can deploy regardless of total_teams
@@ -782,6 +785,7 @@ class ChallengeService:
             name=challenge["name"],
             description=challenge["description"],
             config=challenge["config"],
+            zone=challenge.get("zone", "zone1"),  # Default to zone1 for existing challenges without zone
             flag=challenge.get("flag"),
             flags=challenge.get("flags"),
             points=challenge.get("points", 100),

@@ -1,0 +1,310 @@
+'use client';
+
+import React, { useState, useEffect, useCallback } from 'react';
+import { Bell, X, Calendar, CheckCircle, ExternalLink } from 'lucide-react';
+import { Button } from '@/components/ui/Button';
+import { eventAPI } from '@/lib/api';
+import { useToast } from '@/components/ui/ToastProvider';
+
+interface Notification {
+  id: string;
+  type: string;
+  event_id: string;
+  event_name: string;
+  message: string;
+  action: string;
+  created_at: string;
+  read: boolean;
+}
+
+interface NotificationsProps {
+  onJoinEvent?: (eventId: string) => void;
+}
+
+export const Notifications: React.FC<NotificationsProps> = ({ onJoinEvent }) => {
+  const { showToast } = useToast();
+  const [notifications, setNotifications] = useState<Notification[]>([]);
+  const [unreadCount, setUnreadCount] = useState(0);
+  const [isOpen, setIsOpen] = useState(false);
+  const [isLoading, setIsLoading] = useState(false);
+  const [joiningEventId, setJoiningEventId] = useState<string | null>(null);
+
+  const fetchNotifications = useCallback(async () => {
+    try {
+      setIsLoading(true);
+      const response = await eventAPI.getNotifications(false);
+      const notifs = response.notifications || [];
+      setNotifications(notifs);
+      setUnreadCount(response.unread_count || 0);
+    } catch (error: any) {
+      console.error('Failed to fetch notifications:', error);
+      // Only show toast for non-auth errors
+      if (error.response?.status !== 401 && error.response?.status !== 403) {
+        // Silently fail for network errors during polling
+        if (!error.code || error.code !== 'ERR_NETWORK') {
+          console.warn('Notification fetch failed:', error.message);
+        }
+      }
+    } finally {
+      setIsLoading(false);
+    }
+  }, []);
+
+  useEffect(() => {
+    fetchNotifications();
+    // Poll for new notifications every 30 seconds
+    const interval = setInterval(fetchNotifications, 30000);
+    return () => clearInterval(interval);
+  }, [fetchNotifications]);
+
+  const handleJoinEvent = async (eventId: string, notificationId: string) => {
+    try {
+      setJoiningEventId(eventId);
+      
+      // Register for event
+      await eventAPI.registerForEvent(eventId);
+      
+      // Mark notification as read
+      await eventAPI.markNotificationRead(notificationId);
+      
+      showToast('Successfully joined the event! You can now see challenges.', 'success');
+      
+      // Refresh notifications
+      await fetchNotifications();
+      
+      // Call parent callback if provided
+      if (onJoinEvent) {
+        onJoinEvent(eventId);
+      }
+    } catch (error: any) {
+      const errorMessage = error.response?.data?.detail || 'Failed to join event';
+      showToast(errorMessage, 'error');
+    } finally {
+      setJoiningEventId(null);
+    }
+  };
+
+  const handleMarkAsRead = async (notificationId: string) => {
+    try {
+      await eventAPI.markNotificationRead(notificationId);
+      await fetchNotifications();
+    } catch (error: any) {
+      console.error('Failed to mark notification as read:', error);
+    }
+  };
+
+  const unreadNotifications = notifications.filter(n => !n.read);
+  const readNotifications = notifications.filter(n => n.read);
+
+  return (
+    <div className="relative">
+      {/* Notification Bell Button */}
+      <button
+        onClick={() => setIsOpen(!isOpen)}
+        className="relative p-2 rounded-lg bg-cyber-800/50 hover:bg-cyber-800/70 border border-neon-green/20 hover:border-neon-green/40 transition-all"
+        aria-label="Notifications"
+      >
+        <Bell className="text-neon-green" size={20} />
+        {unreadCount > 0 && (
+          <span className="absolute -top-1 -right-1 bg-neon-orange text-white text-xs font-bold rounded-full w-5 h-5 flex items-center justify-center">
+            {unreadCount > 9 ? '9+' : unreadCount}
+          </span>
+        )}
+      </button>
+
+      {/* Notification Dropdown */}
+      {isOpen && (
+        <>
+          {/* Backdrop */}
+          <div
+            className="fixed inset-0 z-40"
+            onClick={() => setIsOpen(false)}
+          />
+          
+          {/* Dropdown Panel */}
+          <div className="absolute right-0 top-12 w-96 bg-cyber-900/95 backdrop-blur-xl border-2 border-neon-green/30 rounded-xl shadow-2xl z-50 max-h-[600px] overflow-hidden flex flex-col">
+            {/* Header */}
+            <div className="p-4 border-b border-neon-green/20 flex items-center justify-between">
+              <h3 className="text-lg font-bold text-white flex items-center gap-2">
+                <Bell className="text-neon-green" size={20} />
+                Notifications
+                {unreadCount > 0 && (
+                  <span className="bg-neon-orange text-white text-xs font-bold rounded-full px-2 py-1">
+                    {unreadCount}
+                  </span>
+                )}
+              </h3>
+              <button
+                onClick={() => setIsOpen(false)}
+                className="text-white/60 hover:text-white transition-colors"
+              >
+                <X size={20} />
+              </button>
+            </div>
+
+            {/* Notifications List */}
+            <div className="overflow-y-auto flex-1">
+              {isLoading ? (
+                <div className="p-8 text-center text-white/60">
+                  Loading notifications...
+                </div>
+              ) : notifications.length === 0 ? (
+                <div className="p-8 text-center text-white/60">
+                  <Bell className="mx-auto mb-2 text-white/40" size={32} />
+                  <p>No notifications</p>
+                </div>
+              ) : (
+                <div className="divide-y divide-neon-green/10">
+                  {/* Unread Notifications */}
+                  {unreadNotifications.length > 0 && (
+                    <div>
+                      <div className="px-4 py-2 bg-neon-green/10 text-neon-green text-xs font-semibold">
+                        NEW
+                      </div>
+                      {unreadNotifications.map((notification) => (
+                        <NotificationItem
+                          key={notification.id}
+                          notification={notification}
+                          onJoinEvent={handleJoinEvent}
+                          onMarkAsRead={handleMarkAsRead}
+                          isJoining={joiningEventId === notification.event_id}
+                        />
+                      ))}
+                    </div>
+                  )}
+
+                  {/* Read Notifications */}
+                  {readNotifications.length > 0 && (
+                    <div>
+                      {unreadNotifications.length > 0 && (
+                        <div className="px-4 py-2 bg-cyber-800/30 text-white/60 text-xs font-semibold">
+                          READ
+                        </div>
+                      )}
+                      {readNotifications.map((notification) => (
+                        <NotificationItem
+                          key={notification.id}
+                          notification={notification}
+                          onJoinEvent={handleJoinEvent}
+                          onMarkAsRead={handleMarkAsRead}
+                          isJoining={joiningEventId === notification.event_id}
+                        />
+                      ))}
+                    </div>
+                  )}
+                </div>
+              )}
+            </div>
+          </div>
+        </>
+      )}
+    </div>
+  );
+};
+
+interface NotificationItemProps {
+  notification: Notification;
+  onJoinEvent: (eventId: string, notificationId: string) => void;
+  onMarkAsRead: (notificationId: string) => void;
+  isJoining: boolean;
+}
+
+const NotificationItem: React.FC<NotificationItemProps> = ({
+  notification,
+  onJoinEvent,
+  onMarkAsRead,
+  isJoining,
+}) => {
+  const formatTime = (dateString: string) => {
+    const date = new Date(dateString);
+    const now = new Date();
+    const diff = now.getTime() - date.getTime();
+    const minutes = Math.floor(diff / 60000);
+    const hours = Math.floor(diff / 3600000);
+    const days = Math.floor(diff / 86400000);
+
+    if (minutes < 1) return 'Just now';
+    if (minutes < 60) return `${minutes}m ago`;
+    if (hours < 24) return `${hours}h ago`;
+    return `${days}d ago`;
+  };
+
+  // Debug: Log notification data
+  console.log('Rendering notification:', {
+    id: notification.id,
+    action: notification.action,
+    read: notification.read,
+    event_id: notification.event_id,
+    shouldShowButton: notification.action === 'join_event' && !notification.read
+  });
+
+  return (
+    <div
+      className={`p-4 hover:bg-cyber-800/50 transition-colors ${
+        !notification.read ? 'bg-neon-green/5' : ''
+      }`}
+    >
+      <div className="flex items-start gap-3">
+        <div className="flex-shrink-0 mt-1">
+          <div className="w-10 h-10 bg-neon-green/20 rounded-lg flex items-center justify-center border border-neon-green/30">
+            <Calendar className="text-neon-green" size={18} />
+          </div>
+        </div>
+        
+        <div className="flex-1 min-w-0">
+          <p className="text-white font-medium text-sm mb-1">
+            {notification.event_name}
+          </p>
+          <p className="text-white/70 text-xs mb-3">
+            {notification.message}
+          </p>
+          
+          {/* Always show Join Event button for unread event_started notifications */}
+          {notification.type === 'event_started' && !notification.read && (
+            <Button
+              onClick={() => onJoinEvent(notification.event_id, notification.id)}
+              disabled={isJoining}
+              className="w-full bg-neon-green/20 hover:bg-neon-green/30 border border-neon-green/40 text-neon-green text-sm py-2"
+              size="sm"
+            >
+              {isJoining ? (
+                <>
+                  <span className="animate-spin mr-2">⏳</span>
+                  Joining...
+                </>
+              ) : (
+                <>
+                  <ExternalLink size={14} className="mr-2" />
+                  Join Event
+                </>
+              )}
+            </Button>
+          )}
+          
+          {/* Show joined status if read and action is join_event */}
+          {notification.read && notification.action === 'join_event' && (
+            <div className="flex items-center gap-2 text-xs text-neon-green/60">
+              <CheckCircle size={12} />
+              <span>Event joined</span>
+            </div>
+          )}
+          
+          <p className="text-white/40 text-xs mt-2">
+            {formatTime(notification.created_at)}
+          </p>
+        </div>
+        
+        {!notification.read && (
+          <button
+            onClick={() => onMarkAsRead(notification.id)}
+            className="flex-shrink-0 text-white/40 hover:text-white/80 transition-colors"
+            title="Mark as read"
+          >
+            <X size={16} />
+          </button>
+        )}
+      </div>
+    </div>
+  );
+};
+

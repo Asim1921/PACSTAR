@@ -66,7 +66,7 @@ export default function AuthLayout() {
                 {/* Bottom Decoration */}
                 <div className="relative z-10 mt-8 pt-8 border-t border-white/10">
                   <p className="text-white/40 text-xs font-mono">
-                    {'>'} Developed By {'|'} 101 Cybder Div
+                    {'>'} Developed By {'|'} 101 Cyber Div
                   </p>
                 </div>
               </div>

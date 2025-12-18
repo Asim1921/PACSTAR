@@ -11,6 +11,7 @@ class TeamBase(BaseModel):
     description: Optional[str] = Field(None, max_length=500, description="Team description")
     max_members: int = Field(default=10, ge=1, le=50, description="Maximum team members")
     is_active: bool = Field(default=True, description="Whether the team is active")
+    zone: Optional[str] = Field(None, min_length=2, max_length=50, description="Zone the team belongs to")
 
 
 class TeamCreate(TeamBase):
@@ -22,6 +23,7 @@ class TeamUpdate(BaseModel):
     description: Optional[str] = Field(None, max_length=500)
     max_members: Optional[int] = Field(None, ge=1, le=50)
     is_active: Optional[bool] = None
+    zone: Optional[str] = Field(None, min_length=2, max_length=50)
 
 
 class TeamMember(BaseModel):

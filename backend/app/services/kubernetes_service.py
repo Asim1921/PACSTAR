@@ -109,7 +109,25 @@ class KubernetesService:
     async def create_challenge_namespace(self, challenge_name: str) -> str:
         """Create a namespace for the challenge"""
         self._ensure_enabled()
-        namespace_name = f"challenge-{challenge_name.lower().replace('_', '-')}"
+        
+        # Sanitize challenge name to be Kubernetes-compliant
+        # Rules: lowercase, alphanumeric + hyphens only, start/end with alphanumeric
+        import re
+        sanitized = challenge_name.lower()
+        # Replace spaces and underscores with hyphens
+        sanitized = sanitized.replace(' ', '-').replace('_', '-')
+        # Remove any characters that aren't alphanumeric or hyphens
+        sanitized = re.sub(r'[^a-z0-9-]', '', sanitized)
+        # Remove leading/trailing hyphens
+        sanitized = sanitized.strip('-')
+        # Replace multiple consecutive hyphens with single hyphen
+        sanitized = re.sub(r'-+', '-', sanitized)
+        # Limit length (Kubernetes namespace max is 63 characters)
+        # Leave room for "challenge-" prefix (10 chars)
+        if len(sanitized) > 53:
+            sanitized = sanitized[:53].rstrip('-')
+        
+        namespace_name = f"challenge-{sanitized}"
         
         try:
             # Check if namespace already exists
@@ -121,13 +139,17 @@ class KubernetesService:
                 if e.status != 404:
                     raise
             
+            # Create namespace with sanitized label values
+            sanitized_label = re.sub(r'[^A-Za-z0-9._-]', '-', challenge_name)
+            sanitized_label = re.sub(r'-+', '-', sanitized_label).strip('-')
+            
             # Create namespace
             namespace = client.V1Namespace(
                 metadata=client.V1ObjectMeta(
                     name=namespace_name,
                     labels={
                         "app": "challenge",
-                        "challenge-name": challenge_name,
+                        "challenge-name": sanitized_label[:63],  # Kubernetes label value limit
                         "managed-by": "pacstar"
                     }
                 )

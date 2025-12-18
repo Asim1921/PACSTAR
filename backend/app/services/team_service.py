@@ -56,6 +56,7 @@ class TeamService:
             "leader_username": leader_username,
             "max_members": team_data.get("max_members", 10),
             "is_active": team_data.get("is_active", True),
+            "zone": team_data.get("zone"),  # Store zone if provided
             "members": [
                 {
                     "user_id": leader_id,

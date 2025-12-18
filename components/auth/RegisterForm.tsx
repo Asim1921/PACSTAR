@@ -45,6 +45,8 @@ export default function RegisterForm({ onSwitchToLogin }: RegisterFormProps) {
   const [isLoading, setIsLoading] = useState(false);
   const [showPassword, setShowPassword] = useState(false);
   const [showConfirmPassword, setShowConfirmPassword] = useState(false);
+  const [showTeamCodeModal, setShowTeamCodeModal] = useState(false);
+  const [teamCode, setTeamCode] = useState<string | null>(null);
 
   const registrationOptions = [
     {
@@ -123,6 +125,10 @@ export default function RegisterForm({ onSwitchToLogin }: RegisterFormProps) {
       newErrors.teamName = 'Team name is required';
     }
 
+    if (formData.registrationType === 'create_team' && !formData.zone.trim()) {
+      newErrors.zone = 'Zone selection is required when creating a team';
+    }
+
     if (formData.registrationType === 'individual' && !formData.zone.trim()) {
       newErrors.zone = 'Zone selection is required';
     }
@@ -144,17 +150,24 @@ export default function RegisterForm({ onSwitchToLogin }: RegisterFormProps) {
         username: formData.username,
         email: formData.email,
         password: formData.password,
-        zone: formData.registrationType === 'individual' ? formData.zone : null,
+        zone: null,
         team_code: null,
         create_team: false,
         team_name: null,
       };
 
+      // Set registration data based on type
       if (formData.registrationType === 'team_code') {
         registrationData.team_code = formData.teamCode;
+        // Don't set zone when joining with team code
       } else if (formData.registrationType === 'create_team') {
         registrationData.create_team = true;
         registrationData.team_name = formData.teamName;
+        registrationData.zone = formData.zone;  // Include zone when creating team
+      } else if (formData.registrationType === 'individual') {
+        registrationData.zone = formData.zone;  // Individual registration uses zone
+        // Explicitly ensure team_code is null for individual registration
+        registrationData.team_code = null;
       }
 
       // Clear old user data before registration
@@ -212,11 +225,17 @@ export default function RegisterForm({ onSwitchToLogin }: RegisterFormProps) {
         }
       }
       
-      showToast('User registration successful', 'success');
-      
-      setTimeout(() => {
-        window.location.href = '/dashboard';
-      }, 500);
+      // Show team code modal if team was created
+      if (formData.registrationType === 'create_team' && response.team_code) {
+        setTeamCode(response.team_code);
+        setShowTeamCodeModal(true);
+        showToast('Team created successfully!', 'success');
+      } else {
+        showToast('User registration successful', 'success');
+        setTimeout(() => {
+          window.location.href = '/dashboard';
+        }, 500);
+      }
     } catch (error: any) {
       const errorDetail = error.response?.data?.detail || '';
       const newErrors: { [key: string]: string } = {};
@@ -530,37 +549,78 @@ export default function RegisterForm({ onSwitchToLogin }: RegisterFormProps) {
         )}
 
         {formData.registrationType === 'create_team' && (
-          <div>
-            <label className="block text-sm font-semibold text-white/90 mb-2">
-              Team Name
-            </label>
-            <div className="relative group">
-              <div className="absolute left-4 top-1/2 transform -translate-y-1/2 text-neon-green/60 group-focus-within:text-neon-green transition-colors">
-                <Users size={20} />
+          <>
+            <div>
+              <label className="block text-sm font-semibold text-white/90 mb-2">
+                Team Name
+              </label>
+              <div className="relative group">
+                <div className="absolute left-4 top-1/2 transform -translate-y-1/2 text-neon-green/60 group-focus-within:text-neon-green transition-colors">
+                  <Users size={20} />
+                </div>
+                <input
+                  type="text"
+                  name="teamName"
+                  value={formData.teamName}
+                  onChange={handleChange}
+                  placeholder="Enter your team name"
+                  className={`w-full pl-12 pr-4 py-3.5 bg-cyber-900/50 border-2 rounded-xl focus:outline-none transition-all text-white placeholder:text-white/30 ${
+                    errors.teamName 
+                      ? 'border-neon-orange/50 focus:border-neon-orange focus:ring-4 focus:ring-neon-orange/20' 
+                      : 'border-neon-green/20 focus:border-neon-green focus:ring-4 focus:ring-neon-green/20'
+                  }`}
+                />
               </div>
-              <input
-                type="text"
-                name="teamName"
-                value={formData.teamName}
-                onChange={handleChange}
-                placeholder="Enter your team name"
-                className={`w-full pl-12 pr-4 py-3.5 bg-cyber-900/50 border-2 rounded-xl focus:outline-none transition-all text-white placeholder:text-white/30 ${
-                  errors.teamName 
-                    ? 'border-neon-orange/50 focus:border-neon-orange focus:ring-4 focus:ring-neon-orange/20' 
-                    : 'border-neon-green/20 focus:border-neon-green focus:ring-4 focus:ring-neon-green/20'
-                }`}
-              />
-            </div>
-            {errors.teamName && (
-              <p className="mt-2 text-sm text-neon-orange flex items-center gap-1">
-                <span>⚠</span> {errors.teamName}
+              {errors.teamName && (
+                <p className="mt-2 text-sm text-neon-orange flex items-center gap-1">
+                  <span>⚠</span> {errors.teamName}
+                </p>
+              )}
+              <p className="mt-2 text-sm text-neon-green/70 flex items-center gap-2">
+                <CheckCircle size={16} />
+                You'll become the team leader and receive a team code
               </p>
-            )}
-            <p className="mt-2 text-sm text-neon-green/70 flex items-center gap-2">
-              <CheckCircle size={16} />
-              You'll become the team leader and receive a team code
-            </p>
-          </div>
+            </div>
+
+            <div>
+              <label className="block text-sm font-semibold text-white/90 mb-2">
+                Zone
+              </label>
+              <div className="relative group">
+                <div className="absolute left-4 top-1/2 transform -translate-y-1/2 text-neon-green/60 group-focus-within:text-neon-green transition-colors z-10">
+                  <MapPin size={20} />
+                </div>
+                <select
+                  name="zone"
+                  value={formData.zone}
+                  onChange={handleChange}
+                  className={`w-full pl-12 pr-4 py-3.5 bg-cyber-900/50 border-2 rounded-xl focus:outline-none transition-all text-white appearance-none ${
+                    errors.zone 
+                      ? 'border-neon-orange/50 focus:border-neon-orange focus:ring-4 focus:ring-neon-orange/20' 
+                      : 'border-neon-green/20 focus:border-neon-green focus:ring-4 focus:ring-neon-green/20'
+                  }`}
+                >
+                  {AVAILABLE_ZONES.map((zone) => (
+                    <option key={zone.value} value={zone.value} className="bg-cyber-900">
+                      {zone.label}
+                    </option>
+                  ))}
+                </select>
+                <div className="absolute right-4 top-1/2 transform -translate-y-1/2 pointer-events-none">
+                  <div className="w-0 h-0 border-l-4 border-l-white/40 border-t-4 border-t-transparent border-b-4 border-b-transparent" />
+                </div>
+              </div>
+              {errors.zone && (
+                <p className="mt-2 text-sm text-neon-orange flex items-center gap-1">
+                  <span>⚠</span> {errors.zone}
+                </p>
+              )}
+              <p className="mt-2 text-sm text-neon-green/70 flex items-center gap-2">
+                <MapPin size={16} />
+                Select the zone for your team
+              </p>
+            </div>
+          </>
         )}
 
         {formData.registrationType === 'individual' && (
@@ -634,6 +694,51 @@ export default function RegisterForm({ onSwitchToLogin }: RegisterFormProps) {
           </p>
         </div>
       </form>
+
+      {/* Team Code Modal */}
+      {showTeamCodeModal && teamCode && (
+        <div className="fixed inset-0 bg-black/80 backdrop-blur-sm flex items-center justify-center z-50 p-4">
+          <div className="bg-cyber-900 border-2 border-neon-green/50 rounded-xl p-8 max-w-md w-full shadow-2xl">
+            <div className="text-center">
+              <div className="mb-4">
+                <CheckCircle className="w-16 h-16 text-neon-green mx-auto mb-4" />
+                <h3 className="text-2xl font-bold text-white mb-2">Team Created Successfully!</h3>
+                <p className="text-white/70 mb-6">Your team has been created. Share this code with your teammates so they can join:</p>
+              </div>
+              
+              <div className="bg-cyber-800 border-2 border-neon-green/30 rounded-lg p-4 mb-6">
+                <p className="text-sm text-white/60 mb-2">Team Code</p>
+                <div className="flex items-center justify-center gap-3">
+                  <code className="text-3xl font-bold text-neon-green tracking-wider">{teamCode}</code>
+                  <button
+                    type="button"
+                    onClick={() => {
+                      navigator.clipboard.writeText(teamCode);
+                      showToast('Team code copied to clipboard!', 'success');
+                    }}
+                    className="px-4 py-2 bg-neon-green/20 hover:bg-neon-green/30 border border-neon-green/50 rounded-lg text-neon-green font-semibold transition-colors"
+                  >
+                    Copy
+                  </button>
+                </div>
+              </div>
+
+              <div className="flex gap-3">
+                <button
+                  type="button"
+                  onClick={() => {
+                    setShowTeamCodeModal(false);
+                    window.location.href = '/dashboard';
+                  }}
+                  className="flex-1 px-6 py-3 bg-gradient-to-r from-neon-green to-neon-cyan hover:from-neon-green hover:to-neon-cyan/80 text-cyber-darker font-bold rounded-xl transition-all"
+                >
+                  Continue to Dashboard
+                </button>
+              </div>
+            </div>
+          </div>
+        </div>
+      )}
     </div>
   );
 }

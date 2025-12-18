@@ -12,7 +12,7 @@ This service handles:
 import logging
 import asyncio
 from typing import Dict, List, Optional, Any
-from datetime import datetime, timedelta
+from datetime import datetime, timedelta, timezone
 from bson import ObjectId
 import motor.motor_asyncio
 
@@ -260,8 +260,55 @@ class EventService:
             update_doc["name"] = update_data.name
         if update_data.description is not None:
             update_doc["description"] = update_data.description
+        if update_data.zone is not None:
+            # Zone restriction for Admins
+            if user_role == "Admin" and update_data.zone != user_zone:
+                raise PermissionError(f"Admin can only update events to their zone ({user_zone})")
+            update_doc["zone"] = update_data.zone
+        
+        # Handle datetime updates with validation
+        # Validate start_time and end_time relationship before updating
+        new_start_time = update_data.start_time if update_data.start_time is not None else event.get("start_time")
+        new_end_time = update_data.end_time if update_data.end_time is not None else event.get("end_time")
+        
+        # Validate end_time is after start_time
+        if new_start_time and new_end_time:
+            # Normalize both to UTC for comparison
+            from datetime import timezone
+            start_dt = new_start_time
+            end_dt = new_end_time
+            
+            # Convert to UTC if timezone-aware, or assume UTC if naive
+            if isinstance(start_dt, datetime):
+                if start_dt.tzinfo is None:
+                    # Assume naive datetime is UTC
+                    start_dt = start_dt.replace(tzinfo=timezone.utc)
+                else:
+                    # Convert to UTC
+                    start_dt = start_dt.astimezone(timezone.utc)
+            else:
+                logger.warning(f"Unexpected start_time type: {type(start_dt)}")
+                start_dt = None
+                
+            if isinstance(end_dt, datetime):
+                if end_dt.tzinfo is None:
+                    # Assume naive datetime is UTC
+                    end_dt = end_dt.replace(tzinfo=timezone.utc)
+                else:
+                    # Convert to UTC
+                    end_dt = end_dt.astimezone(timezone.utc)
+            else:
+                logger.warning(f"Unexpected end_time type: {type(end_dt)}")
+                end_dt = None
+            
+            # Compare in UTC
+            if start_dt and end_dt and end_dt <= start_dt:
+                raise ValueError("end_time must be after start_time")
+        
+        # Now update the document
         if update_data.start_time is not None:
             update_doc["start_time"] = update_data.start_time
+            
         if update_data.end_time is not None:
             update_doc["end_time"] = update_data.end_time
         if update_data.max_participants is not None:
@@ -409,12 +456,43 @@ class EventService:
         if event["status"] != EventStatus.PENDING_APPROVAL.value:
             raise ValueError("Event is not pending approval")
         
-        now = datetime.utcnow()
+        # Get current time in Pakistan timezone (UTC+5) for comparison
+        pakistan_tz = timezone(timedelta(hours=5))
+        now_pakistan = datetime.now(pakistan_tz)
+        now_utc = datetime.utcnow()
+        
         new_status = EventStatus.APPROVED if approval_request.approved else EventStatus.REJECTED
         
         # If approved and start time is in future, set to scheduled
-        if approval_request.approved and event["start_time"] > now:
-            new_status = EventStatus.SCHEDULED
+        # If approved and start time is in past or now, auto-start the event
+        if approval_request.approved:
+            start_time = event.get("start_time")
+            
+            # Handle timezone-aware or naive datetime
+            if isinstance(start_time, datetime):
+                # Event start_time is stored in UTC in database
+                if start_time.tzinfo:
+                    start_time_utc = start_time.astimezone(timezone.utc).replace(tzinfo=None)
+                else:
+                    # Assume naive datetime is UTC
+                    start_time_utc = start_time
+                
+                # Convert UTC start_time to Pakistan timezone for comparison
+                start_time_pakistan = start_time_utc.replace(tzinfo=timezone.utc).astimezone(pakistan_tz)
+                
+                # Compare in Pakistan timezone
+                if start_time_pakistan > now_pakistan:
+                    new_status = EventStatus.SCHEDULED
+                    logger.info(f"Event {event_id} approved and scheduled for {start_time_pakistan.strftime('%Y-%m-%d %H:%M:%S PKT')}")
+                else:
+                    # Start time has passed, auto-start the event
+                    new_status = EventStatus.RUNNING
+                    logger.info(f"Event {event_id} approved and auto-started (Pakistan time: {start_time_pakistan.strftime('%Y-%m-%d %H:%M:%S PKT')} <= {now_pakistan.strftime('%Y-%m-%d %H:%M:%S PKT')})")
+                    # Notify teams in the zone (will be done after status update)
+            else:
+                # Invalid start_time, default to scheduled
+                logger.warning(f"Event {event_id} has invalid start_time type: {type(start_time)}")
+                new_status = EventStatus.SCHEDULED
         
         await self.events.update_one(
             {"_id": ObjectId(event_id)},
@@ -423,8 +501,8 @@ class EventService:
                     "status": new_status.value,
                     "approved_by": approver_username,
                     "approval_comments": approval_request.comments,
-                    "approved_at": now,
-                    "updated_at": now
+                    "approved_at": now_utc,
+                    "updated_at": now_utc
                 }
             }
         )
@@ -432,6 +510,11 @@ class EventService:
         updated_event = await self.events.find_one({"_id": ObjectId(event_id)})
         action = "approved" if approval_request.approved else "rejected"
         logger.info(f"Event {event_id} {action} by {approver_username}")
+        
+        # If event was auto-started, notify teams
+        if approval_request.approved and new_status == EventStatus.RUNNING:
+            await self._notify_teams_event_started(updated_event)
+        
         return self._event_to_response(updated_event)
     
     async def get_pending_approvals(self) -> List[EventResponse]:
@@ -468,6 +551,10 @@ class EventService:
         
         updated_event = await self.events.find_one({"_id": ObjectId(event_id)})
         logger.info(f"Event {event_id} started")
+        
+        # Notify teams in the zone
+        await self._notify_teams_event_started(updated_event)
+        
         return self._event_to_response(updated_event)
     
     async def pause_event(
@@ -668,6 +755,46 @@ class EventService:
             "registered_at": now
         }
     
+    async def is_user_registered(self, event_id: str, user_id: str, team_id: Optional[str] = None) -> bool:
+        """Check if user/team is registered for an event"""
+        query = {"event_id": event_id, "user_id": user_id}
+        if team_id:
+            query["team_id"] = team_id
+        
+        participant = await self.event_participants.find_one(query)
+        return participant is not None
+    
+    async def get_user_registered_events(self, user_id: str, team_id: Optional[str] = None) -> List[str]:
+        """Get list of event IDs that the user/team is registered for"""
+        query = {"user_id": user_id}
+        if team_id:
+            query["team_id"] = team_id
+        
+        participants = await self.event_participants.find(query).to_list(length=1000)
+        return [str(p["event_id"]) for p in participants]
+    
+    async def get_challenges_from_events(self, event_ids: List[str], user_zone: str) -> List[str]:
+        """Get list of challenge IDs from events user is registered for, filtered by zone and only active events"""
+        if not event_ids:
+            return []
+        
+        # Find events user is registered for - only running or paused events
+        events = await self.events.find({
+            "_id": {"$in": [ObjectId(eid) for eid in event_ids]},
+            "zone": user_zone,  # Only events in user's zone
+            "status": {"$in": [EventStatus.RUNNING.value, EventStatus.PAUSED.value]}  # Only active events
+        }).to_list(length=100)
+        
+        # Extract challenge IDs from these events
+        challenge_ids = []
+        for event in events:
+            for challenge_config in event.get("challenges", []):
+                challenge_id = challenge_config.get("challenge_id")
+                if challenge_id:
+                    challenge_ids.append(challenge_id)
+        
+        return challenge_ids
+    
     # =========================================================================
     # Flag Submission
     # =========================================================================
@@ -693,6 +820,15 @@ class EventService:
         # Check event is running
         if event["status"] != EventStatus.RUNNING.value:
             raise ValueError("Event is not currently running")
+        
+        # Check if user/team is registered for the event
+        participant_query = {"event_id": event_id, "user_id": user_id}
+        if team_id:
+            participant_query["team_id"] = team_id
+        
+        participant = await self.event_participants.find_one(participant_query)
+        if not participant:
+            raise ValueError("You must register for this event before submitting flags")
         
         # Find challenge in event
         event_challenge = None
@@ -1309,9 +1445,26 @@ class EventService:
     # Available Challenges for Event Creation
     # =========================================================================
     
-    async def get_available_challenges(self) -> List[Dict[str, Any]]:
-        """Get all active challenges created by Master Admin for event creation"""
-        cursor = self.challenges.find({"is_active": True})
+    async def get_available_challenges(self, zone: Optional[str] = None, user_zone: Optional[str] = None, user_role: Optional[str] = None) -> List[Dict[str, Any]]:
+        """
+        Get active challenges for event creation, filtered by zone.
+        
+        - If zone is provided, only return challenges for that zone
+        - Master Admin can see all challenges
+        - Zone Admin can only see challenges in their zone
+        """
+        query = {"is_active": True}
+        
+        # Zone filtering
+        if zone:
+            # Filter by specific zone when creating event
+            query["zone"] = zone
+        elif user_role == "Admin" and user_zone:
+            # Zone Admin can only see challenges in their zone
+            query["zone"] = user_zone
+        # Master Admin sees all challenges (no zone filter)
+        
+        cursor = self.challenges.find(query)
         challenges = await cursor.to_list(1000)
         
         return [
@@ -1323,6 +1476,7 @@ class EventService:
                 "challenge_type": c.get("config", {}).get("challenge_type", "web"),
                 "points": c.get("points", 100),
                 "is_active": c.get("is_active", True),
+                "zone": c.get("zone", "unknown"),
                 "created_by": str(c.get("created_by", ""))
             }
             for c in challenges
@@ -1331,6 +1485,49 @@ class EventService:
     # =========================================================================
     # Helper Methods
     # =========================================================================
+    
+    async def _notify_teams_event_started(self, event: Dict) -> None:
+        """Notify all users in the event's zone that the event has started"""
+        try:
+            event_zone = event.get("zone")
+            event_name = event.get("name", "Event")
+            event_id = str(event.get("_id"))
+            
+            # Get all users in the event's zone (not just teams)
+            users = await self.users.find({
+                "zone": event_zone,
+                "is_active": True,
+                "role": {"$ne": "Master"}  # Don't notify Master admins
+            }).to_list(length=10000)
+            
+            # Create notifications for each user
+            notifications = []
+            for user in users:
+                user_id = str(user.get("_id"))
+                team_id = user.get("team_id")
+                
+                notification = {
+                    "type": "event_started",
+                    "event_id": event_id,
+                    "event_name": event_name,
+                    "zone": event_zone,
+                    "user_id": user_id,
+                    "username": user.get("username"),
+                    "team_id": str(team_id) if team_id else None,
+                    "team_code": user.get("team_code"),
+                    "message": f"Event '{event_name}' has started in your zone ({event_zone})! Click to join and start solving challenges.",
+                    "action": "join_event",  # Action type for frontend
+                    "created_at": datetime.utcnow(),
+                    "read": False
+                }
+                notifications.append(notification)
+            
+            # Insert notifications into database (create notifications collection if needed)
+            if notifications:
+                await self.db["notifications"].insert_many(notifications)
+                logger.info(f"Sent {len(notifications)} notifications for event {event_id} to users in zone {event_zone}")
+        except Exception as e:
+            logger.error(f"Failed to send notifications for event {event.get('_id')}: {e}")
     
     def _event_to_response(self, event: Dict) -> EventResponse:
         """Convert event document to response schema"""
@@ -1626,6 +1823,49 @@ class EventService:
                 category_stats[category]["attempted"] += 1
         
         return category_stats
+    
+    async def _notify_teams_event_started(self, event: Dict) -> None:
+        """Notify all users in the event's zone that the event has started"""
+        try:
+            event_zone = event.get("zone")
+            event_name = event.get("name", "Event")
+            event_id = str(event.get("_id"))
+            
+            # Get all users in the event's zone (not just teams)
+            users = await self.users.find({
+                "zone": event_zone,
+                "is_active": True,
+                "role": {"$ne": "Master"}  # Don't notify Master admins
+            }).to_list(length=10000)
+            
+            # Create notifications for each user
+            notifications = []
+            for user in users:
+                user_id = str(user.get("_id"))
+                team_id = user.get("team_id")
+                
+                notification = {
+                    "type": "event_started",
+                    "event_id": event_id,
+                    "event_name": event_name,
+                    "zone": event_zone,
+                    "user_id": user_id,
+                    "username": user.get("username"),
+                    "team_id": str(team_id) if team_id else None,
+                    "team_code": user.get("team_code"),
+                    "message": f"Event '{event_name}' has started in your zone ({event_zone})! Click to join and start solving challenges.",
+                    "action": "join_event",  # Action type for frontend
+                    "created_at": datetime.utcnow(),
+                    "read": False
+                }
+                notifications.append(notification)
+            
+            # Insert notifications into database (create notifications collection if needed)
+            if notifications:
+                await self.db["notifications"].insert_many(notifications)
+                logger.info(f"Sent {len(notifications)} notifications for event {event_id} to users in zone {event_zone}")
+        except Exception as e:
+            logger.error(f"Failed to send notifications for event {event.get('_id')}: {e}")
 
 
 # Global instance

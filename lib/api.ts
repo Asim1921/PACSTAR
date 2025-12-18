@@ -427,7 +427,7 @@ export const fileAPI = {
     formData.append('file', file);
     
     const token = localStorage.getItem('auth_token');
-    const backendUrl = 'http://192.168.15.248:8001/api/v1';
+    const backendUrl = 'http://192.168.15.248:8000/api/v1';
     const path = '/files/upload';
     
     try {
@@ -519,7 +519,7 @@ export const builderAPI = {
     }
 
     const token = localStorage.getItem('auth_token');
-    const backendUrl = 'http://192.168.15.248:8001/api/v1';
+    const backendUrl = 'http://192.168.15.248:8000/api/v1';
     const path = '/builder/build-image';
 
     try {
@@ -721,10 +721,11 @@ export const eventAPI = {
     return response.data;
   },
 
-  // Get available challenges
-  getAvailableChallenges: async () => {
+  // Get available challenges (filtered by zone)
+  getAvailableChallenges: async (zone?: string) => {
     const path = USE_PROXY ? '/events/available-challenges' : '/events/available-challenges';
-    const response = await apiClient.get(path);
+    const url = zone ? `${path}?zone=${encodeURIComponent(zone)}` : path;
+    const response = await apiClient.get(url);
     return response.data;
   },
 
@@ -823,6 +824,27 @@ export const eventAPI = {
   // Register for event
   registerForEvent: async (eventId: string) => {
     const path = USE_PROXY ? `/events/${eventId}/register` : `/events/${eventId}/register`;
+    const response = await apiClient.post(path);
+    return response.data;
+  },
+
+  // Check registration status
+  checkRegistrationStatus: async (eventId: string) => {
+    const path = USE_PROXY ? `/events/${eventId}/registration-status` : `/events/${eventId}/registration-status`;
+    const response = await apiClient.get(path);
+    return response.data;
+  },
+
+  // Get notifications
+  getNotifications: async (unreadOnly: boolean = false) => {
+    const path = USE_PROXY ? `/events/notifications` : `/events/notifications`;
+    const response = await apiClient.get(`${path}?unread_only=${unreadOnly}`);
+    return response.data;
+  },
+
+  // Mark notification as read
+  markNotificationRead: async (notificationId: string) => {
+    const path = USE_PROXY ? `/events/notifications/${notificationId}/read` : `/events/notifications/${notificationId}/read`;
     const response = await apiClient.post(path);
     return response.data;
   },

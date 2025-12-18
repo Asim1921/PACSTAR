@@ -42,13 +42,15 @@ async def create_team(
     # Update user's team info
     from app.services.auth_service import AuthService
     auth_service = AuthService()
+    # Use team's zone if it exists, otherwise fallback to team-code based zone
+    team_zone = created_team.get("zone") or f"team-{created_team['team_code']}"
     await auth_service.users.update_one(
         {"_id": ObjectId(current_user.id)},
         {
             "$set": {
                 "team_id": created_team["id"],
                 "team_code": created_team["team_code"],
-                "zone": f"team-{created_team['team_code']}"
+                "zone": team_zone
             }
         }
     )
@@ -82,13 +84,15 @@ async def join_team(
     # Update user's team info
     from app.services.auth_service import AuthService
     auth_service = AuthService()
+    # Use team's zone if it exists, otherwise fallback to team-code based zone
+    team_zone = team.get("zone") or f"team-{team['team_code']}"
     await auth_service.users.update_one(
         {"_id": ObjectId(current_user.id)},
         {
             "$set": {
                 "team_id": team["id"],
                 "team_code": team["team_code"],
-                "zone": f"team-{team['team_code']}"
+                "zone": team_zone
             }
         }
     )

@@ -73,7 +73,22 @@ class MockKubernetesService:
     
     async def create_challenge_namespace(self, challenge_name: str) -> str:
         """Create a namespace for the challenge (mock)"""
-        namespace_name = f"challenge-{challenge_name.lower().replace('_', '-')}"
+        # Sanitize challenge name to be Kubernetes-compliant
+        import re
+        sanitized = challenge_name.lower()
+        # Replace spaces and underscores with hyphens
+        sanitized = sanitized.replace(' ', '-').replace('_', '-')
+        # Remove any characters that aren't alphanumeric or hyphens
+        sanitized = re.sub(r'[^a-z0-9-]', '', sanitized)
+        # Remove leading/trailing hyphens
+        sanitized = sanitized.strip('-')
+        # Replace multiple consecutive hyphens with single hyphen
+        sanitized = re.sub(r'-+', '-', sanitized)
+        # Limit length (Kubernetes namespace max is 63 characters)
+        if len(sanitized) > 53:
+            sanitized = sanitized[:53].rstrip('-')
+        
+        namespace_name = f"challenge-{sanitized}"
         
         # Mock namespace creation
         self.deployments[namespace_name] = {

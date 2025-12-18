@@ -1,7 +1,7 @@
 'use client';
 
 import React, { useState, useRef } from 'react';
-import { Plus, List, Trash2, Rocket, HelpCircle, Eye, EyeOff, Minus, Plus as PlusIcon, Lightbulb, Container, Folder, Upload, FileArchive, Lock } from 'lucide-react';
+import { Plus, List, Trash2, Rocket, HelpCircle, Eye, EyeOff, Minus, Plus as PlusIcon, Lightbulb, Container, Folder, Upload, FileArchive, Lock, MapPin } from 'lucide-react';
 import { Button } from '@/components/ui/Button';
 import { Input } from '@/components/ui/Input';
 import { RadioGroup } from '@/components/ui/RadioGroup';
@@ -31,6 +31,7 @@ export const Challenges: React.FC = () => {
   const [formData, setFormData] = useState({
     challengeName: '',
     description: '',
+    zone: 'zone1', // Zone field for challenge segregation
     challengeType: 'web',
     flagFormat: 'CTF{}',
     challengeMode: 'dynamic', // static | dynamic | multi_flag
@@ -167,6 +168,7 @@ export const Challenges: React.FC = () => {
       setFormData({
         challengeName: challenge.name || '',
         description: challenge.description || '',
+        zone: challenge.zone || 'zone1', // Load zone from challenge
         challengeType: challenge.config?.challenge_type || 'web',
         flagFormat: 'CTF{}', // Default, not in API response
         challengeMode: challenge.config?.mode || (challenge.challenge_category === 'static' ? 'static' : 'dynamic'),
@@ -288,6 +290,7 @@ export const Challenges: React.FC = () => {
         challengeData = {
           name: formData.challengeName,
           description: formData.description,
+          zone: formData.zone, // Zone for challenge segregation
           challenge_category: derivedCategory,
           config: {
             challenge_type: formData.challengeType,
@@ -348,6 +351,7 @@ export const Challenges: React.FC = () => {
         challengeData = {
           name: formData.challengeName,
           description: formData.description,
+          zone: formData.zone, // Zone for challenge segregation
           challenge_category: derivedCategory,
           config: {
             challenge_type: formData.staticChallengeType,
@@ -411,6 +415,7 @@ export const Challenges: React.FC = () => {
       setFormData({
         challengeName: '',
         description: '',
+        zone: 'zone1', // Reset zone to default
         challengeType: 'web',
         flagFormat: 'CTF{}',
         challengeMode: 'dynamic',
@@ -619,6 +624,36 @@ export const Challenges: React.FC = () => {
                         rows={4}
                         className="w-full px-4 py-3 bg-cyber-800/50 border-2 border-neon-green/20 rounded-xl text-white placeholder:text-white/40 focus:outline-none focus:border-neon-green focus:ring-2 focus:ring-neon-green/20 transition-all resize-y"
                       />
+                    </div>
+
+                    <div>
+                      <label className="block text-sm font-semibold text-white/90 mb-2">
+                        Zone *
+                      </label>
+                      <div className="relative group">
+                        <div className="absolute left-4 top-1/2 transform -translate-y-1/2 text-neon-green/60 group-focus-within:text-neon-green transition-colors z-10">
+                          <MapPin size={20} />
+                        </div>
+                        <select
+                          value={formData.zone}
+                          onChange={(e) => handleInputChange('zone', e.target.value)}
+                          className="w-full pl-12 pr-4 py-3.5 bg-cyber-800/50 border-2 border-neon-green/20 rounded-xl focus:outline-none focus:border-neon-green focus:ring-4 focus:ring-neon-green/20 transition-all text-white appearance-none"
+                        >
+                          <option value="zone1" className="bg-cyber-900">Zone 1</option>
+                          <option value="zone2" className="bg-cyber-900">Zone 2</option>
+                          <option value="zone3" className="bg-cyber-900">Zone 3</option>
+                          <option value="zone4" className="bg-cyber-900">Zone 4</option>
+                          <option value="zone5" className="bg-cyber-900">Zone 5</option>
+                          <option value="main" className="bg-cyber-900">Main Zone</option>
+                        </select>
+                        <div className="absolute right-4 top-1/2 transform -translate-y-1/2 pointer-events-none">
+                          <div className="w-0 h-0 border-l-4 border-l-white/40 border-t-4 border-t-transparent border-b-4 border-b-transparent" />
+                        </div>
+                      </div>
+                      <p className="mt-2 text-sm text-neon-green/70 flex items-center gap-2">
+                        <MapPin size={16} />
+                        Select the zone where this challenge will be available.
+                      </p>
                     </div>
 
                     <Input
