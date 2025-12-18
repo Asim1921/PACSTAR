@@ -161,7 +161,7 @@ export default function RegisterForm({ onSwitchToLogin }: RegisterFormProps) {
       localStorage.removeItem('user_info');
       localStorage.removeItem('user_id');
       localStorage.removeItem('team_info');
-      
+
       const response = await authAPI.register(registrationData);
       
       // Check if token was saved
@@ -187,23 +187,23 @@ export default function RegisterForm({ onSwitchToLogin }: RegisterFormProps) {
               zone: response.zone || (formData.registrationType === 'individual' ? formData.zone : 'zone1'),
             }));
           } else if (response.user) {
-            localStorage.setItem('user_info', JSON.stringify(response.user));
-            if (response.user.id) {
-              localStorage.setItem('user_id', response.user.id);
-            }
+        localStorage.setItem('user_info', JSON.stringify(response.user));
+        if (response.user.id) {
+          localStorage.setItem('user_id', response.user.id);
+        }
           }
         }
       } else {
         // No token, use response data if available
         if (response.id) {
-          localStorage.setItem('user_id', response.id);
-          localStorage.setItem('user_info', JSON.stringify({
-            id: response.id,
+        localStorage.setItem('user_id', response.id);
+        localStorage.setItem('user_info', JSON.stringify({
+          id: response.id,
             username: response.username || formData.username,
             email: response.email || formData.email,
             role: response.role || 'User',
             zone: response.zone || (formData.registrationType === 'individual' ? formData.zone : 'zone1'),
-          }));
+        }));
         } else if (response.user) {
           localStorage.setItem('user_info', JSON.stringify(response.user));
           if (response.user.id) {
@@ -461,10 +461,10 @@ export default function RegisterForm({ onSwitchToLogin }: RegisterFormProps) {
                 }
               };
               return (
-                <button
-                  key={option.value}
-                  type="button"
-                  onClick={() => handleRegistrationTypeChange(option.value)}
+              <button
+                key={option.value}
+                type="button"
+                onClick={() => handleRegistrationTypeChange(option.value)}
                   className={`p-4 rounded-xl border-2 text-left transition-all relative overflow-hidden group ${
                     isSelected
                       ? getSelectedClasses()
@@ -479,16 +479,16 @@ export default function RegisterForm({ onSwitchToLogin }: RegisterFormProps) {
                       <div className={`w-10 h-10 rounded-lg ${getIconClasses()} backdrop-blur-sm flex items-center justify-center border`}>
                         <Icon className={getIconColor()} size={20} />
                       </div>
-                      <div>
+                  <div>
                         <div className="font-semibold text-white mb-1">{option.label}</div>
                         <div className="text-sm text-white/60">{option.description}</div>
                       </div>
-                    </div>
+                  </div>
                     {isSelected && (
                       <CheckCircle className={getCheckColor()} size={24} />
-                    )}
-                  </div>
-                </button>
+                  )}
+                </div>
+              </button>
               );
             })}
           </div>

@@ -1,0 +1,253 @@
+// PACSTAR - Docker Compose Architecture
+// Render: dot -Tpng 6_docker_architecture.dot -o 6_docker_architecture.png
+
+digraph DockerArchitecture {
+    rankdir=TB;
+    fontname="Arial";
+    node [fontname="Arial", fontsize=11];
+    edge [fontname="Arial", fontsize=10];
+    
+    graph [
+        label="PACSTAR - Docker Compose Architecture"
+        labelloc=t
+        fontsize=18
+        fontname="Arial Bold"
+        bgcolor="white"
+        pad="0.5"
+        dpi=150
+    ];
+
+    // ========== External Access ==========
+    internet [
+        label="Internet Users"
+        shape=box3d
+        style=filled
+        fillcolor="#E8F5E9"
+        color="#2E7D32"
+    ];
+
+    // ========== Docker Network ==========
+    subgraph cluster_docker {
+        label="Docker Network: pacstar-network (172.28.0.0/16)";
+        style=rounded;
+        bgcolor="#ECEFF1";
+        color="#455A64";
+        penwidth=2;
+        
+        // Frontend Container
+        subgraph cluster_frontend {
+            label="pacstar-frontend";
+            style=filled;
+            fillcolor="#E3F2FD";
+            color="#1976D2";
+            
+            frontend [
+                label=<<TABLE BORDER="0" CELLBORDER="0" CELLSPACING="0">
+                    <TR><TD><B>Next.js 14</B></TD></TR>
+                    <TR><TD>━━━━━━━━━━━━━</TD></TR>
+                    <TR><TD ALIGN="LEFT">Port: 3505</TD></TR>
+                    <TR><TD ALIGN="LEFT">NODE_ENV: production</TD></TR>
+                    <TR><TD>━━━━━━━━━━━━━</TD></TR>
+                    <TR><TD ALIGN="LEFT"><I>Healthcheck:</I></TD></TR>
+                    <TR><TD ALIGN="LEFT">wget --spider :3505</TD></TR>
+                </TABLE>>
+                shape=box
+                style="filled,rounded"
+                fillcolor="#90CAF9"
+            ];
+        }
+        
+        // Backend Container
+        subgraph cluster_backend {
+            label="pacstar-backend";
+            style=filled;
+            fillcolor="#FFF3E0";
+            color="#F57C00";
+            
+            backend [
+                label=<<TABLE BORDER="0" CELLBORDER="0" CELLSPACING="0">
+                    <TR><TD><B>FastAPI</B></TD></TR>
+                    <TR><TD><B>(Python 3.12)</B></TD></TR>
+                    <TR><TD>━━━━━━━━━━━━━</TD></TR>
+                    <TR><TD ALIGN="LEFT">Port: 8000</TD></TR>
+                    <TR><TD ALIGN="LEFT">MONGODB_URI</TD></TR>
+                    <TR><TD ALIGN="LEFT">JWT_SECRET_KEY</TD></TR>
+                    <TR><TD ALIGN="LEFT">OPENSTACK_*</TD></TR>
+                    <TR><TD>━━━━━━━━━━━━━</TD></TR>
+                    <TR><TD ALIGN="LEFT"><I>Healthcheck:</I></TD></TR>
+                    <TR><TD ALIGN="LEFT">curl :8000/health</TD></TR>
+                </TABLE>>
+                shape=box
+                style="filled,rounded"
+                fillcolor="#FFB74D"
+            ];
+        }
+        
+        // MongoDB Container
+        subgraph cluster_mongo {
+            label="pacstar-mongodb";
+            style=filled;
+            fillcolor="#F3E5F5";
+            color="#7B1FA2";
+            
+            mongodb [
+                label=<<TABLE BORDER="0" CELLBORDER="0" CELLSPACING="0">
+                    <TR><TD><B>MongoDB 7.0</B></TD></TR>
+                    <TR><TD>━━━━━━━━━━━━━</TD></TR>
+                    <TR><TD ALIGN="LEFT">Port: 27017</TD></TR>
+                    <TR><TD ALIGN="LEFT">MONGO_INITDB_*</TD></TR>
+                    <TR><TD>━━━━━━━━━━━━━</TD></TR>
+                    <TR><TD ALIGN="LEFT"><I>Healthcheck:</I></TD></TR>
+                    <TR><TD ALIGN="LEFT">mongosh ping</TD></TR>
+                </TABLE>>
+                shape=cylinder
+                style=filled
+                fillcolor="#CE93D8"
+            ];
+        }
+        
+        // Mongo Express (Dev)
+        subgraph cluster_mongoexpress {
+            label="pacstar-mongo-express\n(dev profile only)";
+            style="filled,dashed";
+            fillcolor="#FFEBEE";
+            color="#C62828";
+            
+            mongoexpress [
+                label=<<TABLE BORDER="0" CELLBORDER="0" CELLSPACING="0">
+                    <TR><TD><B>Mongo Express</B></TD></TR>
+                    <TR><TD>━━━━━━━━━━━━━</TD></TR>
+                    <TR><TD ALIGN="LEFT">Port: 8081</TD></TR>
+                    <TR><TD ALIGN="LEFT">Admin UI</TD></TR>
+                    <TR><TD>━━━━━━━━━━━━━</TD></TR>
+                    <TR><TD ALIGN="LEFT"><I>Profile: dev</I></TD></TR>
+                </TABLE>>
+                shape=box
+                style="filled,dashed,rounded"
+                fillcolor="#EF9A9A"
+            ];
+        }
+        
+        // Volumes
+        subgraph cluster_volumes {
+            label="Docker Volumes (Persistent Storage)";
+            style=filled;
+            fillcolor="#FFF8E1";
+            color="#F9A825";
+            
+            vol_mongo_data [
+                label="mongodb_data\n/data/db"
+                shape=folder
+                style=filled
+                fillcolor="#FFF59D"
+            ];
+            vol_mongo_config [
+                label="mongodb_config\n/data/configdb"
+                shape=folder
+                style=filled
+                fillcolor="#FFF59D"
+            ];
+            vol_uploads [
+                label="backend_uploads\n/app/uploads"
+                shape=folder
+                style=filled
+                fillcolor="#FFF59D"
+            ];
+            vol_logs [
+                label="backend_logs\n/app/logs"
+                shape=folder
+                style=filled
+                fillcolor="#FFF59D"
+            ];
+        }
+    }
+
+    // ========== External Services ==========
+    subgraph cluster_external {
+        label="External Infrastructure (Optional)";
+        style=rounded;
+        bgcolor="#F5F5F5";
+        color="#757575";
+        
+        kubernetes [
+            label="Kubernetes\nCluster\n(K8s API :6443)"
+            shape=box3d
+            style=filled
+            fillcolor="#B0BEC5"
+        ];
+        openstack [
+            label="OpenStack\nCloud\n(APIs :5000, :8774)"
+            shape=box3d
+            style=filled
+            fillcolor="#B0BEC5"
+        ];
+    }
+
+    // ========== Connections ==========
+    internet -> frontend [
+        label=":3505\nHTTPS"
+        color="#1976D2"
+        penwidth=2
+    ];
+    
+    internet -> backend [
+        label=":8000\n(optional)"
+        color="#F57C00"
+        style=dashed
+    ];
+    
+    frontend -> backend [
+        label="HTTP\n(internal network)"
+        color="#455A64"
+        penwidth=2
+    ];
+    
+    backend -> mongodb [
+        label="MongoDB\nProtocol :27017"
+        color="#7B1FA2"
+        penwidth=2
+    ];
+    
+    mongoexpress -> mongodb [
+        label="Admin\nAccess"
+        color="#C62828"
+        style=dashed
+    ];
+    
+    mongodb -> vol_mongo_data [style=dashed color="#F9A825"];
+    mongodb -> vol_mongo_config [style=dashed color="#F9A825"];
+    backend -> vol_uploads [style=dashed color="#F9A825"];
+    backend -> vol_logs [style=dashed color="#F9A825"];
+    
+    backend -> kubernetes [
+        label="K8s API"
+        color="#455A64"
+        style=dashed
+    ];
+    backend -> openstack [
+        label="OpenStack API"
+        color="#455A64"
+        style=dashed
+    ];
+
+    // ========== Port Summary ==========
+    subgraph cluster_ports {
+        label="Port Summary";
+        style=rounded;
+        bgcolor="#FAFAFA";
+        color="#9E9E9E";
+        
+        ports [
+            label=<<TABLE BORDER="0" CELLBORDER="1" CELLSPACING="0" CELLPADDING="4">
+                <TR><TD BGCOLOR="#E0E0E0"><B>Service</B></TD><TD BGCOLOR="#E0E0E0"><B>Port</B></TD><TD BGCOLOR="#E0E0E0"><B>Purpose</B></TD></TR>
+                <TR><TD>Frontend</TD><TD>3505</TD><TD>Web UI</TD></TR>
+                <TR><TD>Backend</TD><TD>8000</TD><TD>REST API</TD></TR>
+                <TR><TD>MongoDB</TD><TD>27017</TD><TD>Database</TD></TR>
+                <TR><TD>Mongo Express</TD><TD>8081</TD><TD>DB Admin (dev)</TD></TR>
+            </TABLE>>
+            shape=none
+        ];
+    }
+}
+
+

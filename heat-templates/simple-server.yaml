@@ -1,0 +1,48 @@
+heat_template_version: 2016-10-14
+
+description: Simple Heat template to deploy a single Ubuntu server
+
+parameters:
+  server_name:
+    type: string
+    description: Name of the server instance
+    default: test-heat-server
+  
+  image:
+    type: string
+    description: Image ID or name to use for the server
+    default: "Ubuntu-22.04-slim"
+  
+  flavor:
+    type: string
+    description: Flavor to use for the server
+    default: "m1.small"
+  
+  network:
+    type: string
+    description: Network to attach the server to
+    default: "private"
+
+resources:
+  server:
+    type: OS::Nova::Server
+    properties:
+      name: { get_param: server_name }
+      image: { get_param: image }
+      flavor: { get_param: flavor }
+      networks:
+        - network: { get_param: network }
+
+outputs:
+  server_id:
+    description: ID of the created server
+    value: { get_resource: server }
+  
+  server_name:
+    description: Name of the created server
+    value: { get_attr: [server, name] }
+  
+  server_ip:
+    description: IP address of the server
+    value: { get_attr: [server, first_address] }
+

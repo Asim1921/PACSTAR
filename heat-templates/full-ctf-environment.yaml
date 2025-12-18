@@ -1,0 +1,135 @@
+heat_template_version: 2016-10-14
+
+description: Complete CTF environment with network, router, and multiple challenge servers
+
+parameters:
+  team_name:
+    type: string
+    description: Name of the team
+    default: "pacstar-team"
+  
+  web_server_image:
+    type: string
+    description: Image for web challenge server
+    default: "Ubuntu-22.04-slim"
+  
+  windows_image:
+    type: string
+    description: Image for Windows challenge
+    default: "Windows 10"
+  
+  flavor:
+    type: string
+    description: Flavor to use for all servers
+    default: "m1.small"
+  
+  external_network:
+    type: string
+    description: External network for router gateway
+    default: "public"
+
+resources:
+  # Create a private network for the team
+  team_network:
+    type: OS::Neutron::Net
+    properties:
+      name:
+        str_replace:
+          template: $team-network
+          params:
+            $team: { get_param: team_name }
+  
+  # Create a subnet for the team network
+  team_subnet:
+    type: OS::Neutron::Subnet
+    properties:
+      name:
+        str_replace:
+          template: $team-subnet
+          params:
+            $team: { get_param: team_name }
+      network: { get_resource: team_network }
+      cidr: "10.100.0.0/24"
+      gateway_ip: "10.100.0.1"
+      dns_nameservers:
+        - "8.8.8.8"
+        - "8.8.4.4"
+  
+  # Create a router
+  team_router:
+    type: OS::Neutron::Router
+    properties:
+      name:
+        str_replace:
+          template: $team-router
+          params:
+            $team: { get_param: team_name }
+      external_gateway_info:
+        network: { get_param: external_network }
+  
+  # Attach subnet to router
+  router_interface:
+    type: OS::Neutron::RouterInterface
+    properties:
+      router: { get_resource: team_router }
+      subnet: { get_resource: team_subnet }
+  
+  # Web Challenge Server
+  web_server:
+    type: OS::Nova::Server
+    depends_on: router_interface
+    properties:
+      name:
+        str_replace:
+          template: $team-web-challenge
+          params:
+            $team: { get_param: team_name }
+      image: { get_param: web_server_image }
+      flavor: { get_param: flavor }
+      networks:
+        - network: { get_resource: team_network }
+  
+  # Windows Challenge Server
+  windows_server:
+    type: OS::Nova::Server
+    depends_on: router_interface
+    properties:
+      name:
+        str_replace:
+          template: $team-windows-challenge
+          params:
+            $team: { get_param: team_name }
+      image: { get_param: windows_image }
+      flavor: { get_param: flavor }
+      networks:
+        - network: { get_resource: team_network }
+
+outputs:
+  network_id:
+    description: ID of the created network
+    value: { get_resource: team_network }
+  
+  subnet_id:
+    description: ID of the created subnet
+    value: { get_resource: team_subnet }
+  
+  router_id:
+    description: ID of the created router
+    value: { get_resource: team_router }
+  
+  web_server_id:
+    description: ID of the web challenge server
+    value: { get_resource: web_server }
+  
+  web_server_ip:
+    description: IP address of the web challenge server
+    value: { get_attr: [web_server, first_address] }
+  
+  windows_server_id:
+    description: ID of the Windows challenge server
+    value: { get_resource: windows_server }
+  
+  windows_server_ip:
+    description: IP address of the Windows challenge server
+    value: { get_attr: [windows_server, first_address] }
+

@@ -1,0 +1,84 @@
+heat_template_version: 2016-10-14
+
+description: Ubuntu Challenge Server Template for PACSTAR CTF - Deploys a single Ubuntu VM with floating IP for challenge instances
+
+parameters:
+  server_name:
+    type: string
+    description: Name of the server instance (will be set by system based on team name)
+    default: ubuntu-challenge-server
+  
+  image:
+    type: string
+    description: Image ID or name to use for the server
+    default: "Ubuntu-22.04-slim"
+  
+  flavor:
+    type: string
+    description: Flavor to use for the server
+    default: "m1.small"
+  
+  network:
+    type: string
+    description: Network name or ID to attach the server to
+    default: "private"
+  
+  external_network:
+    type: string
+    description: External network name or ID for floating IP allocation (usually "public")
+    default: "public"
+
+resources:
+  challenge_server:
+    type: OS::Nova::Server
+    properties:
+      name: { get_param: server_name }
+      image: { get_param: image }
+      flavor: { get_param: flavor }
+      networks:
+        - network: { get_param: network }
+      user_data: |
+        #!/bin/bash
+        # Challenge server initialization script
+        set -e
+        export DEBIAN_FRONTEND=noninteractive
+        apt-get update
+        apt-get install -y apache2 curl
+        systemctl enable apache2
+        systemctl start apache2
+        echo "<h1>Challenge Server Ready!</h1>" > /var/www/html/index.html
+        echo "<p>Server is online and ready for challenges.</p>" >> /var/www/html/index.html
+  
+  # Allocate a floating IP from the external network
+  floating_ip:
+    type: OS::Neutron::FloatingIP
+    depends_on: challenge_server
+    properties:
+      floating_network: { get_param: external_network }
+  
+  # Associate the floating IP with the server's network port
+  # The server creates a port automatically, we reference it via addresses
+  floating_ip_association:
+    type: OS::Neutron::FloatingIPAssociation
+    depends_on: [challenge_server, floating_ip]
+    properties:
+      floatingip_id: { get_resource: floating_ip }
+      port_id: { get_attr: [challenge_server, addresses, { get_param: network }, 0, port] }
+
+outputs:
+  server_id:
+    description: ID of the created server
+    value: { get_resource: challenge_server }
+  
+  server_name:
+    description: Name of the created server
+    value: { get_attr: [challenge_server, name] }
+  
+  server_ip:
+    description: Internal IP address of the server
+    value: { get_attr: [challenge_server, first_address] }
+  
+  floating_ip:
+    description: Floating IP address (external/accessible IP)
+    value: { get_attr: [floating_ip, floating_ip_address] }
+

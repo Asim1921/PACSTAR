@@ -1,7 +1,7 @@
 'use client';
 
 import React, { useEffect, useState } from 'react';
-import { BookOpen, RefreshCw, Download, Container, Folder, Trophy, ExternalLink, Flag, CheckCircle, XCircle, Rocket, Clock, Users, RotateCcw, Globe, HelpCircle } from 'lucide-react';
+import { BookOpen, RefreshCw, Download, Container, Folder, Trophy, ExternalLink, Flag, CheckCircle, XCircle, Rocket, Clock, Users, RotateCcw, Globe, HelpCircle, Cloud, Monitor } from 'lucide-react';
 import { Button } from '@/components/ui/Button';
 import { Input } from '@/components/ui/Input';
 import { InfoBox } from '@/components/ui/InfoBox';
@@ -12,13 +12,33 @@ interface Challenge {
   id: string;
   name: string;
   description: string;
-  challenge_category: 'containerized' | 'static';
+  challenge_category: 'containerized' | 'static' | 'openstack';
   status?: string;
   flag?: string;
   points: number;
   total_teams: number;
   is_active: boolean;
-  instances?: any[];
+  instances?: Array<{
+    team_id: string;
+    instance_id: string;
+    public_ip?: string;
+    internal_ip?: string;
+    status: string;
+    created_at: string;
+    // OpenStack specific fields
+    stack_id?: string;
+    stack_name?: string;
+    server_id?: string;
+    network_id?: string;
+    vnc_console_url?: string;
+    auto_delete_at?: string;
+    last_reset_by?: string;
+    last_reset_at?: string;
+    // Containerized specific fields
+    pod_name?: string;
+    service_name?: string;
+    namespace?: string;
+  }>;
   created_at: string;
   config?: {
     challenge_type?: string;
@@ -27,6 +47,8 @@ interface Challenge {
     file_path?: string;
     file_name?: string;
     download_url?: string;
+    heat_template?: string;
+    heat_template_parameters?: any;
   };
   access_info?: {
     public_ip?: string;
@@ -75,7 +97,7 @@ export const UserChallenges: React.FC<UserChallengesProps> = ({ teamId: propTeam
         challenge.is_active !== false
       );
       
-      // For containerized challenges, try to get access info and stats for the team
+      // For containerized and openstack challenges, try to get access info and stats for the team
       const challengesWithAccess = await Promise.all(
         activeChallenges.map(async (challenge: Challenge) => {
               // Get team ID from prop or localStorage
@@ -90,6 +112,84 @@ export const UserChallenges: React.FC<UserChallengesProps> = ({ teamId: propTeam
                   } catch (e) {
                     console.error('Error parsing team data:', e);
                   }
+                }
+              }
+              
+          // Handle OpenStack challenges - use instance data directly
+          if (challenge.challenge_category === 'openstack') {
+            try {
+              // Get stats for deployed count
+              const stats = await challengeAPI.getChallengeStats(challenge.id);
+              const deployedCount = stats.running_instances || 0;
+              
+              // Find the team's instance in the challenge instances array
+              // Try multiple team_id patterns: direct match, team code, or just search all instances
+              let teamInstance = null;
+              if (challenge.instances && challenge.instances.length > 0) {
+                // First try direct team_id match
+                if (currentTeamId) {
+                  teamInstance = challenge.instances.find(inst => inst.team_id === currentTeamId);
+                }
+                
+                // If no match, try to find instance by checking if team_id contains our team info
+                if (!teamInstance && currentTeamId) {
+                  // Get team code if available
+                  const teamData = localStorage.getItem('team_info');
+                  let teamCode = null;
+                  if (teamData) {
+                    try {
+                      const parsed = JSON.parse(teamData);
+                      teamCode = parsed.team_code;
+                    } catch (e) {
+                      // ignore
+                    }
+                  }
+                  
+                  // Try to match by team code or other patterns
+                  if (teamCode) {
+                    teamInstance = challenge.instances.find(inst => 
+                      inst.team_id?.includes(teamCode) || 
+                      inst.team_id?.toLowerCase().includes(teamCode.toLowerCase())
+                    );
+                  }
+                }
+                
+                // If still no match and we have instances, just take the first one (might be the user's)
+                // This is a fallback - ideally we should always have the correct team_id
+                if (!teamInstance && challenge.instances.length === 1) {
+                  teamInstance = challenge.instances[0];
+                }
+              }
+              
+              if (teamInstance) {
+                // Create access_info-like structure from instance data for consistency
+                return {
+                  ...challenge,
+                  access_info: {
+                    public_ip: teamInstance.public_ip, // This is the floating IP for OpenStack
+                    status: teamInstance.status,
+                    // OpenStack specific fields
+                    stack_id: teamInstance.stack_id,
+                    stack_name: teamInstance.stack_name,
+                    server_id: teamInstance.server_id,
+                    network_id: teamInstance.network_id,
+                    vnc_console_url: teamInstance.vnc_console_url,
+                    auto_delete_at: teamInstance.auto_delete_at,
+                    last_reset_by: teamInstance.last_reset_by,
+                    last_reset_at: teamInstance.last_reset_at,
+                    team_id: teamInstance.team_id,
+                  },
+                  deployed_count: deployedCount,
+                };
+              }
+              
+              return {
+                ...challenge,
+                deployed_count: deployedCount,
+              };
+            } catch (error: any) {
+              console.warn(`Failed to process OpenStack challenge ${challenge.id}:`, error);
+              return challenge;
                 }
               }
               
@@ -291,6 +391,26 @@ export const UserChallenges: React.FC<UserChallengesProps> = ({ teamId: propTeam
     }
   };
 
+  const handleResetChallengeOpenStack = async (challengeId: string, resetType: 'restart' | 'redeploy') => {
+    const action = resetType === 'restart' ? 'restart' : 'redeploy';
+    if (!confirm(`Are you sure you want to ${action} your VM instance?`)) {
+      return;
+    }
+    setResettingChallenge(challengeId);
+    try {
+      await challengeAPI.resetChallenge(challengeId, resetType);
+      showToast(`VM ${resetType === 'restart' ? 'restarted' : 'redeployed'} successfully`, 'success');
+      // Refresh the challenge to get updated status
+      await refreshChallenge(challengeId);
+    } catch (error: any) {
+      console.error(`Reset challenge (${resetType}) error:`, error);
+      const errorMessage = error.response?.data?.detail || error.response?.data?.message || error.message || `Failed to ${action} VM`;
+      showToast(errorMessage, 'error');
+    } finally {
+      setResettingChallenge(null);
+    }
+  };
+
   const refreshChallenge = async (challengeId: string) => {
     setRefreshingChallenge(challengeId);
     try {
@@ -319,7 +439,7 @@ export const UserChallenges: React.FC<UserChallengesProps> = ({ teamId: propTeam
       showToast('Preparing download...', 'info');
       
       // Construct the full URL
-      const backendUrl = 'http://10.10.101.69:8000';
+      const backendUrl = 'http://192.168.15.248:8001';
       let fullUrl = downloadUrl;
       
       // If it's a relative URL, prepend backend URL
@@ -394,7 +514,7 @@ export const UserChallenges: React.FC<UserChallengesProps> = ({ teamId: propTeam
         <div className="space-y-6">
           {challenges.map((challenge) => {
             // Check for access info in multiple places
-            const accessInfo = challenge.access_info || challenge.instances?.[0] || {};
+            const accessInfo: Record<string, unknown> = challenge.access_info || challenge.instances?.[0] || {};
             const hasAccessInfo = accessInfo && (
               accessInfo.access_url || 
               accessInfo.url || 
@@ -403,7 +523,7 @@ export const UserChallenges: React.FC<UserChallengesProps> = ({ teamId: propTeam
               accessInfo.ip || 
               accessInfo.instance_ip
             );
-            const instanceStatus = accessInfo.status || challenge.access_info?.status || 'running';
+            const instanceStatus = String(accessInfo.status || challenge.access_info?.status || 'running');
             const deployedCount = challenge.deployed_count || 0;
             // Show RUNNING if deployed, otherwise show ACTIVE
             const challengeStatus = deployedCount > 0 ? 'RUNNING' : 'ACTIVE';
@@ -412,7 +532,10 @@ export const UserChallenges: React.FC<UserChallengesProps> = ({ teamId: propTeam
             const isResetting = resettingChallenge === challenge.id;
             // If deployedCount > 0, it means instance is deployed - show instance info, not Start button
             // OR if we have access info (IP/URL), show instance info
-            const isInstanceDeployed = deployedCount > 0 || hasAccessInfo;
+            // For OpenStack, check if we have instance data (stack_id, server_id, etc.)
+            const hasOpenStackInstance = challenge.challenge_category === 'openstack' && 
+              (challenge.access_info?.stack_id || challenge.access_info?.server_id || challenge.access_info?.public_ip);
+            const isInstanceDeployed = deployedCount > 0 || hasAccessInfo || hasOpenStackInstance;
             
             // Debug logging
             if (isInstanceDeployed && !hasAccessInfo) {
@@ -436,6 +559,10 @@ export const UserChallenges: React.FC<UserChallengesProps> = ({ teamId: propTeam
                     {challenge.challenge_category === 'containerized' ? (
                         <div className="w-12 h-12 bg-neon-green/10 rounded-xl flex items-center justify-center flex-shrink-0">
                           <Container className="text-neon-green" size={24} />
+                        </div>
+                    ) : challenge.challenge_category === 'openstack' ? (
+                        <div className="w-12 h-12 bg-neon-cyan/10 rounded-xl flex items-center justify-center flex-shrink-0">
+                          <Cloud className="text-neon-cyan" size={24} />
                         </div>
                     ) : (
                         <div className="w-12 h-12 bg-neon-orange/10 rounded-xl flex items-center justify-center flex-shrink-0">
@@ -473,7 +600,7 @@ export const UserChallenges: React.FC<UserChallengesProps> = ({ teamId: propTeam
                         <span className="text-white font-semibold">{challenge.total_teams || 0}</span>
                       </div>
 
-                      {challenge.challenge_category === 'containerized' && (
+                      {(challenge.challenge_category === 'containerized' || challenge.challenge_category === 'openstack') && (
                         <div className="flex items-center gap-2">
                           <span className="text-white/60">Deployed:</span>
                           <span className="text-neon-green font-semibold">
@@ -526,6 +653,201 @@ export const UserChallenges: React.FC<UserChallengesProps> = ({ teamId: propTeam
                           <div className="w-2 h-2 bg-neon-green rounded-full mr-2" />
                           Active
                         </span>
+                      </div>
+                    )}
+
+                    {/* Instance Information for OpenStack Challenges - When Deployed */}
+                    {challenge.challenge_category === 'openstack' && isInstanceDeployed && (
+                      <div className="space-y-4">
+                        {/* Your Instance Running Badge */}
+                        <div className="flex justify-end">
+                          <span className="inline-flex items-center px-3 py-1.5 rounded-full bg-neon-green/10 border border-neon-green/30 text-neon-green font-semibold text-xs">
+                            <div className="w-2 h-2 bg-neon-green rounded-full mr-2 animate-pulse" />
+                            Your Instance Running
+                          </span>
+                        </div>
+
+                        {/* Instance Details */}
+                        <div className="space-y-3 bg-neon-cyan/10 rounded-xl p-4 border border-neon-cyan/30">
+                          {(() => {
+                            const info = challenge.access_info || {};
+                            const floatingIp = info.public_ip;
+                            if (!floatingIp) return null;
+                            
+                            return (
+                              <>
+                                {/* Floating IP Address */}
+                                <div className="flex items-center gap-2">
+                                  <Globe className="text-neon-cyan" size={16} />
+                                  <span className="text-white/60 text-sm">Floating IP Address:</span>
+                                  <span className="text-neon-cyan font-semibold text-sm">{floatingIp}</span>
+                                </div>
+                                <div className="text-white/40 text-xs ml-6">
+                                  This is your VM's accessible IP address from the external network
+                                </div>
+
+                                {/* VNC Console Access */}
+                                {info.vnc_console_url && (
+                                  <>
+                                    <div className="flex items-center gap-2">
+                                      <Monitor className="text-neon-cyan" size={16} />
+                                      <span className="text-white/60 text-sm">VNC Console Access:</span>
+                                    </div>
+                                    <a
+                                      href={info.vnc_console_url}
+                                      target="_blank"
+                                      rel="noopener noreferrer"
+                                      className="text-neon-cyan hover:text-neon-cyan/80 hover:underline font-semibold text-sm break-all ml-6 block"
+                                    >
+                                      {info.vnc_console_url}
+                                    </a>
+                                    <InfoBox
+                                      type="info"
+                                      message="Click the VNC Console link above to access your VM's desktop in the browser!"
+                                    />
+                                    <div className="text-white/40 text-xs ml-6">
+                                      VNC Console provides remote desktop access to your OpenStack VM
+                                    </div>
+                                  </>
+                                )}
+
+                                {/* Stack Name */}
+                                {info.stack_name && (
+                                  <div className="flex items-center gap-2">
+                                    <span className="text-white/60 text-sm">Stack Name:</span>
+                                    <span className="text-neon-cyan font-semibold text-sm">{info.stack_name}</span>
+                                  </div>
+                                )}
+
+                                {/* Server ID */}
+                                {info.server_id && (
+                                  <div className="flex items-center gap-2">
+                                    <span className="text-white/60 text-sm">Server ID:</span>
+                                    <span className="text-neon-cyan font-semibold text-sm font-mono text-xs">{info.server_id}</span>
+                                  </div>
+                                )}
+
+                                {/* Auto-delete Information */}
+                                {info.auto_delete_at && (
+                                  <div className="flex items-start gap-2 p-2 bg-neon-orange/10 rounded border border-neon-orange/20">
+                                    <span className="text-neon-orange">⚠</span>
+                                    <div className="flex-1">
+                                      <span className="text-white/60 text-sm block">Auto-delete:</span>
+                                      <span className="text-neon-orange text-sm font-semibold">
+                                        This VM will be automatically deleted at {new Date(info.auto_delete_at).toLocaleString()}
+                                      </span>
+                                    </div>
+                                  </div>
+                                )}
+
+                                {/* Status */}
+                                <div className="flex items-center gap-2">
+                                  <span className="text-white/60 text-sm">Status:</span>
+                                  <span className="text-neon-green text-sm font-semibold">
+                                    {info.status || 'running'}
+                                  </span>
+                                </div>
+
+                                {/* Team ID */}
+                                {(teamCode || teamId || info.team_id) && (
+                                  <div className="flex items-center gap-2">
+                                    <span className="text-white/60 text-sm">Team ID:</span>
+                                    <span className="text-neon-cyan text-sm font-semibold">{teamCode || teamId || info.team_id}</span>
+                                  </div>
+                                )}
+                              </>
+                            );
+                          })()}
+                        </div>
+
+                        {/* Separator */}
+                        <div className="border-t border-neon-cyan/20 terminal-border my-4"></div>
+
+                        {/* VM Management Actions */}
+                        <div className="space-y-2">
+                          <div className="flex items-center gap-2">
+                            <HelpCircle className="text-white/40" size={14} />
+                            <span className="text-white/60 text-sm">Having issues? Reset your VM instance</span>
+                          </div>
+                          <div className="grid grid-cols-2 gap-2">
+                            <Button
+                              variant="outline"
+                              size="sm"
+                              onClick={() => handleResetChallengeOpenStack(challenge.id, 'restart')}
+                              disabled={isResetting || isStarting}
+                              className="w-full"
+                            >
+                              <RotateCcw size={16} className={`mr-2 ${isResetting ? 'animate-spin' : ''}`} />
+                              Restart VM
+                            </Button>
+                            <Button
+                              variant="outline"
+                              size="sm"
+                              onClick={() => handleResetChallengeOpenStack(challenge.id, 'redeploy')}
+                              disabled={isResetting || isStarting}
+                              className="w-full"
+                            >
+                              <RefreshCw size={16} className={`mr-2 ${isResetting ? 'animate-spin' : ''}`} />
+                              Redeploy VM
+                            </Button>
+                          </div>
+                        </div>
+
+                        {/* Separator */}
+                        <div className="border-t border-neon-cyan/20 terminal-border my-4"></div>
+
+                        {/* Flag Submission Section */}
+                        <div className="space-y-2">
+                          <span className="text-white/80 text-sm font-semibold">Submit Flag to score points</span>
+                          {!showFlagInput[challenge.id] ? (
+                            <Button
+                              variant="primary"
+                              size="md"
+                              onClick={() => setShowFlagInput((prev) => ({ ...prev, [challenge.id]: true }))}
+                              className="w-full"
+                            >
+                              <Flag size={16} className="mr-2" />
+                              Submit Flag
+                            </Button>
+                          ) : (
+                            <div className="space-y-2">
+                              <Input
+                                type="text"
+                                placeholder="Enter flag"
+                                value={flagInputs[challenge.id] || ''}
+                                onChange={(e) => setFlagInputs((prev) => ({ ...prev, [challenge.id]: e.target.value }))}
+                                onKeyPress={(e) => {
+                                  if (e.key === 'Enter') {
+                                    handleSubmitFlag(challenge.id);
+                                  }
+                                }}
+                              />
+                              <div className="flex gap-2">
+                                <Button
+                                  variant="primary"
+                                  size="md"
+                                  onClick={() => handleSubmitFlag(challenge.id)}
+                                  disabled={submittingFlagFor === challenge.id || !flagInputs[challenge.id]?.trim()}
+                                  isLoading={submittingFlagFor === challenge.id}
+                                  className="flex-1"
+                                >
+                                  <CheckCircle size={16} className="mr-2" />
+                                  Submit
+                                </Button>
+                                <Button
+                                  variant="outline"
+                                  size="md"
+                                  onClick={() => {
+                                    setShowFlagInput((prev) => ({ ...prev, [challenge.id]: false }));
+                                    setFlagInputs((prev) => ({ ...prev, [challenge.id]: '' }));
+                                  }}
+                                >
+                                  <XCircle size={16} />
+                                </Button>
+                              </div>
+                            </div>
+                          )}
+                        </div>
                       </div>
                     )}
 
@@ -591,7 +913,7 @@ export const UserChallenges: React.FC<UserChallengesProps> = ({ teamId: propTeam
                           <div className="flex items-center gap-2">
                             <span className="text-white/60 text-sm">Status:</span>
                             <span className="text-neon-green text-sm font-semibold">
-                              {accessInfo.status || challenge.access_info?.status || instanceStatus || 'running'}
+                              {String(accessInfo.status || challenge.access_info?.status || instanceStatus || 'running')}
                             </span>
                           </div>
 
@@ -683,12 +1005,14 @@ export const UserChallenges: React.FC<UserChallengesProps> = ({ teamId: propTeam
                       </div>
                     )}
 
-                    {/* InfoBox and Start Button for Containerized Challenges - When NOT Deployed */}
-                    {challenge.challenge_category === 'containerized' && !isInstanceDeployed && (
+                    {/* InfoBox and Start Button for Containerized and OpenStack Challenges - When NOT Deployed */}
+                    {(challenge.challenge_category === 'containerized' || challenge.challenge_category === 'openstack') && !isInstanceDeployed && (
                       <>
                         <InfoBox
                           type="info"
-                          message="Click 'Start' to deploy your team's instance only."
+                          message={challenge.challenge_category === 'openstack' 
+                            ? "Click 'Start' to deploy your team's OpenStack VM instance."
+                            : "Click 'Start' to deploy your team's instance only."}
                         />
                         <Button
                           variant="primary"

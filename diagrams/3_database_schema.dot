@@ -1,0 +1,180 @@
+// PACSTAR - Database Schema (Entity Relationship Diagram)
+// Render: dot -Tpng 3_database_schema.dot -o 3_database_schema.png
+
+digraph DatabaseSchema {
+    rankdir=LR;
+    fontname="Arial";
+    node [fontname="Arial", fontsize=11, shape=record];
+    edge [fontname="Arial", fontsize=10];
+    
+    graph [
+        label="PACSTAR - MongoDB Database Schema (Entity Relationship)"
+        labelloc=t
+        fontsize=18
+        fontname="Arial Bold"
+        bgcolor="white"
+        pad="0.5"
+        dpi=150
+        nodesep=0.8
+        ranksep=1.5
+    ];
+
+    // ========== Collections ==========
+    users [
+        label="{USERS|_id: ObjectId (PK)\l|username: String (unique)\lemail: String (unique)\lhashed_password: String\lrole: String (Master/Admin/User)\lzone: String\lteam_id: ObjectId (FK)\lis_active: Boolean\llast_login: DateTime\lcreated_at: DateTime\lupdated_at: DateTime\l}"
+        style=filled
+        fillcolor="#C8E6C9"
+        color="#2E7D32"
+    ];
+    
+    teams [
+        label="{TEAMS|_id: ObjectId (PK)\l|name: String\ldescription: String\lteam_code: String (unique)\lleader_id: ObjectId (FK → users)\lmembers: [\l\ \ \ user_id: ObjectId\l\ \ \ username: String\l\ \ \ role: String\l\ \ \ joined_at: DateTime\l]\lmember_count: Number\lmax_members: Number (10)\lis_active: Boolean\lcreated_at: DateTime\l}"
+        style=filled
+        fillcolor="#BBDEFB"
+        color="#1565C0"
+    ];
+    
+    challenges [
+        label="{CHALLENGES|_id: ObjectId (PK)\l|name: String (unique)\ldescription: String\lcategory: String\l\ \ (containerized/static/openstack)\lflag: String (hashed)\lpoints: Number\ldifficulty: String (easy/med/hard)\lstatus: String (draft/active/archived)\lcreated_by: ObjectId (FK → users)\ldocker_image: String\lport_mapping: Object\lheat_template: String\lfile_ids: [ObjectId]\lteams_solved: [ObjectId]\ltotal_solves: Number\lhints: [String]\lcreated_at: DateTime\l}"
+        style=filled
+        fillcolor="#FFE0B2"
+        color="#EF6C00"
+    ];
+    
+    challenge_instances [
+        label="{CHALLENGE_INSTANCES|_id: ObjectId (PK)\l|challenge_id: ObjectId (FK)\lteam_id: ObjectId (FK)\linstance_id: String (unique)\lpublic_ip: String (unique)\lssh_port: Number\lssh_username: String\lssh_password: String\laccess_url: String\lstatus: String\l\ \ (pending/running/stopped/error)\lcreated_at: DateTime\lexpires_at: DateTime\lmetadata: Object\l}"
+        style=filled
+        fillcolor="#FFCC80"
+        color="#F57C00"
+    ];
+    
+    submissions [
+        label="{SUBMISSIONS|_id: ObjectId (PK)\l|user_id: ObjectId (FK → users)\lteam_id: ObjectId (FK → teams)\lchallenge_id: ObjectId (FK)\lsubmitted_flag: String\lis_correct: Boolean\lpoints_awarded: Number\ltimestamp: DateTime\lip_address: String\l}"
+        style=filled
+        fillcolor="#E1BEE7"
+        color="#7B1FA2"
+    ];
+    
+    files [
+        label="{FILES|_id: ObjectId (PK)\l|filename: String\loriginal_filename: String\lfile_path: String\lfile_size: Number\lmime_type: String\lchallenge_id: ObjectId (FK)\luploaded_by: ObjectId (FK → users)\lcreated_at: DateTime\lis_public: Boolean\l}"
+        style=filled
+        fillcolor="#B2DFDB"
+        color="#00796B"
+    ];
+    
+    events [
+        label="{EVENTS|_id: ObjectId (PK)\l|name: String\ldescription: String\lstart_time: DateTime\lend_time: DateTime\lstatus: String\l\ \ (upcoming/active/completed)\lchallenges: [ObjectId]\lteams: [ObjectId]\lscoring_type: String\lcreated_by: ObjectId (FK → users)\lcreated_at: DateTime\l}"
+        style=filled
+        fillcolor="#F8BBD9"
+        color="#C2185B"
+    ];
+
+    // ========== Relationships ==========
+    users -> teams [
+        label="team_id\n(belongs to)"
+        dir=forward
+        arrowhead=crow
+        color="#455A64"
+        penwidth=1.5
+    ];
+    
+    teams -> users [
+        label="leader_id\n(has leader)"
+        dir=forward
+        arrowhead=crow
+        color="#455A64"
+        penwidth=1.5
+        constraint=false
+    ];
+    
+    challenges -> users [
+        label="created_by"
+        dir=back
+        arrowhead=crow
+        color="#455A64"
+        penwidth=1.5
+    ];
+    
+    challenge_instances -> challenges [
+        label="challenge_id"
+        dir=back
+        arrowhead=crow
+        color="#F57C00"
+        penwidth=2
+    ];
+    
+    challenge_instances -> teams [
+        label="team_id"
+        dir=back
+        arrowhead=crow
+        color="#455A64"
+        penwidth=1.5
+    ];
+    
+    submissions -> users [
+        label="user_id"
+        dir=back
+        arrowhead=crow
+        color="#455A64"
+        penwidth=1.5
+    ];
+    
+    submissions -> teams [
+        label="team_id"
+        dir=back
+        arrowhead=crow
+        color="#455A64"
+        penwidth=1.5
+    ];
+    
+    submissions -> challenges [
+        label="challenge_id"
+        dir=back
+        arrowhead=crow
+        color="#EF6C00"
+        penwidth=2
+    ];
+    
+    files -> challenges [
+        label="challenge_id"
+        dir=back
+        arrowhead=crow
+        color="#455A64"
+        penwidth=1.5
+    ];
+    
+    files -> users [
+        label="uploaded_by"
+        dir=back
+        arrowhead=crow
+        color="#455A64"
+        penwidth=1.5
+    ];
+    
+    events -> users [
+        label="created_by"
+        dir=back
+        arrowhead=crow
+        color="#455A64"
+        penwidth=1.5
+    ];
+    
+    // ========== Legend ==========
+    subgraph cluster_legend {
+        label="Legend";
+        style=rounded;
+        bgcolor="#FAFAFA";
+        color="#9E9E9E";
+        fontsize=10;
+        
+        legend [
+            label="{INDEX TYPES|PK = Primary Key\lFK = Foreign Key\lunique = Unique Index\l}"
+            shape=record
+            style=filled
+            fillcolor="#EEEEEE"
+            fontsize=9
+        ];
+    }
+}
+
+

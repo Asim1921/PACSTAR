@@ -1,0 +1,68 @@
+# PACSTAR API - Quick Test Commands
+# =================================
+# Server: http://192.168.250.178:8000
+
+# 1. REGISTER USER
+curl -X POST "http://192.168.250.178:8000/api/v1/auth/register" \
+  -H "Content-Type: application/json" \
+  -d '{"username": "testuser", "email": "test@example.com", "password": "Password123!", "zone": "zone1"}'
+
+# 2. LOGIN USER (save the access_token)
+curl -X POST "http://192.168.250.178:8000/api/v1/auth/login" \
+  -H "Content-Type: application/json" \
+  -d '{"username": "testuser", "password": "Password123!"}'
+
+# 3. LOGIN ADMIN (save the access_token)
+curl -X POST "http://192.168.250.178:8000/api/v1/auth/login" \
+  -H "Content-Type: application/json" \
+  -d '{"username": "master_admin", "password": "admin123"}'
+
+# 4. LIST USERS (admin only)
+curl -X GET "http://192.168.250.178:8000/api/v1/users/" \
+  -H "Authorization: Bearer YOUR_ADMIN_TOKEN"
+
+# 5. GET USER PROFILE
+curl -X GET "http://192.168.250.178:8000/api/v1/users/me" \
+  -H "Authorization: Bearer YOUR_USER_TOKEN"
+
+# 6. CREATE CHALLENGE (admin only)
+curl -X POST "http://192.168.250.178:8000/api/v1/challenges/" \
+  -H "Content-Type: application/json" \
+  -H "Authorization: Bearer YOUR_ADMIN_TOKEN" \
+  -d '{
+    "name": "test-challenge",
+    "description": "Test challenge",
+    "config": {
+      "challenge_type": "web",
+      "image": "jwt-challenge:latest",
+      "ports": [5000],
+      "environment_vars": {"SECRET_KEY": "secret"},
+      "resources": {"requests": {"cpu": "100m", "memory": "128Mi"}},
+      "health_check_path": "/",
+      "flag_format": "CTF{}"
+    },
+    "total_teams": 4,
+    "is_active": true
+  }'
+
+# 7. LIST CHALLENGES
+curl -X GET "http://192.168.250.178:8000/api/v1/challenges/" \
+  -H "Authorization: Bearer YOUR_ADMIN_TOKEN"
+
+# 8. DEPLOY CHALLENGE (admin only)
+curl -X POST "http://192.168.250.178:8000/api/v1/challenges/CHALLENGE_ID/deploy" \
+  -H "Content-Type: application/json" \
+  -H "Authorization: Bearer YOUR_ADMIN_TOKEN" \
+  -d '{"force_redeploy": false}'
+
+# 9. GET CHALLENGE STATS
+curl -X GET "http://192.168.250.178:8000/api/v1/challenges/CHALLENGE_ID/stats" \
+  -H "Authorization: Bearer YOUR_ADMIN_TOKEN"
+
+# 10. HEALTH CHECK
+curl -X GET "http://192.168.250.178:8000/health"
+
+# Replace:
+# - YOUR_USER_TOKEN with actual user JWT token
+# - YOUR_ADMIN_TOKEN with actual admin JWT token  
+# - CHALLENGE_ID with actual challenge ID from create response

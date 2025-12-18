@@ -2,7 +2,7 @@
 
 import React, { useEffect, useState, useRef } from 'react';
 import { useRouter } from 'next/navigation';
-import { Shield, LogOut, User, Target, RefreshCw, ChevronDown, ChevronUp, Mail, Users, Crown, FileText, BookOpen, CheckCircle, Settings, Trophy, FileCode, BarChart3, Search, Cloud, Menu, X } from 'lucide-react';
+import { Shield, LogOut, User, Target, RefreshCw, ChevronDown, ChevronUp, Mail, Users, Crown, FileText, BookOpen, CheckCircle, Settings, Trophy, FileCode, BarChart3, Search, Cloud, Menu, X, Calendar } from 'lucide-react';
 import { Button } from '@/components/ui/Button';
 import { Select } from '@/components/ui/Select';
 import { authAPI, userAPI, teamAPI } from '@/lib/api';
@@ -10,8 +10,10 @@ import { useToast } from '@/components/ui/ToastProvider';
 import { Challenges } from '@/components/admin/Challenges';
 import { DockerfileToK8s } from '@/components/admin/DockerfileToK8s';
 import { OpenStack } from '@/components/admin/OpenStack';
+import { Events } from '@/components/admin/Events';
 import { UserChallenges } from '@/components/user/UserChallenges';
 import { Scoreboard } from '@/components/user/Scoreboard';
+import { UserEvents } from '@/components/user/UserEvents';
 import ParticleBackground from '@/components/auth/ParticleBackground';
 
 interface UserProfile {
@@ -47,7 +49,7 @@ interface Team {
 }
 
 type ViewMode = 'user' | 'admin';
-type AdminTab = 'users' | 'challenges' | 'dockerfile' | 'openstack' | 'stats';
+type AdminTab = 'users' | 'challenges' | 'events' | 'dockerfile' | 'openstack' | 'stats';
 
 interface AllUser {
   id: string;
@@ -99,13 +101,13 @@ export default function Dashboard() {
         // Fetch current user profile using the auth token (most reliable method)
         try {
           // First, try to get current user from /auth/me endpoint
-          try {
+              try {
             const currentUser = await authAPI.me();
             if (currentUser && currentUser.id) {
-              setUserProfile(currentUser);
-              localStorage.setItem('user_info', JSON.stringify(currentUser));
-              localStorage.setItem('user_id', currentUser.id);
-            }
+                  setUserProfile(currentUser);
+                  localStorage.setItem('user_info', JSON.stringify(currentUser));
+                    localStorage.setItem('user_id', currentUser.id);
+                  }
           } catch (meError: any) {
             console.log('auth/me failed, trying alternative method:', meError);
             
@@ -122,20 +124,20 @@ export default function Dashboard() {
                   if (userId) {
                     localStorage.setItem('user_id', userId);
                   }
-                }
+              }
               } catch (tokenError) {
                 console.error('Error extracting user ID from token:', tokenError);
-              }
             }
+          }
 
-            if (userId) {
-              try {
-                const userResponse = await userAPI.getCurrentUser(userId);
-                setUserProfile(userResponse);
-                localStorage.setItem('user_info', JSON.stringify(userResponse));
-                if (userResponse.id) {
-                  localStorage.setItem('user_id', userResponse.id);
-                }
+          if (userId) {
+            try {
+              const userResponse = await userAPI.getCurrentUser(userId);
+              setUserProfile(userResponse);
+              localStorage.setItem('user_info', JSON.stringify(userResponse));
+              if (userResponse.id) {
+                localStorage.setItem('user_id', userResponse.id);
+              }
               } catch (userError: any) {
                 console.error('Failed to fetch user profile by ID:', userError);
                 // Last resort: use stored user info if available
@@ -424,25 +426,25 @@ export default function Dashboard() {
                 <div className="absolute top-0 left-0 w-full h-full circuit-lines" />
               </div>
               <div className="relative z-10">
-                <div className="flex items-center gap-4 mb-4">
+              <div className="flex items-center gap-4 mb-4">
                   <div className="w-16 h-16 bg-neon-green/20 backdrop-blur-sm rounded-xl flex items-center justify-center border-2 border-neon-green/50 glow-accent">
                     <User className="text-neon-green" size={28} />
-                  </div>
-                  <div className="flex-1">
+                </div>
+                <div className="flex-1">
                     <h3 className="font-bold text-lg text-white">{userProfile.username || 'User'}</h3>
                     <p className="text-white/60 text-sm">{userProfile.role || 'User'}</p>
-                  </div>
                 </div>
-                <div className="space-y-2 text-sm">
-                  <div className="flex items-center gap-2">
+              </div>
+              <div className="space-y-2 text-sm">
+                <div className="flex items-center gap-2">
                     <Mail size={16} className="text-neon-cyan/70" />
                     <span className="text-white/80">{userProfile.email || 'N/A'}</span>
-                  </div>
-                  <div className="flex items-center gap-2">
+                </div>
+                <div className="flex items-center gap-2">
                     <Target size={16} className="text-neon-purple/70" />
                     <span className="text-white/80">
-                      {team ? `Team: ${team.team_code}` : (userProfile.zone || 'N/A')}
-                    </span>
+                    {team ? `Team: ${team.team_code}` : (userProfile.zone || 'N/A')}
+                  </span>
                   </div>
                 </div>
               </div>
@@ -450,36 +452,73 @@ export default function Dashboard() {
 
             {/* Navigation for Master Users */}
             {isMaster && (
-              <div className="space-y-2">
-                <label className="block text-sm font-semibold text-white/90 mb-2">View Mode</label>
-                <div className="flex gap-2 p-1 bg-cyber-800/50 rounded-xl border border-neon-green/20">
+              <div className="space-y-4">
+                <div className="space-y-2">
+                  <label className="block text-sm font-semibold text-white/90 mb-2">View Mode</label>
+                  <div className="flex gap-2 p-1 bg-cyber-800/50 rounded-xl border border-neon-green/20">
+                    <button
+                      onClick={() => setViewMode('user')}
+                      className={`flex-1 px-4 py-2 rounded-lg font-semibold text-sm transition-all relative overflow-hidden ${
+                        viewMode === 'user'
+                          ? 'bg-neon-green/20 text-neon-green border border-neon-green/50 shadow-lg shadow-neon-green/20'
+                          : 'text-white/60 hover:text-white hover:bg-cyber-700/50'
+                      }`}
+                    >
+                      {viewMode === 'user' && (
+                        <div className="absolute inset-0 bg-neon-green/10 animate-pulse" />
+                      )}
+                      <span className="relative z-10">User</span>
+                    </button>
+                    <button
+                      onClick={() => setViewMode('admin')}
+                      className={`flex-1 px-4 py-2 rounded-lg font-semibold text-sm transition-all relative overflow-hidden ${
+                        viewMode === 'admin'
+                          ? 'bg-neon-green/20 text-neon-green border border-neon-green/50 shadow-lg shadow-neon-green/20'
+                          : 'text-white/60 hover:text-white hover:bg-cyber-700/50'
+                      }`}
+                    >
+                      {viewMode === 'admin' && (
+                        <div className="absolute inset-0 bg-neon-green/10 animate-pulse" />
+                      )}
+                      <span className="relative z-10">Admin</span>
+                    </button>
+                  </div>
+                </div>
+
+                {/* Events Menu */}
+                <div className="space-y-2">
+                  <label className="block text-sm font-semibold text-white/90 mb-2">Events</label>
                   <button
-                    onClick={() => setViewMode('user')}
-                    className={`flex-1 px-4 py-2 rounded-lg font-semibold text-sm transition-all relative overflow-hidden ${
-                      viewMode === 'user'
-                        ? 'bg-neon-green/20 text-neon-green border border-neon-green/50 shadow-lg shadow-neon-green/20'
-                        : 'text-white/60 hover:text-white hover:bg-cyber-700/50'
-                    }`}
+                    onClick={() => {
+                      setViewMode('user');
+                      window.scrollTo({ top: 0, behavior: 'smooth' });
+                    }}
+                    className="w-full flex items-center gap-3 px-4 py-3 bg-cyber-800/50 hover:bg-cyber-700/50 rounded-xl border border-neon-purple/20 hover:border-neon-purple/40 transition-all group"
                   >
-                    {viewMode === 'user' && (
-                      <div className="absolute inset-0 bg-neon-green/10 animate-pulse" />
-                    )}
-                    <span className="relative z-10">User</span>
-                  </button>
-                  <button
-                    onClick={() => setViewMode('admin')}
-                    className={`flex-1 px-4 py-2 rounded-lg font-semibold text-sm transition-all relative overflow-hidden ${
-                      viewMode === 'admin'
-                        ? 'bg-neon-green/20 text-neon-green border border-neon-green/50 shadow-lg shadow-neon-green/20'
-                        : 'text-white/60 hover:text-white hover:bg-cyber-700/50'
-                    }`}
-                  >
-                    {viewMode === 'admin' && (
-                      <div className="absolute inset-0 bg-neon-green/10 animate-pulse" />
-                    )}
-                    <span className="relative z-10">Admin</span>
+                    <div className="w-10 h-10 bg-neon-purple/20 backdrop-blur-sm rounded-lg flex items-center justify-center border border-neon-purple/40 group-hover:border-neon-purple/60 transition-colors">
+                      <Calendar className="text-neon-purple" size={20} />
+                    </div>
+                    <span className="text-white font-semibold group-hover:text-neon-purple transition-colors">Events</span>
                   </button>
                 </div>
+              </div>
+            )}
+
+            {/* Events Menu for Non-Master Users */}
+            {!isMaster && (
+              <div className="space-y-2">
+                <label className="block text-sm font-semibold text-white/90 mb-2">Events</label>
+                <button
+                  onClick={() => {
+                    window.scrollTo({ top: 0, behavior: 'smooth' });
+                  }}
+                  className="w-full flex items-center gap-3 px-4 py-3 bg-cyber-800/50 hover:bg-cyber-700/50 rounded-xl border border-neon-purple/20 hover:border-neon-purple/40 transition-all group"
+                >
+                  <div className="w-10 h-10 bg-neon-purple/20 backdrop-blur-sm rounded-lg flex items-center justify-center border border-neon-purple/40 group-hover:border-neon-purple/60 transition-colors">
+                    <Calendar className="text-neon-purple" size={20} />
+                  </div>
+                  <span className="text-white font-semibold group-hover:text-neon-purple transition-colors">Events</span>
+                </button>
               </div>
             )}
           </div>
@@ -641,6 +680,11 @@ export default function Dashboard() {
                   </div>
                 )}
 
+                {/* Events Section */}
+                <div className="mt-6">
+                  <UserEvents />
+                </div>
+
                 {/* Challenges Section */}
                 <UserChallenges teamId={team?.id} />
 
@@ -665,6 +709,7 @@ export default function Dashboard() {
                     {[
                       { id: 'users', label: 'Users', icon: User },
                       { id: 'challenges', label: 'Challenges', icon: Trophy },
+                      { id: 'events', label: 'Events', icon: Calendar },
                       { id: 'dockerfile', label: 'Dockerfile', icon: FileCode },
                       { id: 'openstack', label: 'OpenStack', icon: Cloud },
                       { id: 'stats', label: 'Stats', icon: BarChart3 },
@@ -787,6 +832,11 @@ export default function Dashboard() {
                 {/* Challenges Tab Content */}
                 {activeAdminTab === 'challenges' && (
                   <Challenges />
+                )}
+
+                {/* Events Tab Content */}
+                {activeAdminTab === 'events' && (
+                  <Events />
                 )}
 
                 {/* Dockerfile to K8s Tab Content */}

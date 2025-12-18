@@ -1,0 +1,112 @@
+from fastapi import FastAPI, Request
+from starlette.middleware.cors import CORSMiddleware
+from starlette.middleware.sessions import SessionMiddleware
+from starlette.middleware.trustedhost import TrustedHostMiddleware
+
+from app.core.config import settings
+from app.middleware.error_handler import register_exception_handlers
+from app.middleware.audit import AuditMiddleware
+from app.middleware.rbac import RBACMiddleware
+from app.api.v1.endpoints import auth, user, role, challenge, team, files
+from app.api.v1.endpoints import builder
+from app.api.v1.endpoints import openstack as openstack_routes
+from app.api.v1.endpoints import event as event_routes
+from app.api.v1.endpoints import flag_server as flag_server_routes
+from app.db.models.challenge import initialize_challenge_models
+
+# --- FastAPI Application Setup ---
+# Disable docs in production for security
+if settings.ENV == "prod":
+    docs_url = None
+    redoc_url = None
+    openapi_url = None
+else:
+    docs_url = f"{settings.API_V1_PREFIX}/docs"
+    redoc_url = f"{settings.API_V1_PREFIX}/redoc"
+    openapi_url = f"{settings.API_V1_PREFIX}/openapi.json"
+
+app = FastAPI(
+    title=settings.PROJECT_NAME,
+    version="1.0.0",
+    description="Production-grade FastAPI authentication system with RBAC and MongoDB backend.",
+    openapi_url=openapi_url,
+    docs_url=docs_url,
+    redoc_url=redoc_url,
+)
+
+# --- Security: Trusted Host ---
+if hasattr(settings, "ALLOWED_HOSTS") and settings.ALLOWED_HOSTS:
+    app.add_middleware(
+        TrustedHostMiddleware,
+        allowed_hosts=settings.ALLOWED_HOSTS,
+    )
+
+# --- Security: CORS ---
+if hasattr(settings, "ALLOW_ORIGINS") and settings.ALLOW_ORIGINS:
+    app.add_middleware(
+        CORSMiddleware,
+        allow_origins=settings.ALLOW_ORIGINS,
+        allow_credentials=True,
+        allow_methods=["GET", "POST", "PUT", "DELETE", "OPTIONS"],
+        allow_headers=["Authorization", "Content-Type"],
+    )
+
+# --- Security: Session / CSRF ---
+if hasattr(settings, "SESSION_SECRET_KEY") and settings.SESSION_SECRET_KEY:
+    app.add_middleware(SessionMiddleware, secret_key=settings.SESSION_SECRET_KEY)
+
+# --- Custom Middlewares ---
+app.add_middleware(AuditMiddleware)
+app.add_middleware(RBACMiddleware)
+
+# --- Error Handlers ---
+register_exception_handlers(app)
+
+# --- Routers ---
+app.include_router(auth.router, prefix=settings.API_V1_PREFIX)
+app.include_router(user.router, prefix=settings.API_V1_PREFIX)
+app.include_router(role.router, prefix=settings.API_V1_PREFIX)
+app.include_router(challenge.router, prefix=settings.API_V1_PREFIX)
+app.include_router(team.router, prefix=settings.API_V1_PREFIX)
+app.include_router(files.router, prefix=f"{settings.API_V1_PREFIX}/files")
+app.include_router(builder.router, prefix=f"{settings.API_V1_PREFIX}/builder")
+app.include_router(openstack_routes.router, prefix=settings.API_V1_PREFIX)
+app.include_router(event_routes.router, prefix=settings.API_V1_PREFIX)
+app.include_router(flag_server_routes.router, prefix=settings.API_V1_PREFIX)
+
+
+@app.on_event("startup")
+async def startup_event():
+    """Initialize challenge models on startup"""
+    await initialize_challenge_models()
+
+
+@app.get("/health", tags=["system"])
+async def health_check():
+    """Simple health check endpoint for monitoring."""
+    return {"status": "ok"}
+
+
+@app.middleware("http")
+async def secure_headers(request: Request, call_next):
+    """Add security headers to all responses."""
+    response = await call_next(request)
+    
+    # More permissive CSP for Swagger UI in development
+    if settings.ENV == "dev":
+        response.headers["Content-Security-Policy"] = (
+            "default-src 'self'; "
+            "script-src 'self' 'unsafe-inline' https://cdn.jsdelivr.net; "
+            "style-src 'self' 'unsafe-inline' https://cdn.jsdelivr.net; "
+            "img-src 'self' data: https://fastapi.tiangolo.com; "
+            "font-src 'self' https://cdn.jsdelivr.net;"
+        )
+    else:
+        # Strict CSP for production
+        response.headers["Content-Security-Policy"] = "default-src 'self'; script-src 'self'"
+    
+    response.headers["X-Content-Type-Options"] = "nosniff"
+    response.headers["X-Frame-Options"] = "DENY"
+    response.headers["Referrer-Policy"] = "no-referrer"
+    response.headers["Strict-Transport-Security"] = "max-age=31536000; includeSubDomains"
+    return response

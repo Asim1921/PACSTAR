@@ -88,7 +88,7 @@ export const HeatTemplates: React.FC = () => {
   };
 
   const handleTimeoutChange = (delta: number) => {
-    setTimeoutMinutes((prev) => Math.max(1, Math.min(1440, prev + delta)));
+    setTimeoutMinutes((prev) => Math.max(1, Math.min(720, prev + delta)));
   };
 
   // Helper function to read file content as text
@@ -109,8 +109,14 @@ export const HeatTemplates: React.FC = () => {
   };
 
   const handleDeploy = async () => {
-    if (!stackName.trim()) {
+    const trimmedStackName = stackName.trim();
+    if (!trimmedStackName) {
       showToast('Please enter a stack name', 'error');
+      return;
+    }
+    // Backend requires stack_name to be at least 3 characters
+    if (trimmedStackName.length < 3) {
+      showToast('Stack name must be at least 3 characters long', 'error');
       return;
     }
 
@@ -129,13 +135,21 @@ export const HeatTemplates: React.FC = () => {
       return;
     }
 
-    // Validate JSON parameters
-    let parsedParameters: Record<string, any> = {};
+    // Validate JSON parameters (backend accepts optional parameters as Dict[str, Any])
+    let parsedParameters: Record<string, any> | undefined = undefined;
+    const trimmedParameters = parameters.trim();
+    if (trimmedParameters && trimmedParameters !== '{}') {
     try {
-      parsedParameters = JSON.parse(parameters);
+        parsedParameters = JSON.parse(trimmedParameters);
+        // Ensure it's an object (not array or null)
+        if (typeof parsedParameters !== 'object' || parsedParameters === null || Array.isArray(parsedParameters)) {
+          showToast('Parameters must be a valid JSON object', 'error');
+          return;
+        }
     } catch (e) {
       showToast('Invalid JSON in parameters field', 'error');
       return;
+      }
     }
 
     setIsDeploying(true);
@@ -148,14 +162,21 @@ export const HeatTemplates: React.FC = () => {
         // Read file content for upload
         templateBody = await readFileAsText(selectedFile);
       } else if (templateSource === 'paste') {
-        templateBody = yamlContent;
+        templateBody = yamlContent.trim();
       } else if (templateSource === 'url') {
-        templateUrlValue = templateUrl;
+        templateUrlValue = templateUrl.trim();
+      }
+
+      // Validate that we have at least one template source (backend requirement)
+      if (!templateBody && !templateUrlValue) {
+        showToast('Please provide either a template file, paste YAML content, or a template URL', 'error');
+        setIsDeploying(false);
+        return;
       }
 
       // Call the Heat deployment API
       const response = await openStackAPI.deployHeatTemplate({
-        stack_name: stackName.trim(),
+        stack_name: trimmedStackName,
         template_body: templateBody,
         template_url: templateUrlValue,
         parameters: parsedParameters,
@@ -163,10 +184,29 @@ export const HeatTemplates: React.FC = () => {
         rollback_on_failure: rollbackOnFailure,
       });
 
-      // Show success with stack details
-      const successMessage = response.stack_id 
-        ? `Heat stack "${response.stack_name}" created successfully! Stack ID: ${response.stack_id}`
-        : 'Heat template deployment initiated successfully';
+      // Show success with stack details (backend returns: stack_id, stack_name, status, status_reason, outputs)
+      let successMessage = '';
+      if (response.stack_id && response.stack_name) {
+        successMessage = `Heat stack "${response.stack_name}" created successfully!`;
+        successMessage += `\nStack ID: ${response.stack_id}`;
+        if (response.status) {
+          successMessage += `\nStatus: ${response.status}`;
+        }
+        if (response.status_reason) {
+          successMessage += `\nReason: ${response.status_reason}`;
+        }
+        // Include outputs if available
+        if (response.outputs && Array.isArray(response.outputs) && response.outputs.length > 0) {
+          const outputLines = response.outputs.map((out: any) => {
+            const key = out.output_key || out.key || 'output';
+            const value = out.output_value || out.value || '';
+            return `  ${key}: ${value}`;
+          }).join('\n');
+          successMessage += `\n\nOutputs:\n${outputLines}`;
+        }
+      } else {
+        successMessage = 'Heat template deployment initiated successfully';
+      }
       showToast(successMessage, 'success');
       
       // Reset form after successful deployment
@@ -178,7 +218,15 @@ export const HeatTemplates: React.FC = () => {
       setTimeoutMinutes(60);
       setRollbackOnFailure(true);
     } catch (error: any) {
-      const errorMessage = error.response?.data?.detail || error.message || 'Failed to deploy heat template';
+      // Backend returns errors with detail field for ValueError, RuntimeError, and HTTPException
+      let errorMessage = 'Failed to deploy heat template';
+      if (error.response?.data?.detail) {
+        errorMessage = error.response.data.detail;
+      } else if (error.response?.data?.message) {
+        errorMessage = error.response.data.message;
+      } else if (error.message) {
+        errorMessage = error.message;
+      }
       showToast(errorMessage, 'error');
     } finally {
       setIsDeploying(false);
@@ -445,9 +493,12 @@ export const HeatTemplates: React.FC = () => {
                 <Input
                   type="number"
                   value={timeoutMinutes}
-                  onChange={(e) => setTimeoutMinutes(parseInt(e.target.value) || 60)}
+                  onChange={(e) => {
+                    const value = parseInt(e.target.value) || 60;
+                    setTimeoutMinutes(Math.max(1, Math.min(720, value)));
+                  }}
                   min={1}
-                  max={1440}
+                  max={720}
                   className="text-center text-lg font-semibold"
                 />
               </div>
@@ -460,7 +511,7 @@ export const HeatTemplates: React.FC = () => {
               </button>
               <span className="text-sm text-white/60 ml-2">minutes</span>
             </div>
-            <p className="text-xs text-white/50 mt-2">Range: 1 minute to 24 hours (1440 minutes)</p>
+            <p className="text-xs text-white/50 mt-2">Range: 1 minute to 12 hours (720 minutes)</p>
           </div>
 
           {/* Rollback */}

@@ -1,0 +1,59 @@
+heat_template_version: 2016-10-14
+
+description: Heat template to deploy multiple servers for CTF challenges
+
+parameters:
+  team_name:
+    type: string
+    description: Name of the team
+    default: "team1"
+  
+  image:
+    type: string
+    description: Image to use for the servers
+    default: "Ubuntu-22.04-slim"
+  
+  flavor:
+    type: string
+    description: Flavor to use for the servers
+    default: "m1.small"
+  
+  network:
+    type: string
+    description: Network to attach servers to
+    default: "private"
+  
+  server_count:
+    type: number
+    description: Number of servers to create
+    default: 2
+    constraints:
+      - range: { min: 1, max: 5 }
+
+resources:
+  server_group:
+    type: OS::Heat::ResourceGroup
+    properties:
+      count: { get_param: server_count }
+      resource_def:
+        type: OS::Nova::Server
+        properties:
+          name:
+            str_replace:
+              template: $team-server-%index%
+              params:
+                $team: { get_param: team_name }
+          image: { get_param: image }
+          flavor: { get_param: flavor }
+          networks:
+            - network: { get_param: network }
+
+outputs:
+  server_ids:
+    description: List of server IDs
+    value: { get_attr: [server_group, refs] }
+  
+  server_names:
+    description: List of server names
+    value: { get_attr: [server_group, name] }
+

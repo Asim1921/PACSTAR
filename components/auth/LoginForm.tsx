@@ -76,19 +76,19 @@ export default function LoginForm({ onSwitchToRegister }: LoginFormProps) {
           localStorage.setItem('user_id', userProfile.id);
         } else {
           // Fallback: Use response data if available
-          if (response.user) {
-            localStorage.setItem('user_info', JSON.stringify(response.user));
-            if (response.user.id) {
-              localStorage.setItem('user_id', response.user.id);
-            }
-          } else if (response.id) {
-            localStorage.setItem('user_id', response.id);
-            localStorage.setItem('user_info', JSON.stringify({
-              id: response.id,
-              username: formData.username,
-              role: 'User',
-              zone: 'zone1',
-            }));
+      if (response.user) {
+        localStorage.setItem('user_info', JSON.stringify(response.user));
+        if (response.user.id) {
+          localStorage.setItem('user_id', response.user.id);
+        }
+      } else if (response.id) {
+        localStorage.setItem('user_id', response.id);
+        localStorage.setItem('user_info', JSON.stringify({
+          id: response.id,
+          username: formData.username,
+          role: 'User',
+          zone: 'zone1',
+        }));
           }
         }
       } catch (meError: any) {
@@ -101,12 +101,12 @@ export default function LoginForm({ onSwitchToRegister }: LoginFormProps) {
           }
         } else if (response.id) {
           localStorage.setItem('user_id', response.id);
-          localStorage.setItem('user_info', JSON.stringify({
+        localStorage.setItem('user_info', JSON.stringify({
             id: response.id,
-            username: formData.username,
-            role: 'User',
-            zone: 'zone1',
-          }));
+          username: formData.username,
+          role: 'User',
+          zone: 'zone1',
+        }));
         }
       }
       

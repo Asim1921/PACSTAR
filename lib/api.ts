@@ -5,7 +5,7 @@ import axios from 'axios';
 const USE_PROXY = true; // Set to false to call backend directly (requires CORS fix on backend)
 const API_BASE_URL = USE_PROXY 
   ? '/api/proxy'  // Next.js API route proxy
-  : 'http://localhost:8000/api/v1';  // Direct backend URL
+  : 'http://localhost:8001/api/v1';  // Direct backend URL
 
 // Helper function to decode JWT token and extract user ID
 const decodeJWT = (token: string): any => {
@@ -372,9 +372,9 @@ export const challengeAPI = {
     }
   },
 
-  resetChallenge: async (challengeId: string) => {
+  resetChallenge: async (challengeId: string, resetType?: 'restart' | 'redeploy') => {
     const path = USE_PROXY ? `/challenges/${challengeId}/reset` : `/challenges/${challengeId}/reset`;
-    const response = await apiClient.post(path, {});
+    const response = await apiClient.post(path, resetType ? { reset_type: resetType } : {});
     return response.data;
   },
 
@@ -427,7 +427,7 @@ export const fileAPI = {
     formData.append('file', file);
     
     const token = localStorage.getItem('auth_token');
-    const backendUrl = 'http://10.10.101.69:8000/api/v1';
+    const backendUrl = 'http://192.168.15.248:8001/api/v1';
     const path = '/files/upload';
     
     try {
@@ -519,7 +519,7 @@ export const builderAPI = {
     }
 
     const token = localStorage.getItem('auth_token');
-    const backendUrl = 'http://10.10.101.69:8000/api/v1';
+    const backendUrl = 'http://192.168.15.248:8001/api/v1';
     const path = '/builder/build-image';
 
     try {
@@ -688,6 +688,199 @@ export const openStackAPI = {
       ? '/openstack/heat/deploy' 
       : '/openstack/heat/deploy';
     const response = await apiClient.post(path, payload);
+    return response.data;
+  },
+};
+
+// Event API endpoints
+export const eventAPI = {
+  // Create event
+  createEvent: async (eventData: any) => {
+    const path = USE_PROXY ? '/events/' : '/events/';
+    const response = await apiClient.post(path, eventData);
+    return response.data;
+  },
+
+  // List events
+  listEvents: async (filters?: {
+    status_filter?: string;
+    event_type?: string;
+    skip?: number;
+    limit?: number;
+  }) => {
+    const path = USE_PROXY ? '/events/' : '/events/';
+    const params = new URLSearchParams();
+    if (filters?.status_filter) params.append('status_filter', filters.status_filter);
+    if (filters?.event_type) params.append('event_type', filters.event_type);
+    if (filters?.skip !== undefined) params.append('skip', filters.skip.toString());
+    if (filters?.limit !== undefined) params.append('limit', filters.limit.toString());
+    
+    const queryString = params.toString();
+    const url = queryString ? `${path}?${queryString}` : path;
+    const response = await apiClient.get(url);
+    return response.data;
+  },
+
+  // Get available challenges
+  getAvailableChallenges: async () => {
+    const path = USE_PROXY ? '/events/available-challenges' : '/events/available-challenges';
+    const response = await apiClient.get(path);
+    return response.data;
+  },
+
+  // Get pending approvals
+  getPendingApprovals: async () => {
+    const path = USE_PROXY ? '/events/pending-approvals' : '/events/pending-approvals';
+    const response = await apiClient.get(path);
+    return response.data;
+  },
+
+  // Get event details
+  getEvent: async (eventId: string) => {
+    const path = USE_PROXY ? `/events/${eventId}` : `/events/${eventId}`;
+    const response = await apiClient.get(path);
+    return response.data;
+  },
+
+  // Update event
+  updateEvent: async (eventId: string, updateData: any) => {
+    const path = USE_PROXY ? `/events/${eventId}` : `/events/${eventId}`;
+    const response = await apiClient.put(path, updateData);
+    return response.data;
+  },
+
+  // Delete event
+  deleteEvent: async (eventId: string) => {
+    const path = USE_PROXY ? `/events/${eventId}` : `/events/${eventId}`;
+    try {
+      const response = await apiClient.delete(path);
+      return { success: true, ...response.data };
+    } catch (error: any) {
+      if (error.response?.status === 204) {
+        return { success: true };
+      }
+      throw error;
+    }
+  },
+
+  // Submit for approval
+  submitForApproval: async (eventId: string) => {
+    const path = USE_PROXY ? `/events/${eventId}/submit-for-approval` : `/events/${eventId}/submit-for-approval`;
+    const response = await apiClient.post(path);
+    return response.data;
+  },
+
+  // Approve or reject event
+  approveEvent: async (eventId: string, approved: boolean, comments?: string) => {
+    const path = USE_PROXY ? `/events/${eventId}/approve` : `/events/${eventId}/approve`;
+    const response = await apiClient.post(path, {
+      approved,
+      comments
+    });
+    return response.data;
+  },
+
+  // Start event
+  startEvent: async (eventId: string) => {
+    const path = USE_PROXY ? `/events/${eventId}/start` : `/events/${eventId}/start`;
+    const response = await apiClient.post(path);
+    return response.data;
+  },
+
+  // Pause or resume event
+  pauseEvent: async (eventId: string, paused: boolean, reason?: string) => {
+    const path = USE_PROXY ? `/events/${eventId}/pause` : `/events/${eventId}/pause`;
+    const response = await apiClient.post(path, {
+      paused,
+      reason
+    });
+    return response.data;
+  },
+
+  // End event
+  endEvent: async (eventId: string) => {
+    const path = USE_PROXY ? `/events/${eventId}/end` : `/events/${eventId}/end`;
+    const response = await apiClient.post(path);
+    return response.data;
+  },
+
+  // Update challenge visibility
+  updateChallengeVisibility: async (
+    eventId: string,
+    challengeId: string,
+    visibility: 'visible' | 'hidden'
+  ) => {
+    const path = USE_PROXY 
+      ? `/events/${eventId}/challenges/${challengeId}/visibility` 
+      : `/events/${eventId}/challenges/${challengeId}/visibility`;
+    const response = await apiClient.put(path, {
+      challenge_id: challengeId,
+      visibility
+    });
+    return response.data;
+  },
+
+  // Register for event
+  registerForEvent: async (eventId: string) => {
+    const path = USE_PROXY ? `/events/${eventId}/register` : `/events/${eventId}/register`;
+    const response = await apiClient.post(path);
+    return response.data;
+  },
+
+  // Submit flag
+  submitFlag: async (eventId: string, challengeId: string, flag: string) => {
+    const path = USE_PROXY 
+      ? `/events/${eventId}/challenges/${challengeId}/submit` 
+      : `/events/${eventId}/challenges/${challengeId}/submit`;
+    const response = await apiClient.post(path, { flag });
+    return response.data;
+  },
+
+  // Unlock hint
+  unlockHint: async (eventId: string, challengeId: string, hintId: string) => {
+    const path = USE_PROXY 
+      ? `/events/${eventId}/challenges/${challengeId}/hints/unlock` 
+      : `/events/${eventId}/challenges/${challengeId}/hints/unlock`;
+    const response = await apiClient.post(path, { hint_id: hintId });
+    return response.data;
+  },
+
+  // Get live statistics
+  getLiveStats: async (eventId: string) => {
+    const path = USE_PROXY ? `/events/${eventId}/stats` : `/events/${eventId}/stats`;
+    const response = await apiClient.get(path);
+    return response.data;
+  },
+
+  // Get scoreboard
+  getScoreboard: async (eventId: string) => {
+    const path = USE_PROXY ? `/events/${eventId}/scoreboard` : `/events/${eventId}/scoreboard`;
+    const response = await apiClient.get(path);
+    return response.data;
+  },
+
+  // Get user statistics
+  getUserStats: async (eventId: string, userId: string) => {
+    const path = USE_PROXY 
+      ? `/events/${eventId}/users/${userId}/stats` 
+      : `/events/${eventId}/users/${userId}/stats`;
+    const response = await apiClient.get(path);
+    return response.data;
+  },
+
+  // Get team statistics
+  getTeamStats: async (eventId: string, teamId: string) => {
+    const path = USE_PROXY 
+      ? `/events/${eventId}/teams/${teamId}/stats` 
+      : `/events/${eventId}/teams/${teamId}/stats`;
+    const response = await apiClient.get(path);
+    return response.data;
+  },
+
+  // Get my statistics
+  getMyStats: async (eventId: string) => {
+    const path = USE_PROXY ? `/events/${eventId}/my-stats` : `/events/${eventId}/my-stats`;
+    const response = await apiClient.get(path);
     return response.data;
   },
 };

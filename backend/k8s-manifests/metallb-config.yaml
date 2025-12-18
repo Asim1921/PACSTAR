@@ -1,0 +1,12 @@
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: config
+  namespace: metallb-system
+data:
+  config: |
+    address-pools:
+    - name: public-ips
+      protocol: layer2
+      addresses:
+      - 203.0.113.10-203.0.113.50

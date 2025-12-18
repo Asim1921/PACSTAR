@@ -1,0 +1,17 @@
+apiVersion: metallb.io/v1beta1
+kind: IPAddressPool
+metadata:
+  name: challenge-pool
+  namespace: metallb-system
+spec:
+  addresses:
+  - 192.168.250.100-192.168.250.130
+---
+apiVersion: metallb.io/v1beta1
+kind: L2Advertisement
+metadata:
+  name: challenge-l2
+  namespace: metallb-system
+spec:
+  ipAddressPools:
+  - challenge-pool

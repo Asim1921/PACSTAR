@@ -1,0 +1,441 @@
+# PACSTAR API Testing - Complete Curl Commands
+# =============================================
+# This file contains all curl commands to test the PACSTAR Challenge Management API
+# Server URL: http://192.168.250.178:8000
+# 
+# Instructions:
+# 1. Run commands in order
+# 2. Save tokens from login responses
+# 3. Use tokens in Authorization headers for protected endpoints
+# 4. Replace {TOKEN} with actual JWT tokens
+# 5. Replace {USER_ID}, {CHALLENGE_ID}, etc. with actual IDs from responses
+
+# =============================================================================
+# 1. AUTHENTICATION ENDPOINTS
+# =============================================================================
+
+# 1.1 Register a new user
+echo "=== Registering a new user ==="
+curl -X POST "http://192.168.250.178:8000/api/v1/auth/register" \
+  -H "Content-Type: application/json" \
+  -d '{
+    "username": "testuser1",
+    "email": "testuser1@example.com",
+    "password": "Password123!",
+    "zone": "zone1"
+  }' | jq .
+
+echo -e "\n"
+
+# 1.2 Register another user
+echo "=== Registering another user ==="
+curl -X POST "http://192.168.250.178:8000/api/v1/auth/register" \
+  -H "Content-Type: application/json" \
+  -d '{
+    "username": "testuser2",
+    "email": "testuser2@example.com",
+    "password": "Password123!",
+    "zone": "zone2"
+  }' | jq .
+
+echo -e "\n"
+
+# 1.3 Login as regular user
+echo "=== Login as regular user ==="
+curl -X POST "http://192.168.250.178:8000/api/v1/auth/login" \
+  -H "Content-Type: application/json" \
+  -d '{
+    "username": "testuser1",
+    "password": "Password123!"
+  }' | jq .
+
+# SAVE THE ACCESS_TOKEN FROM ABOVE RESPONSE AS USER_TOKEN
+# Example: USER_TOKEN="eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9..."
+
+echo -e "\n"
+
+# 1.4 Login as master admin
+echo "=== Login as master admin ==="
+curl -X POST "http://192.168.250.178:8000/api/v1/auth/login" \
+  -H "Content-Type: application/json" \
+  -d '{
+    "username": "master_admin",
+    "password": "admin123"
+  }' | jq .
+
+# SAVE THE ACCESS_TOKEN FROM ABOVE RESPONSE AS ADMIN_TOKEN
+# Example: ADMIN_TOKEN="eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9..."
+
+echo -e "\n"
+
+# 1.5 Get current user info (requires token)
+echo "=== Get current user info ==="
+curl -X GET "http://192.168.250.178:8000/api/v1/auth/me" \
+  -H "Authorization: Bearer {USER_TOKEN}" | jq .
+
+echo -e "\n"
+
+# 1.6 Refresh token (requires refresh token)
+echo "=== Refresh token ==="
+curl -X POST "http://192.168.250.178:8000/api/v1/auth/refresh" \
+  -H "Content-Type: application/json" \
+  -d '{
+    "refresh_token": "{REFRESH_TOKEN}"
+  }' | jq .
+
+echo -e "\n"
+
+# 1.7 Logout (requires token)
+echo "=== Logout ==="
+curl -X POST "http://192.168.250.178:8000/api/v1/auth/logout" \
+  -H "Authorization: Bearer {USER_TOKEN}" | jq .
+
+echo -e "\n"
+
+# =============================================================================
+# 2. USER MANAGEMENT ENDPOINTS
+# =============================================================================
+
+# 2.1 List all users (admin only)
+echo "=== List all users (admin) ==="
+curl -X GET "http://192.168.250.178:8000/api/v1/users/" \
+  -H "Authorization: Bearer {ADMIN_TOKEN}" | jq .
+
+echo -e "\n"
+
+# 2.2 Get current user profile
+echo "=== Get current user profile ==="
+curl -X GET "http://192.168.250.178:8000/api/v1/users/me" \
+  -H "Authorization: Bearer {USER_TOKEN}" | jq .
+
+echo -e "\n"
+
+# 2.3 Get specific user by ID (admin only)
+echo "=== Get specific user by ID ==="
+curl -X GET "http://192.168.250.178:8000/api/v1/users/{USER_ID}" \
+  -H "Authorization: Bearer {ADMIN_TOKEN}" | jq .
+
+echo -e "\n"
+
+# 2.4 Update user profile
+echo "=== Update user profile ==="
+curl -X PUT "http://192.168.250.178:8000/api/v1/users/{USER_ID}" \
+  -H "Content-Type: application/json" \
+  -H "Authorization: Bearer {USER_TOKEN}" \
+  -d '{
+    "email": "updated@example.com",
+    "zone": "updated_zone"
+  }' | jq .
+
+echo -e "\n"
+
+# =============================================================================
+# 3. ROLE MANAGEMENT ENDPOINTS
+# =============================================================================
+
+# 3.1 List all roles (admin only)
+echo "=== List all roles ==="
+curl -X GET "http://192.168.250.178:8000/api/v1/roles/" \
+  -H "Authorization: Bearer {ADMIN_TOKEN}" | jq .
+
+echo -e "\n"
+
+# 3.2 Create new role (admin only)
+echo "=== Create new role ==="
+curl -X POST "http://192.168.250.178:8000/api/v1/roles/" \
+  -H "Content-Type: application/json" \
+  -H "Authorization: Bearer {ADMIN_TOKEN}" \
+  -d '{
+    "name": "Team Leader",
+    "description": "Team leader role with special permissions",
+    "permissions": ["read_challenges", "create_challenges"]
+  }' | jq .
+
+echo -e "\n"
+
+# 3.3 Update role (admin only)
+echo "=== Update role ==="
+curl -X PUT "http://192.168.250.178:8000/api/v1/roles/{ROLE_ID}" \
+  -H "Content-Type: application/json" \
+  -H "Authorization: Bearer {ADMIN_TOKEN}" \
+  -d '{
+    "name": "Senior Team Leader",
+    "description": "Updated role with additional permissions",
+    "permissions": ["read_challenges", "create_challenges", "deploy_challenges"]
+  }' | jq .
+
+echo -e "\n"
+
+# =============================================================================
+# 4. CHALLENGE MANAGEMENT ENDPOINTS
+# =============================================================================
+
+# 4.1 Create a new challenge (admin only)
+echo "=== Create new challenge ==="
+curl -X POST "http://192.168.250.178:8000/api/v1/challenges/" \
+  -H "Content-Type: application/json" \
+  -H "Authorization: Bearer {ADMIN_TOKEN}" \
+  -d '{
+    "name": "test-jwt-challenge",
+    "description": "Test JWT Security Challenge for API testing",
+    "config": {
+      "challenge_type": "web",
+      "image": "jwt-challenge:latest",
+      "ports": [5000],
+      "environment_vars": {
+        "SECRET_KEY": "test_secret",
+        "FLAG_JOSE": "CTF{test_jwt_no_way_jose}",
+        "FLAG_SECRETS": "CTF{test_jwt_secrets}"
+      },
+      "resources": {
+        "requests": {
+          "cpu": "100m",
+          "memory": "128Mi"
+        },
+        "limits": {
+          "cpu": "500m",
+          "memory": "512Mi"
+        }
+      },
+      "health_check_path": "/",
+      "flag_format": "CTF{}"
+    },
+    "total_teams": 4,
+    "is_active": true
+  }' | jq .
+
+# SAVE THE CHALLENGE_ID FROM ABOVE RESPONSE
+# Example: CHALLENGE_ID="68f5e4a9c923e69367b12f67"
+
+echo -e "\n"
+
+# 4.2 List all challenges
+echo "=== List all challenges ==="
+curl -X GET "http://192.168.250.178:8000/api/v1/challenges/" \
+  -H "Authorization: Bearer {ADMIN_TOKEN}" | jq .
+
+echo -e "\n"
+
+# 4.3 Get specific challenge
+echo "=== Get specific challenge ==="
+curl -X GET "http://192.168.250.178:8000/api/v1/challenges/{CHALLENGE_ID}" \
+  -H "Authorization: Bearer {ADMIN_TOKEN}" | jq .
+
+echo -e "\n"
+
+# 4.4 Update challenge
+echo "=== Update challenge ==="
+curl -X PUT "http://192.168.250.178:8000/api/v1/challenges/{CHALLENGE_ID}" \
+  -H "Content-Type: application/json" \
+  -H "Authorization: Bearer {ADMIN_TOKEN}" \
+  -d '{
+    "name": "updated-jwt-challenge",
+    "description": "Updated JWT Security Challenge",
+    "total_teams": 6,
+    "is_active": true
+  }' | jq .
+
+echo -e "\n"
+
+# 4.5 Deploy challenge
+echo "=== Deploy challenge ==="
+curl -X POST "http://192.168.250.178:8000/api/v1/challenges/{CHALLENGE_ID}/deploy" \
+  -H "Content-Type: application/json" \
+  -H "Authorization: Bearer {ADMIN_TOKEN}" \
+  -d '{
+    "force_redeploy": false
+  }' | jq .
+
+echo -e "\n"
+
+# 4.6 Get challenge stats
+echo "=== Get challenge stats ==="
+curl -X GET "http://192.168.250.178:8000/api/v1/challenges/{CHALLENGE_ID}/stats" \
+  -H "Authorization: Bearer {ADMIN_TOKEN}" | jq .
+
+echo -e "\n"
+
+# 4.7 Get team access info
+echo "=== Get team access info ==="
+curl -X GET "http://192.168.250.178:8000/api/v1/challenges/{CHALLENGE_ID}/team/team-001" \
+  -H "Authorization: Bearer {ADMIN_TOKEN}" | jq .
+
+echo -e "\n"
+
+# 4.8 Stop challenge
+echo "=== Stop challenge ==="
+curl -X POST "http://192.168.250.178:8000/api/v1/challenges/{CHALLENGE_ID}/stop" \
+  -H "Authorization: Bearer {ADMIN_TOKEN}" | jq .
+
+echo -e "\n"
+
+# 4.9 Delete challenge
+echo "=== Delete challenge ==="
+curl -X DELETE "http://192.168.250.178:8000/api/v1/challenges/{CHALLENGE_ID}" \
+  -H "Authorization: Bearer {ADMIN_TOKEN}" | jq .
+
+echo -e "\n"
+
+# =============================================================================
+# 5. SYSTEM HEALTH CHECK
+# =============================================================================
+
+# 5.1 Health check
+echo "=== System health check ==="
+curl -X GET "http://192.168.250.178:8000/health" | jq .
+
+echo -e "\n"
+
+# =============================================================================
+# 6. ERROR TESTING
+# =============================================================================
+
+# 6.1 Test unauthorized access
+echo "=== Test unauthorized access ==="
+curl -X GET "http://192.168.250.178:8000/api/v1/users/" | jq .
+
+echo -e "\n"
+
+# 6.2 Test invalid token
+echo "=== Test invalid token ==="
+curl -X GET "http://192.168.250.178:8000/api/v1/users/" \
+  -H "Authorization: Bearer invalid_token" | jq .
+
+echo -e "\n"
+
+# 6.3 Test invalid credentials
+echo "=== Test invalid credentials ==="
+curl -X POST "http://192.168.250.178:8000/api/v1/auth/login" \
+  -H "Content-Type: application/json" \
+  -d '{
+    "username": "nonexistent",
+    "password": "wrongpassword"
+  }' | jq .
+
+echo -e "\n"
+
+# =============================================================================
+# 7. COMPLETE WORKFLOW TEST
+# =============================================================================
+
+echo "=== COMPLETE WORKFLOW TEST ==="
+echo "This section demonstrates a complete workflow from user registration to challenge deployment"
+
+# Step 1: Register user
+echo "Step 1: Register user"
+USER_REGISTER_RESPONSE=$(curl -s -X POST "http://192.168.250.178:8000/api/v1/auth/register" \
+  -H "Content-Type: application/json" \
+  -d '{
+    "username": "workflow_user",
+    "email": "workflow@example.com",
+    "password": "Password123!",
+    "zone": "workflow_zone"
+  }')
+
+echo "$USER_REGISTER_RESPONSE" | jq .
+
+# Step 2: Login user
+echo -e "\nStep 2: Login user"
+LOGIN_RESPONSE=$(curl -s -X POST "http://192.168.250.178:8000/api/v1/auth/login" \
+  -H "Content-Type: application/json" \
+  -d '{
+    "username": "workflow_user",
+    "password": "Password123!"
+  }')
+
+echo "$LOGIN_RESPONSE" | jq .
+
+# Extract token (you would need to parse this in a real script)
+# WORKFLOW_TOKEN=$(echo "$LOGIN_RESPONSE" | jq -r '.access_token')
+
+# Step 3: Get user profile
+echo -e "\nStep 3: Get user profile"
+curl -X GET "http://192.168.250.178:8000/api/v1/users/me" \
+  -H "Authorization: Bearer {WORKFLOW_TOKEN}" | jq .
+
+# Step 4: Login as admin
+echo -e "\nStep 4: Login as admin"
+ADMIN_LOGIN_RESPONSE=$(curl -s -X POST "http://192.168.250.178:8000/api/v1/auth/login" \
+  -H "Content-Type: application/json" \
+  -d '{
+    "username": "master_admin",
+    "password": "admin123"
+  }')
+
+echo "$ADMIN_LOGIN_RESPONSE" | jq .
+
+# Extract admin token
+# ADMIN_WORKFLOW_TOKEN=$(echo "$ADMIN_LOGIN_RESPONSE" | jq -r '.access_token')
+
+# Step 5: Create challenge
+echo -e "\nStep 5: Create challenge"
+CHALLENGE_RESPONSE=$(curl -s -X POST "http://192.168.250.178:8000/api/v1/challenges/" \
+  -H "Content-Type: application/json" \
+  -H "Authorization: Bearer {ADMIN_WORKFLOW_TOKEN}" \
+  -d '{
+    "name": "workflow-challenge",
+    "description": "Complete workflow test challenge",
+    "config": {
+      "challenge_type": "web",
+      "image": "jwt-challenge:latest",
+      "ports": [5000],
+      "environment_vars": {
+        "SECRET_KEY": "workflow_secret",
+        "FLAG_JOSE": "CTF{workflow_jwt_jose}",
+        "FLAG_SECRETS": "CTF{workflow_jwt_secrets}"
+      },
+      "resources": {
+        "requests": {
+          "cpu": "100m",
+          "memory": "128Mi"
+        },
+        "limits": {
+          "cpu": "500m",
+          "memory": "512Mi"
+        }
+      },
+      "health_check_path": "/",
+      "flag_format": "CTF{}"
+    },
+    "total_teams": 4,
+    "is_active": true
+  }')
+
+echo "$CHALLENGE_RESPONSE" | jq .
+
+# Extract challenge ID
+# WORKFLOW_CHALLENGE_ID=$(echo "$CHALLENGE_RESPONSE" | jq -r '.id')
+
+# Step 6: Deploy challenge
+echo -e "\nStep 6: Deploy challenge"
+curl -X POST "http://192.168.250.178:8000/api/v1/challenges/{WORKFLOW_CHALLENGE_ID}/deploy" \
+  -H "Content-Type: application/json" \
+  -H "Authorization: Bearer {ADMIN_WORKFLOW_TOKEN}" \
+  -d '{
+    "force_redeploy": false
+  }' | jq .
+
+# Step 7: Get challenge stats
+echo -e "\nStep 7: Get challenge stats"
+curl -X GET "http://192.168.250.178:8000/api/v1/challenges/{WORKFLOW_CHALLENGE_ID}/stats" \
+  -H "Authorization: Bearer {ADMIN_WORKFLOW_TOKEN}" | jq .
+
+echo -e "\n=== WORKFLOW TEST COMPLETE ==="
+
+# =============================================================================
+# NOTES
+# =============================================================================
+#
+# 1. Replace {TOKEN}, {USER_TOKEN}, {ADMIN_TOKEN} with actual JWT tokens
+# 2. Replace {USER_ID}, {CHALLENGE_ID}, {ROLE_ID} with actual IDs from responses
+# 3. Replace {REFRESH_TOKEN} with actual refresh tokens
+# 4. All timestamps are in UTC
+# 5. Password must meet requirements: 8+ chars, uppercase, lowercase, digit, special char
+# 6. JWT tokens expire after 15 minutes by default
+# 7. Refresh tokens expire after 7 days by default
+# 8. Use jq for pretty JSON formatting (install with: sudo apt install jq)
+# 9. Server must be running on http://192.168.250.178:8000
+# 10. MongoDB must be running and accessible
+# 11. Kubernetes cluster must be running for challenge deployment
+#
+# =============================================================================

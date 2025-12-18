@@ -1,0 +1,1093 @@
+// ============================================================================
+// PACSTAR CTF PLATFORM - ARCHITECTURE DIAGRAMS (Graphviz DOT Format)
+// ============================================================================
+// 
+// To render these diagrams:
+//   dot -Tpng ARCHITECTURE_DIAGRAMS.dot -o architecture.png
+//   dot -Tsvg ARCHITECTURE_DIAGRAMS.dot -o architecture.svg
+//   dot -Tpdf ARCHITECTURE_DIAGRAMS.dot -o architecture.pdf
+//
+// For individual diagrams, copy each digraph block to separate files
+// ============================================================================
+
+
+// ============================================================================
+// DIAGRAM 1: HIGH-LEVEL SYSTEM ARCHITECTURE
+// ============================================================================
+digraph HighLevelArchitecture {
+    rankdir=TB;
+    compound=true;
+    fontname="Arial";
+    node [fontname="Arial", fontsize=11];
+    edge [fontname="Arial", fontsize=10];
+    
+    // Graph styling
+    graph [
+        label="PACSTAR CTF Platform - High-Level System Architecture"
+        labelloc=t
+        fontsize=16
+        fontname="Arial Bold"
+        bgcolor="white"
+        pad="0.5"
+        nodesep=0.6
+        ranksep=0.8
+    ];
+
+    // ========== Users ==========
+    subgraph cluster_users {
+        label="External Users";
+        style=rounded;
+        bgcolor="#E8F5E9";
+        color="#4CAF50";
+        
+        users [
+            label="Users\n(Web Browser)"
+            shape=box3d
+            style=filled
+            fillcolor="#C8E6C9"
+            color="#2E7D32"
+        ];
+    }
+
+    // ========== Presentation Layer ==========
+    subgraph cluster_presentation {
+        label="PRESENTATION LAYER";
+        style=rounded;
+        bgcolor="#E3F2FD";
+        color="#1976D2";
+        
+        subgraph cluster_frontend {
+            label="Next.js 14 Frontend (Port 3505)";
+            style=filled;
+            fillcolor="#BBDEFB";
+            color="#1565C0";
+            
+            auth_ui [label="Auth UI\n(Login/Register)" shape=box style=filled fillcolor="#90CAF9"];
+            dashboard [label="Dashboard\n(Profile/Team)" shape=box style=filled fillcolor="#90CAF9"];
+            admin_ui [label="Admin Panel\n(Challenges)" shape=box style=filled fillcolor="#90CAF9"];
+            user_ui [label="User Panel\n(Participate)" shape=box style=filled fillcolor="#90CAF9"];
+            
+            ui_components [
+                label="UI Components\nButton | Input | Select | Toast"
+                shape=box
+                style="filled,rounded"
+                fillcolor="#64B5F6"
+            ];
+        }
+        
+        api_proxy [
+            label="API Proxy\n(/api/proxy/*)"
+            shape=box
+            style="filled,rounded"
+            fillcolor="#42A5F5"
+            color="#0D47A1"
+        ];
+    }
+
+    // ========== Application Layer ==========
+    subgraph cluster_application {
+        label="APPLICATION LAYER";
+        style=rounded;
+        bgcolor="#FFF3E0";
+        color="#F57C00";
+        
+        subgraph cluster_backend {
+            label="FastAPI Backend (Port 8000)";
+            style=filled;
+            fillcolor="#FFE0B2";
+            color="#EF6C00";
+            
+            subgraph cluster_endpoints {
+                label="API Endpoints (/api/v1)";
+                style=filled;
+                fillcolor="#FFCC80";
+                
+                ep_auth [label="/auth" shape=box style=filled fillcolor="#FFB74D"];
+                ep_users [label="/users" shape=box style=filled fillcolor="#FFB74D"];
+                ep_teams [label="/teams" shape=box style=filled fillcolor="#FFB74D"];
+                ep_challenges [label="/challenges" shape=box style=filled fillcolor="#FFB74D"];
+                ep_files [label="/files" shape=box style=filled fillcolor="#FFB74D"];
+                ep_builder [label="/builder" shape=box style=filled fillcolor="#FFB74D"];
+                ep_openstack [label="/openstack" shape=box style=filled fillcolor="#FFB74D"];
+                ep_events [label="/events" shape=box style=filled fillcolor="#FFB74D"];
+            }
+            
+            subgraph cluster_services {
+                label="Services Layer";
+                style=filled;
+                fillcolor="#FFCC80";
+                
+                svc_auth [label="AuthService" shape=ellipse style=filled fillcolor="#FFA726"];
+                svc_user [label="UserService" shape=ellipse style=filled fillcolor="#FFA726"];
+                svc_team [label="TeamService" shape=ellipse style=filled fillcolor="#FFA726"];
+                svc_challenge [label="ChallengeService" shape=ellipse style=filled fillcolor="#FFA726"];
+                svc_k8s [label="KubernetesService" shape=ellipse style=filled fillcolor="#FFA726"];
+                svc_openstack [label="OpenStackService" shape=ellipse style=filled fillcolor="#FFA726"];
+                svc_event [label="EventService" shape=ellipse style=filled fillcolor="#FFA726"];
+            }
+            
+            subgraph cluster_middleware {
+                label="Middleware";
+                style=filled;
+                fillcolor="#FFCC80";
+                
+                mw_rbac [label="RBAC" shape=hexagon style=filled fillcolor="#FB8C00"];
+                mw_audit [label="Audit" shape=hexagon style=filled fillcolor="#FB8C00"];
+                mw_error [label="Error Handler" shape=hexagon style=filled fillcolor="#FB8C00"];
+                mw_rate [label="Rate Limiter" shape=hexagon style=filled fillcolor="#FB8C00"];
+            }
+        }
+    }
+
+    // ========== Data Layer ==========
+    subgraph cluster_data {
+        label="DATA LAYER";
+        style=rounded;
+        bgcolor="#F3E5F5";
+        color="#7B1FA2";
+        
+        subgraph cluster_mongodb {
+            label="MongoDB 7.0 (Port 27017)";
+            style=filled;
+            fillcolor="#E1BEE7";
+            color="#6A1B9A";
+            
+            col_users [label="users" shape=cylinder style=filled fillcolor="#CE93D8"];
+            col_teams [label="teams" shape=cylinder style=filled fillcolor="#CE93D8"];
+            col_challenges [label="challenges" shape=cylinder style=filled fillcolor="#CE93D8"];
+            col_instances [label="challenge_instances" shape=cylinder style=filled fillcolor="#CE93D8"];
+            col_submissions [label="submissions" shape=cylinder style=filled fillcolor="#CE93D8"];
+            col_files [label="files" shape=cylinder style=filled fillcolor="#CE93D8"];
+            col_events [label="events" shape=cylinder style=filled fillcolor="#CE93D8"];
+        }
+    }
+
+    // ========== Infrastructure Layer ==========
+    subgraph cluster_infrastructure {
+        label="INFRASTRUCTURE LAYER";
+        style=rounded;
+        bgcolor="#ECEFF1";
+        color="#455A64";
+        
+        subgraph cluster_kubernetes {
+            label="Kubernetes Cluster";
+            style=filled;
+            fillcolor="#CFD8DC";
+            color="#37474F";
+            
+            k8s_pods [label="Container\nChallenges\n(Pods)" shape=box3d style=filled fillcolor="#B0BEC5"];
+            k8s_services [label="LoadBalancer\nServices" shape=box style=filled fillcolor="#B0BEC5"];
+            metallb [label="MetalLB\n(IP Pool)" shape=box style=filled fillcolor="#90A4AE"];
+        }
+        
+        subgraph cluster_openstack {
+            label="OpenStack Cloud";
+            style=filled;
+            fillcolor="#CFD8DC";
+            color="#37474F";
+            
+            os_nova [label="Nova\n(Compute)" shape=box3d style=filled fillcolor="#B0BEC5"];
+            os_neutron [label="Neutron\n(Network)" shape=box style=filled fillcolor="#B0BEC5"];
+            os_heat [label="Heat\n(Orchestration)" shape=box style=filled fillcolor="#B0BEC5"];
+            os_glance [label="Glance\n(Images)" shape=cylinder style=filled fillcolor="#90A4AE"];
+        }
+    }
+
+    // ========== Connections ==========
+    // User to Frontend
+    users -> auth_ui [label="HTTPS\n:3505" color="#4CAF50" penwidth=2];
+    users -> dashboard [style=invis];
+    
+    // Frontend Internal
+    auth_ui -> ui_components [style=dashed color="#1976D2"];
+    dashboard -> ui_components [style=dashed color="#1976D2"];
+    admin_ui -> ui_components [style=dashed color="#1976D2"];
+    user_ui -> ui_components [style=dashed color="#1976D2"];
+    
+    // Frontend to Proxy
+    auth_ui -> api_proxy [color="#1976D2"];
+    dashboard -> api_proxy [color="#1976D2"];
+    admin_ui -> api_proxy [color="#1976D2"];
+    user_ui -> api_proxy [color="#1976D2"];
+    
+    // Proxy to Backend
+    api_proxy -> ep_auth [label="REST API" color="#F57C00" penwidth=2 lhead=cluster_endpoints];
+    
+    // Endpoint to Service connections
+    ep_auth -> svc_auth [style=dashed color="#EF6C00"];
+    ep_users -> svc_user [style=dashed color="#EF6C00"];
+    ep_teams -> svc_team [style=dashed color="#EF6C00"];
+    ep_challenges -> svc_challenge [style=dashed color="#EF6C00"];
+    ep_builder -> svc_k8s [style=dashed color="#EF6C00"];
+    ep_openstack -> svc_openstack [style=dashed color="#EF6C00"];
+    ep_events -> svc_event [style=dashed color="#EF6C00"];
+    
+    // Services to Database
+    svc_auth -> col_users [label="MongoDB\nProtocol" color="#7B1FA2" penwidth=2];
+    svc_user -> col_users [color="#7B1FA2"];
+    svc_team -> col_teams [color="#7B1FA2"];
+    svc_challenge -> col_challenges [color="#7B1FA2"];
+    svc_challenge -> col_instances [color="#7B1FA2"];
+    svc_event -> col_events [color="#7B1FA2"];
+    
+    // Services to Infrastructure
+    svc_k8s -> k8s_pods [label="K8s API" color="#455A64" penwidth=2];
+    svc_openstack -> os_heat [label="OpenStack\nAPI" color="#455A64" penwidth=2];
+    
+    // K8s Internal
+    k8s_pods -> k8s_services [color="#455A64"];
+    k8s_services -> metallb [color="#455A64"];
+    
+    // OpenStack Internal
+    os_heat -> os_nova [color="#455A64"];
+    os_heat -> os_neutron [color="#455A64"];
+    os_nova -> os_glance [color="#455A64"];
+}
+
+
+// ============================================================================
+// DIAGRAM 2: COMPONENT ARCHITECTURE
+// ============================================================================
+digraph ComponentArchitecture {
+    rankdir=TB;
+    compound=true;
+    fontname="Arial";
+    node [fontname="Arial", fontsize=10];
+    edge [fontname="Arial", fontsize=9];
+    
+    graph [
+        label="PACSTAR - Component Architecture"
+        labelloc=t
+        fontsize=16
+        fontname="Arial Bold"
+        bgcolor="white"
+        pad="0.5"
+    ];
+
+    // ========== Frontend Components ==========
+    subgraph cluster_frontend {
+        label="Frontend (Next.js 14 + TypeScript)";
+        style=rounded;
+        bgcolor="#E3F2FD";
+        color="#1976D2";
+        
+        subgraph cluster_app {
+            label="app/";
+            style=filled;
+            fillcolor="#BBDEFB";
+            
+            app_page [label="page.tsx\n(Home/Auth)" shape=note style=filled fillcolor="#90CAF9"];
+            app_layout [label="layout.tsx\n(Root Layout)" shape=note style=filled fillcolor="#90CAF9"];
+            app_globals [label="globals.css\n(Tailwind)" shape=note style=filled fillcolor="#90CAF9"];
+            app_dashboard [label="dashboard/\npage.tsx" shape=note style=filled fillcolor="#90CAF9"];
+            app_api [label="api/proxy/\nroute.ts" shape=note style=filled fillcolor="#90CAF9"];
+        }
+        
+        subgraph cluster_components {
+            label="components/";
+            style=filled;
+            fillcolor="#BBDEFB";
+            
+            comp_auth [label="auth/\nLoginForm\nRegisterForm\nAuthLayout" shape=folder style=filled fillcolor="#64B5F6"];
+            comp_admin [label="admin/\nChallenges\nDockerfileToK8s\nOpenStack" shape=folder style=filled fillcolor="#64B5F6"];
+            comp_user [label="user/\nUserChallenges\nScoreboard" shape=folder style=filled fillcolor="#64B5F6"];
+            comp_ui [label="ui/\nButton | Input\nSelect | Toast" shape=folder style=filled fillcolor="#64B5F6"];
+        }
+        
+        subgraph cluster_lib {
+            label="lib/";
+            style=filled;
+            fillcolor="#BBDEFB";
+            
+            lib_api [label="api.ts\n(Axios Client)" shape=note style=filled fillcolor="#42A5F5"];
+        }
+    }
+
+    // ========== Backend Components ==========
+    subgraph cluster_backend {
+        label="Backend (FastAPI + Python 3.12)";
+        style=rounded;
+        bgcolor="#FFF3E0";
+        color="#F57C00";
+        
+        subgraph cluster_api_v1 {
+            label="api/v1/endpoints/";
+            style=filled;
+            fillcolor="#FFE0B2";
+            
+            api_auth [label="auth.py" shape=note style=filled fillcolor="#FFB74D"];
+            api_user [label="user.py" shape=note style=filled fillcolor="#FFB74D"];
+            api_team [label="team.py" shape=note style=filled fillcolor="#FFB74D"];
+            api_challenge [label="challenge.py" shape=note style=filled fillcolor="#FFB74D"];
+            api_files [label="files.py" shape=note style=filled fillcolor="#FFB74D"];
+            api_builder [label="builder.py" shape=note style=filled fillcolor="#FFB74D"];
+            api_openstack [label="openstack.py" shape=note style=filled fillcolor="#FFB74D"];
+            api_event [label="event.py" shape=note style=filled fillcolor="#FFB74D"];
+        }
+        
+        subgraph cluster_services {
+            label="services/";
+            style=filled;
+            fillcolor="#FFE0B2";
+            
+            svc_auth [label="auth_service.py" shape=note style=filled fillcolor="#FFA726"];
+            svc_user [label="user_service.py" shape=note style=filled fillcolor="#FFA726"];
+            svc_team [label="team_service.py" shape=note style=filled fillcolor="#FFA726"];
+            svc_challenge [label="challenge_service.py" shape=note style=filled fillcolor="#FFA726"];
+            svc_k8s [label="kubernetes_service.py" shape=note style=filled fillcolor="#FFA726"];
+            svc_openstack [label="openstack_service.py" shape=note style=filled fillcolor="#FFA726"];
+            svc_event [label="event_service.py" shape=note style=filled fillcolor="#FFA726"];
+        }
+        
+        subgraph cluster_core {
+            label="core/";
+            style=filled;
+            fillcolor="#FFE0B2";
+            
+            core_config [label="config.py" shape=note style=filled fillcolor="#FF9800"];
+            core_security [label="security.py" shape=note style=filled fillcolor="#FF9800"];
+            core_logging [label="logging.py" shape=note style=filled fillcolor="#FF9800"];
+            core_rate [label="rate_limiter.py" shape=note style=filled fillcolor="#FF9800"];
+        }
+        
+        subgraph cluster_middleware {
+            label="middleware/";
+            style=filled;
+            fillcolor="#FFE0B2";
+            
+            mw_rbac [label="rbac.py" shape=note style=filled fillcolor="#FB8C00"];
+            mw_audit [label="audit.py" shape=note style=filled fillcolor="#FB8C00"];
+            mw_error [label="error_handler.py" shape=note style=filled fillcolor="#FB8C00"];
+        }
+        
+        subgraph cluster_db {
+            label="db/models/";
+            style=filled;
+            fillcolor="#FFE0B2";
+            
+            db_user [label="user.py" shape=note style=filled fillcolor="#EF6C00"];
+            db_challenge [label="challenge.py" shape=note style=filled fillcolor="#EF6C00"];
+            db_role [label="role.py" shape=note style=filled fillcolor="#EF6C00"];
+            db_token [label="token.py" shape=note style=filled fillcolor="#EF6C00"];
+        }
+        
+        subgraph cluster_schemas {
+            label="schemas/";
+            style=filled;
+            fillcolor="#FFE0B2";
+            
+            sch_auth [label="auth.py" shape=note style=filled fillcolor="#E65100"];
+            sch_user [label="user.py" shape=note style=filled fillcolor="#E65100"];
+            sch_team [label="team.py" shape=note style=filled fillcolor="#E65100"];
+            sch_challenge [label="challenge.py" shape=note style=filled fillcolor="#E65100"];
+            sch_openstack [label="openstack.py" shape=note style=filled fillcolor="#E65100"];
+            sch_event [label="event.py" shape=note style=filled fillcolor="#E65100"];
+        }
+        
+        main_py [label="main.py\n(FastAPI App)" shape=box3d style=filled fillcolor="#FF5722" fontcolor="white"];
+    }
+
+    // ========== Connections ==========
+    // Frontend internal
+    app_layout -> app_page [style=dashed];
+    app_layout -> app_dashboard [style=dashed];
+    app_page -> comp_auth [style=dashed];
+    app_dashboard -> comp_admin [style=dashed];
+    app_dashboard -> comp_user [style=dashed];
+    comp_auth -> comp_ui [style=dashed];
+    comp_admin -> comp_ui [style=dashed];
+    comp_user -> comp_ui [style=dashed];
+    comp_auth -> lib_api [color="#1976D2"];
+    comp_admin -> lib_api [color="#1976D2"];
+    comp_user -> lib_api [color="#1976D2"];
+    
+    // Frontend to Backend
+    lib_api -> app_api [label="HTTP"];
+    app_api -> main_py [label="REST API" color="#F57C00" penwidth=2];
+    
+    // Backend internal
+    main_py -> api_auth [style=dashed];
+    main_py -> mw_rbac [style=dashed color="#FB8C00"];
+    
+    api_auth -> svc_auth [style=dashed];
+    api_user -> svc_user [style=dashed];
+    api_team -> svc_team [style=dashed];
+    api_challenge -> svc_challenge [style=dashed];
+    api_builder -> svc_k8s [style=dashed];
+    api_openstack -> svc_openstack [style=dashed];
+    api_event -> svc_event [style=dashed];
+    
+    svc_auth -> core_security [style=dashed];
+    svc_auth -> db_user [style=dashed];
+    svc_challenge -> db_challenge [style=dashed];
+    
+    api_auth -> sch_auth [style=dotted color="#E65100"];
+    api_user -> sch_user [style=dotted color="#E65100"];
+}
+
+
+// ============================================================================
+// DIAGRAM 3: DATABASE SCHEMA (Entity Relationship)
+// ============================================================================
+digraph DatabaseSchema {
+    rankdir=LR;
+    fontname="Arial";
+    node [fontname="Arial", fontsize=10, shape=record];
+    edge [fontname="Arial", fontsize=9];
+    
+    graph [
+        label="PACSTAR - MongoDB Database Schema"
+        labelloc=t
+        fontsize=16
+        fontname="Arial Bold"
+        bgcolor="white"
+        pad="0.5"
+    ];
+
+    // ========== Collections ==========
+    users [
+        label="{USERS|_id: ObjectId (PK)\l|username: String (unique)\lemail: String (unique)\lhashed_password: String\lrole: String\lzone: String\lteam_id: ObjectId (FK)\lis_active: Boolean\llast_login: DateTime\lcreated_at: DateTime\l}"
+        style=filled
+        fillcolor="#C8E6C9"
+        color="#2E7D32"
+    ];
+    
+    teams [
+        label="{TEAMS|_id: ObjectId (PK)\l|name: String\ldescription: String\lteam_code: String (unique)\lleader_id: ObjectId (FK)\lmembers: Array\lmember_count: Number\lmax_members: Number\lis_active: Boolean\lcreated_at: DateTime\l}"
+        style=filled
+        fillcolor="#BBDEFB"
+        color="#1565C0"
+    ];
+    
+    challenges [
+        label="{CHALLENGES|_id: ObjectId (PK)\l|name: String (unique)\ldescription: String\lcategory: String\lflag: String (hashed)\lpoints: Number\ldifficulty: String\lstatus: String\lcreated_by: ObjectId (FK)\ldocker_image: String\lport_mapping: Object\lheat_template: String\lfile_ids: Array\lteams_solved: Array\ltotal_solves: Number\l}"
+        style=filled
+        fillcolor="#FFE0B2"
+        color="#EF6C00"
+    ];
+    
+    challenge_instances [
+        label="{CHALLENGE_INSTANCES|_id: ObjectId (PK)\l|challenge_id: ObjectId (FK)\lteam_id: ObjectId (FK)\linstance_id: String (unique)\lpublic_ip: String (unique)\lssh_port: Number\lssh_username: String\lssh_password: String\laccess_url: String\lstatus: String\lcreated_at: DateTime\lexpires_at: DateTime\l}"
+        style=filled
+        fillcolor="#FFCC80"
+        color="#F57C00"
+    ];
+    
+    submissions [
+        label="{SUBMISSIONS|_id: ObjectId (PK)\l|user_id: ObjectId (FK)\lteam_id: ObjectId (FK)\lchallenge_id: ObjectId (FK)\lsubmitted_flag: String\lis_correct: Boolean\lpoints_awarded: Number\ltimestamp: DateTime\lip_address: String\l}"
+        style=filled
+        fillcolor="#E1BEE7"
+        color="#7B1FA2"
+    ];
+    
+    files [
+        label="{FILES|_id: ObjectId (PK)\l|filename: String\loriginal_filename: String\lfile_path: String\lfile_size: Number\lmime_type: String\lchallenge_id: ObjectId (FK)\luploaded_by: ObjectId (FK)\lcreated_at: DateTime\lis_public: Boolean\l}"
+        style=filled
+        fillcolor="#B2DFDB"
+        color="#00796B"
+    ];
+    
+    events [
+        label="{EVENTS|_id: ObjectId (PK)\l|name: String\ldescription: String\lstart_time: DateTime\lend_time: DateTime\lstatus: String\lchallenges: Array\lteams: Array\lscoring_type: String\lcreated_by: ObjectId (FK)\l}"
+        style=filled
+        fillcolor="#F8BBD9"
+        color="#C2185B"
+    ];
+
+    // ========== Relationships ==========
+    users -> teams [label="team_id\n(belongs to)" dir=both arrowhead=crow arrowtail=none color="#455A64"];
+    teams -> users [label="leader_id\n(has leader)" dir=both arrowhead=none arrowtail=crow color="#455A64"];
+    
+    challenges -> users [label="created_by" dir=back arrowhead=crow color="#455A64"];
+    challenge_instances -> challenges [label="challenge_id" dir=back arrowhead=crow color="#455A64"];
+    challenge_instances -> teams [label="team_id" dir=back arrowhead=crow color="#455A64"];
+    
+    submissions -> users [label="user_id" dir=back arrowhead=crow color="#455A64"];
+    submissions -> teams [label="team_id" dir=back arrowhead=crow color="#455A64"];
+    submissions -> challenges [label="challenge_id" dir=back arrowhead=crow color="#455A64"];
+    
+    files -> challenges [label="challenge_id" dir=back arrowhead=crow color="#455A64"];
+    files -> users [label="uploaded_by" dir=back arrowhead=crow color="#455A64"];
+    
+    events -> users [label="created_by" dir=back arrowhead=crow color="#455A64"];
+}
+
+
+// ============================================================================
+// DIAGRAM 4: AUTHENTICATION FLOW
+// ============================================================================
+digraph AuthenticationFlow {
+    rankdir=LR;
+    fontname="Arial";
+    node [fontname="Arial", fontsize=10];
+    edge [fontname="Arial", fontsize=9];
+    
+    graph [
+        label="PACSTAR - Authentication Flow"
+        labelloc=t
+        fontsize=16
+        fontname="Arial Bold"
+        bgcolor="white"
+        pad="0.5"
+        nodesep=0.5
+        ranksep=1.0
+    ];
+
+    // ========== Actors ==========
+    user [label="User\n(Browser)" shape=box3d style=filled fillcolor="#C8E6C9" color="#2E7D32"];
+    frontend [label="Next.js\nFrontend" shape=box style=filled fillcolor="#BBDEFB" color="#1565C0"];
+    backend [label="FastAPI\nBackend" shape=box style=filled fillcolor="#FFE0B2" color="#EF6C00"];
+    mongodb [label="MongoDB\nDatabase" shape=cylinder style=filled fillcolor="#E1BEE7" color="#7B1FA2"];
+
+    // ========== Login Process Steps ==========
+    subgraph cluster_login {
+        label="Login Process";
+        style=rounded;
+        bgcolor="#FFF8E1";
+        color="#FFA000";
+        
+        l1 [label="1. Enter\nCredentials" shape=ellipse style=filled fillcolor="#FFECB3"];
+        l2 [label="2. POST\n/auth/login" shape=ellipse style=filled fillcolor="#FFECB3"];
+        l3 [label="3. Find User\nby Username" shape=ellipse style=filled fillcolor="#FFECB3"];
+        l4 [label="4. Verify\nPassword\n(bcrypt)" shape=ellipse style=filled fillcolor="#FFECB3"];
+        l5 [label="5. Generate\nJWT Tokens" shape=ellipse style=filled fillcolor="#FFECB3"];
+        l6 [label="6. Return\nTokens" shape=ellipse style=filled fillcolor="#FFECB3"];
+        l7 [label="7. Store in\nlocalStorage" shape=ellipse style=filled fillcolor="#FFECB3"];
+        l8 [label="8. Redirect to\nDashboard" shape=ellipse style=filled fillcolor="#FFECB3"];
+    }
+
+    // ========== Connections ==========
+    user -> l1;
+    l1 -> frontend;
+    frontend -> l2;
+    l2 -> backend;
+    backend -> l3;
+    l3 -> mongodb;
+    mongodb -> l4 [label="user data"];
+    l4 -> l5;
+    l5 -> l6;
+    l6 -> frontend;
+    frontend -> l7;
+    l7 -> l8;
+    l8 -> user;
+
+    // ========== JWT Structure ==========
+    subgraph cluster_jwt {
+        label="JWT Token Structure";
+        style=rounded;
+        bgcolor="#E8F5E9";
+        color="#388E3C";
+        
+        jwt_header [
+            label="Header\n{alg: HS256, typ: JWT}"
+            shape=box
+            style=filled
+            fillcolor="#C8E6C9"
+        ];
+        jwt_payload [
+            label="Payload\n{sub: user_id, username,\nrole, exp, iat}"
+            shape=box
+            style=filled
+            fillcolor="#A5D6A7"
+        ];
+        jwt_signature [
+            label="Signature\nHMACSHA256(...)"
+            shape=box
+            style=filled
+            fillcolor="#81C784"
+        ];
+        
+        jwt_header -> jwt_payload -> jwt_signature [style=invis];
+    }
+
+    // ========== RBAC Matrix ==========
+    subgraph cluster_rbac {
+        label="Role-Based Access Control";
+        style=rounded;
+        bgcolor="#FCE4EC";
+        color="#C2185B";
+        
+        role_master [label="Master\n• Full Access\n• User Management\n• System Config" shape=box style=filled fillcolor="#F8BBD9"];
+        role_admin [label="Admin\n• Challenge CRUD\n• Team Management\n• Deploy Access" shape=box style=filled fillcolor="#F48FB1"];
+        role_user [label="User\n• View Challenges\n• Submit Flags\n• Team Member" shape=box style=filled fillcolor="#F06292"];
+        
+        role_master -> role_admin [label="inherits" style=dashed];
+        role_admin -> role_user [label="inherits" style=dashed];
+    }
+}
+
+
+// ============================================================================
+// DIAGRAM 5: CHALLENGE DEPLOYMENT FLOW
+// ============================================================================
+digraph ChallengeDeployment {
+    rankdir=TB;
+    fontname="Arial";
+    node [fontname="Arial", fontsize=10];
+    edge [fontname="Arial", fontsize=9];
+    
+    graph [
+        label="PACSTAR - Challenge Deployment Flow"
+        labelloc=t
+        fontsize=16
+        fontname="Arial Bold"
+        bgcolor="white"
+        pad="0.5"
+    ];
+
+    // ========== Kubernetes Deployment ==========
+    subgraph cluster_k8s {
+        label="Kubernetes Challenge Deployment";
+        style=rounded;
+        bgcolor="#E3F2FD";
+        color="#1976D2";
+        
+        k8s_start [label="Admin creates\nChallenge" shape=box style=filled fillcolor="#BBDEFB"];
+        k8s_api [label="POST /challenges\n(with docker_image)" shape=box style=filled fillcolor="#90CAF9"];
+        k8s_save [label="Save to\nMongoDB" shape=box style=filled fillcolor="#64B5F6"];
+        k8s_deploy [label="POST /challenges\n/:id/deploy" shape=box style=filled fillcolor="#90CAF9"];
+        k8s_namespace [label="Create K8s\nNamespace" shape=box style=filled fillcolor="#42A5F5"];
+        k8s_deployment [label="Create\nDeployment" shape=box style=filled fillcolor="#42A5F5"];
+        k8s_service [label="Create\nLoadBalancer" shape=box style=filled fillcolor="#42A5F5"];
+        k8s_ip [label="Get External IP\n(MetalLB)" shape=box style=filled fillcolor="#2196F3"];
+        k8s_instance [label="Save Instance\n(IP, Port, Creds)" shape=box style=filled fillcolor="#1E88E5"];
+        k8s_access [label="Return\nAccess Info" shape=box style=filled fillcolor="#1976D2" fontcolor="white"];
+        
+        k8s_start -> k8s_api -> k8s_save -> k8s_deploy;
+        k8s_deploy -> k8s_namespace -> k8s_deployment -> k8s_service -> k8s_ip -> k8s_instance -> k8s_access;
+    }
+
+    // ========== OpenStack Deployment ==========
+    subgraph cluster_openstack {
+        label="OpenStack VM Challenge Deployment";
+        style=rounded;
+        bgcolor="#FFF3E0";
+        color="#F57C00";
+        
+        os_start [label="Admin selects\nHeat Template" shape=box style=filled fillcolor="#FFE0B2"];
+        os_api [label="POST /openstack\n/heat/deploy" shape=box style=filled fillcolor="#FFCC80"];
+        os_keystone [label="Authenticate\n(Keystone)" shape=box style=filled fillcolor="#FFB74D"];
+        os_heat [label="Create Heat\nStack" shape=box style=filled fillcolor="#FFA726"];
+        os_nova [label="Provision\nVMs (Nova)" shape=box style=filled fillcolor="#FF9800"];
+        os_neutron [label="Setup Network\n(Neutron)" shape=box style=filled fillcolor="#FB8C00"];
+        os_floating [label="Assign\nFloating IP" shape=box style=filled fillcolor="#F57C00"];
+        os_outputs [label="Get Stack\nOutputs" shape=box style=filled fillcolor="#EF6C00"];
+        os_save [label="Save Instance\nto MongoDB" shape=box style=filled fillcolor="#E65100"];
+        os_return [label="Return\nAccess Info" shape=box style=filled fillcolor="#BF360C" fontcolor="white"];
+        
+        os_start -> os_api -> os_keystone -> os_heat;
+        os_heat -> os_nova;
+        os_heat -> os_neutron;
+        os_nova -> os_floating;
+        os_neutron -> os_floating;
+        os_floating -> os_outputs -> os_save -> os_return;
+    }
+
+    // ========== Flag Submission ==========
+    subgraph cluster_submit {
+        label="Flag Submission Flow";
+        style=rounded;
+        bgcolor="#E8F5E9";
+        color="#388E3C";
+        
+        sub_enter [label="User enters\nflag" shape=box style=filled fillcolor="#C8E6C9"];
+        sub_api [label="POST /challenges\n/:id/submit-flag" shape=box style=filled fillcolor="#A5D6A7"];
+        sub_get [label="Get Challenge\nfrom DB" shape=box style=filled fillcolor="#81C784"];
+        sub_hash [label="Hash & Compare\nSubmitted Flag" shape=box style=filled fillcolor="#66BB6A"];
+        sub_check [label="Check if\nAlready Solved" shape=diamond style=filled fillcolor="#4CAF50" fontcolor="white"];
+        sub_record [label="Record\nSubmission" shape=box style=filled fillcolor="#43A047" fontcolor="white"];
+        sub_score [label="Update Team\nScore" shape=box style=filled fillcolor="#388E3C" fontcolor="white"];
+        sub_return [label="Return Result\n{correct, points}" shape=box style=filled fillcolor="#2E7D32" fontcolor="white"];
+        sub_already [label="Already Solved\n(No points)" shape=box style=filled fillcolor="#F44336" fontcolor="white"];
+        
+        sub_enter -> sub_api -> sub_get -> sub_hash -> sub_check;
+        sub_check -> sub_record [label="New Solve"];
+        sub_check -> sub_already [label="Already\nSolved"];
+        sub_record -> sub_score -> sub_return;
+        sub_already -> sub_return;
+    }
+}
+
+
+// ============================================================================
+// DIAGRAM 6: DOCKER COMPOSE ARCHITECTURE
+// ============================================================================
+digraph DockerArchitecture {
+    rankdir=TB;
+    fontname="Arial";
+    node [fontname="Arial", fontsize=10];
+    edge [fontname="Arial", fontsize=9];
+    
+    graph [
+        label="PACSTAR - Docker Compose Architecture"
+        labelloc=t
+        fontsize=16
+        fontname="Arial Bold"
+        bgcolor="white"
+        pad="0.5"
+    ];
+
+    // ========== External Access ==========
+    internet [label="Internet\nUsers" shape=box3d style=filled fillcolor="#E8F5E9" color="#2E7D32"];
+
+    // ========== Docker Network ==========
+    subgraph cluster_docker {
+        label="Docker Network: pacstar-network (172.28.0.0/16)";
+        style=rounded;
+        bgcolor="#ECEFF1";
+        color="#455A64";
+        penwidth=2;
+        
+        // Frontend Container
+        subgraph cluster_frontend {
+            label="pacstar-frontend";
+            style=filled;
+            fillcolor="#E3F2FD";
+            color="#1976D2";
+            
+            frontend [
+                label="Next.js 14\n\nPort: 3505\nNODE_ENV: production\n\nHealthcheck:\nwget --spider\n:3505"
+                shape=box
+                style="filled,rounded"
+                fillcolor="#90CAF9"
+            ];
+        }
+        
+        // Backend Container
+        subgraph cluster_backend {
+            label="pacstar-backend";
+            style=filled;
+            fillcolor="#FFF3E0";
+            color="#F57C00";
+            
+            backend [
+                label="FastAPI\n(Python 3.12)\n\nPort: 8000\nMONGODB_URI\nJWT_SECRET\n\nHealthcheck:\ncurl :8000/health"
+                shape=box
+                style="filled,rounded"
+                fillcolor="#FFB74D"
+            ];
+        }
+        
+        // MongoDB Container
+        subgraph cluster_mongo {
+            label="pacstar-mongodb";
+            style=filled;
+            fillcolor="#F3E5F5";
+            color="#7B1FA2";
+            
+            mongodb [
+                label="MongoDB 7.0\n\nPort: 27017\nMONGO_INITDB_*\n\nHealthcheck:\nmongosh ping"
+                shape=cylinder
+                style=filled
+                fillcolor="#CE93D8"
+            ];
+        }
+        
+        // Mongo Express (Dev)
+        subgraph cluster_mongoexpress {
+            label="pacstar-mongo-express (dev profile)";
+            style=filled;
+            fillcolor="#FFEBEE";
+            color="#C62828";
+            
+            mongoexpress [
+                label="Mongo Express\n\nPort: 8081\nAdmin UI\n\nProfile: dev"
+                shape=box
+                style="filled,dashed,rounded"
+                fillcolor="#EF9A9A"
+            ];
+        }
+        
+        // Volumes
+        subgraph cluster_volumes {
+            label="Docker Volumes";
+            style=filled;
+            fillcolor="#FFF8E1";
+            color="#F9A825";
+            
+            vol_mongo_data [label="mongodb_data\n/data/db" shape=folder style=filled fillcolor="#FFF59D"];
+            vol_mongo_config [label="mongodb_config\n/data/configdb" shape=folder style=filled fillcolor="#FFF59D"];
+            vol_uploads [label="backend_uploads\n/app/uploads" shape=folder style=filled fillcolor="#FFF59D"];
+            vol_logs [label="backend_logs\n/app/logs" shape=folder style=filled fillcolor="#FFF59D"];
+        }
+    }
+
+    // ========== External Services ==========
+    subgraph cluster_external {
+        label="External Infrastructure";
+        style=rounded;
+        bgcolor="#F5F5F5";
+        color="#757575";
+        
+        kubernetes [label="Kubernetes\nCluster\n(K8s API)" shape=box3d style=filled fillcolor="#B0BEC5"];
+        openstack [label="OpenStack\nCloud\n(API)" shape=box3d style=filled fillcolor="#B0BEC5"];
+    }
+
+    // ========== Connections ==========
+    internet -> frontend [label=":3505" color="#1976D2" penwidth=2];
+    internet -> backend [label=":8000" color="#F57C00" style=dashed];
+    
+    frontend -> backend [label="HTTP\n(internal)" color="#455A64" penwidth=2];
+    backend -> mongodb [label="MongoDB\nProtocol" color="#7B1FA2" penwidth=2];
+    mongoexpress -> mongodb [label="Admin\nAccess" color="#C62828" style=dashed];
+    
+    mongodb -> vol_mongo_data [style=dashed color="#F9A825"];
+    mongodb -> vol_mongo_config [style=dashed color="#F9A825"];
+    backend -> vol_uploads [style=dashed color="#F9A825"];
+    backend -> vol_logs [style=dashed color="#F9A825"];
+    
+    backend -> kubernetes [label="K8s API\n:6443" color="#455A64"];
+    backend -> openstack [label="OpenStack API\n:5000, :8774" color="#455A64"];
+}
+
+
+// ============================================================================
+// DIAGRAM 7: SECURITY ARCHITECTURE
+// ============================================================================
+digraph SecurityArchitecture {
+    rankdir=TB;
+    fontname="Arial";
+    node [fontname="Arial", fontsize=10];
+    edge [fontname="Arial", fontsize=9];
+    
+    graph [
+        label="PACSTAR - Security Architecture"
+        labelloc=t
+        fontsize=16
+        fontname="Arial Bold"
+        bgcolor="white"
+        pad="0.5"
+    ];
+
+    // ========== Security Layers ==========
+    subgraph cluster_layer1 {
+        label="Layer 1: Network Security";
+        style=rounded;
+        bgcolor="#FFEBEE";
+        color="#C62828";
+        
+        net_tls [label="TLS/HTTPS\nEncryption" shape=box style=filled fillcolor="#EF9A9A"];
+        net_docker [label="Docker Network\nIsolation" shape=box style=filled fillcolor="#EF9A9A"];
+        net_firewall [label="Firewall Rules\n(Port Restrictions)" shape=box style=filled fillcolor="#EF9A9A"];
+        net_trusted [label="TrustedHost\nMiddleware" shape=box style=filled fillcolor="#EF9A9A"];
+    }
+
+    subgraph cluster_layer2 {
+        label="Layer 2: Application Security";
+        style=rounded;
+        bgcolor="#FFF3E0";
+        color="#EF6C00";
+        
+        app_cors [label="CORS\nMiddleware" shape=box style=filled fillcolor="#FFCC80"];
+        app_rate [label="Rate Limiting\n(100 req/60s)" shape=box style=filled fillcolor="#FFCC80"];
+        app_lockout [label="Account Lockout\n(5 attempts)" shape=box style=filled fillcolor="#FFCC80"];
+        app_validation [label="Input Validation\n& Sanitization" shape=box style=filled fillcolor="#FFCC80"];
+        app_headers [label="Security Headers\n(CSP, HSTS, etc)" shape=box style=filled fillcolor="#FFCC80"];
+    }
+
+    subgraph cluster_layer3 {
+        label="Layer 3: Authentication & Authorization";
+        style=rounded;
+        bgcolor="#E8F5E9";
+        color="#388E3C";
+        
+        auth_jwt [label="JWT Tokens\n(Access + Refresh)" shape=box style=filled fillcolor="#A5D6A7"];
+        auth_bcrypt [label="Password Hashing\n(bcrypt, cost=12)" shape=box style=filled fillcolor="#A5D6A7"];
+        auth_rbac [label="RBAC\n(Master/Admin/User)" shape=box style=filled fillcolor="#A5D6A7"];
+        auth_session [label="Secure Session\nManagement" shape=box style=filled fillcolor="#A5D6A7"];
+    }
+
+    subgraph cluster_layer4 {
+        label="Layer 4: Data Security";
+        style=rounded;
+        bgcolor="#E3F2FD";
+        color="#1976D2";
+        
+        data_auth [label="MongoDB\nAuthentication" shape=box style=filled fillcolor="#90CAF9"];
+        data_env [label="Credentials in\nEnv Variables" shape=box style=filled fillcolor="#90CAF9"];
+        data_encrypt [label="Data Encryption\nat Rest" shape=box style=filled fillcolor="#90CAF9"];
+        data_hash [label="Flag Values\nHashed" shape=box style=filled fillcolor="#90CAF9"];
+    }
+
+    subgraph cluster_layer5 {
+        label="Layer 5: Audit & Monitoring";
+        style=rounded;
+        bgcolor="#F3E5F5";
+        color="#7B1FA2";
+        
+        audit_middleware [label="Audit\nMiddleware" shape=box style=filled fillcolor="#CE93D8"];
+        audit_auth [label="Auth Event\nLogging" shape=box style=filled fillcolor="#CE93D8"];
+        audit_admin [label="Admin Action\nTracking" shape=box style=filled fillcolor="#CE93D8"];
+        audit_health [label="Container\nHealthchecks" shape=box style=filled fillcolor="#CE93D8"];
+    }
+
+    // ========== Flow ==========
+    net_tls -> app_cors [style=invis];
+    app_cors -> auth_jwt [style=invis];
+    auth_jwt -> data_auth [style=invis];
+    data_auth -> audit_middleware [style=invis];
+
+    // ========== Security Headers Detail ==========
+    subgraph cluster_headers {
+        label="Security Headers Configuration";
+        style=rounded;
+        bgcolor="#FAFAFA";
+        color="#9E9E9E";
+        
+        header_csp [label="Content-Security-Policy\ndefault-src 'self'" shape=note style=filled fillcolor="#EEEEEE"];
+        header_xct [label="X-Content-Type-Options\nnosniff" shape=note style=filled fillcolor="#EEEEEE"];
+        header_xfo [label="X-Frame-Options\nDENY" shape=note style=filled fillcolor="#EEEEEE"];
+        header_ref [label="Referrer-Policy\nno-referrer" shape=note style=filled fillcolor="#EEEEEE"];
+        header_hsts [label="Strict-Transport-Security\nmax-age=31536000" shape=note style=filled fillcolor="#EEEEEE"];
+    }
+
+    app_headers -> header_csp [style=dashed];
+}
+
+
+// ============================================================================
+// DIAGRAM 8: API ENDPOINTS OVERVIEW
+// ============================================================================
+digraph APIEndpoints {
+    rankdir=TB;
+    fontname="Arial";
+    node [fontname="Arial", fontsize=9];
+    edge [fontname="Arial", fontsize=8];
+    
+    graph [
+        label="PACSTAR - API Endpoints Overview (/api/v1)"
+        labelloc=t
+        fontsize=16
+        fontname="Arial Bold"
+        bgcolor="white"
+        pad="0.5"
+    ];
+
+    // Root
+    api_root [label="/api/v1" shape=box style="filled,bold" fillcolor="#424242" fontcolor="white"];
+
+    // ========== Auth Endpoints ==========
+    subgraph cluster_auth {
+        label="/auth";
+        style=rounded;
+        bgcolor="#C8E6C9";
+        color="#2E7D32";
+        
+        auth_login [label="POST /login\nAuthenticate user" shape=box style=filled fillcolor="#A5D6A7"];
+        auth_register [label="POST /register\nCreate account" shape=box style=filled fillcolor="#A5D6A7"];
+        auth_logout [label="POST /logout\nInvalidate token" shape=box style=filled fillcolor="#A5D6A7"];
+        auth_me [label="GET /me\nCurrent user" shape=box style=filled fillcolor="#A5D6A7"];
+    }
+
+    // ========== Users Endpoints ==========
+    subgraph cluster_users {
+        label="/users";
+        style=rounded;
+        bgcolor="#BBDEFB";
+        color="#1565C0";
+        
+        users_list [label="GET /\nList all users\n[Master/Admin]" shape=box style=filled fillcolor="#90CAF9"];
+        users_get [label="GET /:id\nGet user by ID" shape=box style=filled fillcolor="#90CAF9"];
+        users_update [label="PUT /:id\nUpdate user" shape=box style=filled fillcolor="#90CAF9"];
+        users_delete [label="DELETE /:id\nDelete user\n[Master]" shape=box style=filled fillcolor="#90CAF9"];
+    }
+
+    // ========== Teams Endpoints ==========
+    subgraph cluster_teams {
+        label="/teams";
+        style=rounded;
+        bgcolor="#E1BEE7";
+        color="#7B1FA2";
+        
+        teams_list [label="GET /\nList teams" shape=box style=filled fillcolor="#CE93D8"];
+        teams_create [label="POST /\nCreate team" shape=box style=filled fillcolor="#CE93D8"];
+        teams_join [label="POST /join\nJoin with code" shape=box style=filled fillcolor="#CE93D8"];
+        teams_my [label="GET /my-team\nGet my team" shape=box style=filled fillcolor="#CE93D8"];
+        teams_get [label="GET /:id\nGet team" shape=box style=filled fillcolor="#CE93D8"];
+    }
+
+    // ========== Challenges Endpoints ==========
+    subgraph cluster_challenges {
+        label="/challenges";
+        style=rounded;
+        bgcolor="#FFE0B2";
+        color="#EF6C00";
+        
+        ch_list [label="GET /\nList challenges" shape=box style=filled fillcolor="#FFCC80"];
+        ch_create [label="POST /\nCreate challenge\n[Master/Admin]" shape=box style=filled fillcolor="#FFCC80"];
+        ch_get [label="GET /:id\nGet challenge" shape=box style=filled fillcolor="#FFCC80"];
+        ch_update [label="PUT /:id\nUpdate challenge" shape=box style=filled fillcolor="#FFCC80"];
+        ch_delete [label="DELETE /:id\nDelete challenge" shape=box style=filled fillcolor="#FFCC80"];
+        ch_start [label="POST /:id/start\nStart instance" shape=box style=filled fillcolor="#FFA726"];
+        ch_stop [label="POST /:id/stop\nStop instance" shape=box style=filled fillcolor="#FFA726"];
+        ch_deploy [label="POST /:id/deploy\nDeploy to K8s" shape=box style=filled fillcolor="#FFA726"];
+        ch_submit [label="POST /:id/submit-flag\nSubmit flag" shape=box style=filled fillcolor="#FF9800"];
+        ch_scores [label="GET /scores\nGet scoreboard" shape=box style=filled fillcolor="#FB8C00"];
+    }
+
+    // ========== Files Endpoints ==========
+    subgraph cluster_files {
+        label="/files";
+        style=rounded;
+        bgcolor="#B2DFDB";
+        color="#00796B";
+        
+        files_upload [label="POST /upload\nUpload file" shape=box style=filled fillcolor="#80CBC4"];
+        files_download [label="GET /download/:id\nDownload file" shape=box style=filled fillcolor="#80CBC4"];
+        files_list [label="GET /list\nList files" shape=box style=filled fillcolor="#80CBC4"];
+        files_serve [label="GET /serve/:id\nServe file" shape=box style=filled fillcolor="#80CBC4"];
+    }
+
+    // ========== Builder Endpoints ==========
+    subgraph cluster_builder {
+        label="/builder";
+        style=rounded;
+        bgcolor="#F8BBD9";
+        color="#C2185B";
+        
+        build_image [label="POST /build-image\nBuild Docker image" shape=box style=filled fillcolor="#F48FB1"];
+        build_list [label="GET /images\nList images" shape=box style=filled fillcolor="#F48FB1"];
+        build_delete [label="DELETE /images/:name\nDelete image" shape=box style=filled fillcolor="#F48FB1"];
+        build_kill [label="POST /kill-all\nKill all containers" shape=box style=filled fillcolor="#F48FB1"];
+    }
+
+    // ========== OpenStack Endpoints ==========
+    subgraph cluster_openstack {
+        label="/openstack";
+        style=rounded;
+        bgcolor="#B0BEC5";
+        color="#455A64";
+        
+        os_summary [label="GET /summary\nConnection status" shape=box style=filled fillcolor="#90A4AE"];
+        os_snapshots [label="GET /snapshots\nList snapshots" shape=box style=filled fillcolor="#90A4AE"];
+        os_instances [label="GET /instances\nList VMs" shape=box style=filled fillcolor="#90A4AE"];
+        os_networks [label="GET /networks\nList networks" shape=box style=filled fillcolor="#90A4AE"];
+        os_deploy [label="POST /deployments\nDeploy snapshot" shape=box style=filled fillcolor="#78909C"];
+        os_heat [label="POST /heat/deploy\nDeploy Heat stack" shape=box style=filled fillcolor="#78909C"];
+    }
+
+    // ========== Events Endpoints ==========
+    subgraph cluster_events {
+        label="/events";
+        style=rounded;
+        bgcolor="#DCEDC8";
+        color="#689F38";
+        
+        ev_list [label="GET /\nList events" shape=box style=filled fillcolor="#C5E1A5"];
+        ev_create [label="POST /\nCreate event" shape=box style=filled fillcolor="#C5E1A5"];
+        ev_get [label="GET /:id\nGet event" shape=box style=filled fillcolor="#C5E1A5"];
+        ev_update [label="PUT /:id\nUpdate event" shape=box style=filled fillcolor="#C5E1A5"];
+        ev_delete [label="DELETE /:id\nDelete event" shape=box style=filled fillcolor="#C5E1A5"];
+        ev_scores [label="GET /:id/scores\nEvent scores" shape=box style=filled fillcolor="#AED581"];
+    }
+
+    // ========== Connections ==========
+    api_root -> auth_login [lhead=cluster_auth];
+    api_root -> users_list [lhead=cluster_users];
+    api_root -> teams_list [lhead=cluster_teams];
+    api_root -> ch_list [lhead=cluster_challenges];
+    api_root -> files_upload [lhead=cluster_files];
+    api_root -> build_image [lhead=cluster_builder];
+    api_root -> os_summary [lhead=cluster_openstack];
+    api_root -> ev_list [lhead=cluster_events];
+}

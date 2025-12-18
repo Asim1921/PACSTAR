@@ -33,6 +33,8 @@ export const Challenges: React.FC = () => {
     description: '',
     challengeType: 'web',
     flagFormat: 'CTF{}',
+    challengeMode: 'dynamic', // static | dynamic | multi_flag
+    architecture: 'kubernetes', // kubernetes | openstack
     dockerImageSource: 'manual',
     flag: '',
     dockerImage: 'httpd:2.4',
@@ -50,6 +52,22 @@ export const Challenges: React.FC = () => {
     staticChallengeCategory: 'static',
     staticChallengeType: 'reverse',
     fileDescription: '',
+    flagServer: {
+      url: '',
+      publicKey: '',
+      serverToken: '',
+      caCertPath: '',
+    },
+    baydrakService: {
+      endpoint: '',
+      apiKey: '',
+      project: '',
+      namespace: '',
+      cluster: '',
+    },
+    flags: [
+      { name: 'flag1', mode: 'static', value: '', architecture: 'kubernetes' },
+    ],
   });
 
   const handleInputChange = (field: string, value: any) => {
@@ -112,6 +130,32 @@ export const Challenges: React.FC = () => {
     }
   };
 
+  // Multi-flag helpers
+  const addFlagItem = () => {
+    setFormData((prev) => ({
+      ...prev,
+      flags: [
+        ...prev.flags,
+        { name: `flag${prev.flags.length + 1}`, mode: 'static', value: '', architecture: prev.architecture },
+      ],
+    }));
+  };
+
+  const updateFlagItem = (index: number, field: string, value: any) => {
+    setFormData((prev) => {
+      const nextFlags = [...prev.flags];
+      nextFlags[index] = { ...nextFlags[index], [field]: value };
+      return { ...prev, flags: nextFlags };
+    });
+  };
+
+  const removeFlagItem = (index: number) => {
+    setFormData((prev) => ({
+      ...prev,
+      flags: prev.flags.filter((_, i) => i !== index),
+    }));
+  };
+
   const loadChallengeForEdit = async (challengeId: string) => {
     try {
       const challenge = await challengeAPI.getChallengeById(challengeId);
@@ -125,6 +169,8 @@ export const Challenges: React.FC = () => {
         description: challenge.description || '',
         challengeType: challenge.config?.challenge_type || 'web',
         flagFormat: 'CTF{}', // Default, not in API response
+        challengeMode: challenge.config?.mode || (challenge.challenge_category === 'static' ? 'static' : 'dynamic'),
+        architecture: challenge.config?.architecture || (challenge.challenge_category === 'openstack' ? 'openstack' : 'kubernetes'),
         dockerImageSource: 'manual',
         flag: challenge.flag || '',
         dockerImage: challenge.config?.image || 'httpd:2.4',
@@ -143,6 +189,37 @@ export const Challenges: React.FC = () => {
         staticChallengeCategory: 'static',
         staticChallengeType: challenge.config?.challenge_type || 'reverse',
         fileDescription: '', // Not in API response
+        flagServer: challenge.config?.flag_server
+          ? {
+              url: challenge.config.flag_server.url || '',
+              publicKey: challenge.config.flag_server.public_key || '',
+              serverToken: challenge.config.flag_server.server_token || '',
+              caCertPath: challenge.config.flag_server.ca_cert_path || '',
+            }
+          : {
+              url: '',
+              publicKey: '',
+              serverToken: '',
+              caCertPath: '',
+            },
+        baydrakService: challenge.config?.baydrak_service
+          ? {
+              endpoint: challenge.config.baydrak_service.endpoint || '',
+              apiKey: challenge.config.baydrak_service.api_key || '',
+              project: challenge.config.baydrak_service.project || '',
+              namespace: challenge.config.baydrak_service.namespace || '',
+              cluster: challenge.config.baydrak_service.cluster || '',
+            }
+          : {
+              endpoint: '',
+              apiKey: '',
+              project: '',
+              namespace: '',
+              cluster: '',
+            },
+        flags: challenge.flags && Array.isArray(challenge.flags) && challenge.flags.length > 0
+          ? challenge.flags
+          : [{ name: 'flag1', mode: 'static', value: '', architecture: 'kubernetes' }],
       });
       
       showToast('Challenge loaded for editing', 'success');
@@ -184,7 +261,14 @@ export const Challenges: React.FC = () => {
       // Log the category being used
       console.log('Submitting challenge with category:', category);
       
-      if (category === 'containerized') {
+      const derivedCategory =
+        formData.architecture === 'openstack'
+          ? 'openstack'
+          : formData.challengeMode === 'static'
+            ? 'static'
+            : 'containerized';
+
+      if (formData.challengeMode !== 'static') {
         // Parse ports from comma-separated string to array
         const portsArray = formData.ports
           .split(',')
@@ -204,7 +288,7 @@ export const Challenges: React.FC = () => {
         challengeData = {
           name: formData.challengeName,
           description: formData.description,
-          challenge_category: category, // Use the category state variable
+          challenge_category: derivedCategory,
           config: {
             challenge_type: formData.challengeType,
             image: formData.dockerImage,
@@ -214,8 +298,25 @@ export const Challenges: React.FC = () => {
               cpu: formData.cpuRequest,
               memory: formData.memoryRequest,
             },
+            mode: formData.challengeMode,
+            architecture: formData.architecture,
+            flag_server: {
+              url: formData.flagServer.url,
+              public_key: formData.flagServer.publicKey,
+              server_token: formData.flagServer.serverToken,
+              ca_cert_path: formData.flagServer.caCertPath,
+            },
+            baydrak_service: {
+              endpoint: formData.baydrakService.endpoint,
+              api_key: formData.baydrakService.apiKey,
+              project: formData.baydrakService.project,
+              namespace: formData.baydrakService.namespace,
+              cluster: formData.baydrakService.cluster,
+            },
+            flags: formData.challengeMode === 'multi_flag' ? formData.flags : [],
           },
-          flag: formData.flag,
+          flag: formData.challengeMode === 'multi_flag' ? null : formData.flag,
+          flags: formData.challengeMode === 'multi_flag' ? formData.flags : undefined,
           points: formData.points,
           total_teams: formData.maxTeams,
           is_active: formData.isActive,
@@ -247,14 +348,30 @@ export const Challenges: React.FC = () => {
         challengeData = {
           name: formData.challengeName,
           description: formData.description,
-          challenge_category: category, // Use the category state variable
+          challenge_category: derivedCategory,
           config: {
             challenge_type: formData.staticChallengeType,
             file_path: fileUploadResponse.file_path,
             file_name: fileUploadResponse.filename,
             download_url: fileUploadResponse.download_url,
+            mode: formData.challengeMode,
+            architecture: formData.architecture,
+            flag_server: {
+              url: formData.flagServer.url,
+              public_key: formData.flagServer.publicKey,
+              server_token: formData.flagServer.serverToken,
+              ca_cert_path: formData.flagServer.caCertPath,
+            },
+            baydrak_service: {
+              endpoint: formData.baydrakService.endpoint,
+              api_key: formData.baydrakService.apiKey,
+              project: formData.baydrakService.project,
+              namespace: formData.baydrakService.namespace,
+              cluster: formData.baydrakService.cluster,
+            },
           },
           flag: formData.flag,
+          flags: formData.challengeMode === 'multi_flag' ? formData.flags : undefined,
           points: formData.points,
           total_teams: formData.maxTeams,
           is_active: formData.isActive,
@@ -271,8 +388,13 @@ export const Challenges: React.FC = () => {
         return;
       }
 
-      if (!challengeData.flag) {
+      if (formData.challengeMode !== 'multi_flag' && !challengeData.flag) {
         showToast('Please enter a flag', 'error');
+        setIsSubmitting(false);
+        return;
+      }
+      if (formData.challengeMode === 'multi_flag' && (!challengeData.flags || challengeData.flags.length === 0)) {
+        showToast('Please add at least one flag', 'error');
         setIsSubmitting(false);
         return;
       }
@@ -291,6 +413,8 @@ export const Challenges: React.FC = () => {
         description: '',
         challengeType: 'web',
         flagFormat: 'CTF{}',
+        challengeMode: 'dynamic',
+        architecture: 'kubernetes',
         dockerImageSource: 'manual',
         flag: '',
         dockerImage: 'httpd:2.4',
@@ -307,6 +431,20 @@ export const Challenges: React.FC = () => {
         staticChallengeCategory: 'static',
         staticChallengeType: 'reverse',
         fileDescription: '',
+        flagServer: {
+          url: '',
+          publicKey: '',
+          serverToken: '',
+          caCertPath: '',
+        },
+        baydrakService: {
+          endpoint: '',
+          apiKey: '',
+          project: '',
+          namespace: '',
+          cluster: '',
+        },
+        flags: [{ name: 'flag1', mode: 'static', value: '', architecture: 'kubernetes' }],
       });
       setStaticChallengeFile(null);
       setShowFlag(false);
@@ -398,36 +536,65 @@ export const Challenges: React.FC = () => {
               {editingChallengeId ? 'Edit Challenge' : 'Create New Challenge'}
             </h4>
 
-            {/* Challenge Category */}
+            {/* Challenge Mode */}
             <div className="mb-6">
               <div className="flex items-center gap-2 mb-3">
                 <label className="block text-sm font-semibold text-white/90">
-                  Challenge Category *
+                  Challenge Mode *
                 </label>
                 <HelpCircle className="text-white/60" size={16} />
               </div>
               <RadioGroup
                 options={[
-                  { value: 'containerized', label: 'Containerized' },
                   { value: 'static', label: 'Static' },
+                  { value: 'dynamic', label: 'Dynamic' },
+                  { value: 'multi_flag', label: 'Multi-Flag' },
                 ]}
-                value={category}
+                value={formData.challengeMode}
                 onChange={(value) => {
-                  console.log('Category changed to:', value);
-                  setCategory(value as ChallengeCategory);
+                  setFormData((prev) => ({ ...prev, challengeMode: value }));
+                  // Keep category for legacy branch selection
+                  setCategory(value === 'static' ? 'static' : 'containerized');
                 }}
               />
             </div>
 
+            {/* Architecture Selector */}
+            <div className="mb-6 grid grid-cols-1 md:grid-cols-2 gap-4">
+              <Select
+                label="Architecture"
+                value={formData.architecture}
+                onChange={(e) => setFormData((prev) => ({ ...prev, architecture: e.target.value }))}
+                options={[
+                  { value: 'kubernetes', label: 'Kubernetes' },
+                  { value: 'openstack', label: 'OpenStack' },
+                ]}
+              />
+              <Select
+                label="Challenge Type"
+                value={formData.challengeType}
+                onChange={(e) => handleInputChange('challengeType', e.target.value)}
+                options={[
+                  { value: 'web', label: 'web' },
+                  { value: 'jwt', label: 'jwt' },
+                  { value: 'crypto', label: 'crypto' },
+                  { value: 'reverse', label: 'reverse' },
+                  { value: 'pwn', label: 'pwn' },
+                  { value: 'forensics', label: 'forensics' },
+                  { value: 'misc', label: 'misc' },
+                ]}
+              />
+            </div>
+
             {/* Containerized Challenge Section */}
-            {category === 'containerized' && (
+            {formData.challengeMode !== 'static' && (
               <div className="bg-cyber-900/80 backdrop-blur-xl rounded-2xl shadow-lg border border-neon-green/20 terminal-border p-6 space-y-6">
                 <div className="flex items-center gap-3 mb-4">
                   <div className="w-10 h-10 bg-neon-green/20 backdrop-blur-sm rounded-xl flex items-center justify-center border border-neon-green/40">
                     <Container className="text-neon-green" size={20} />
                   </div>
                   <h5 className="text-lg font-bold text-white">
-                    Containerized Challenge
+                    {formData.challengeMode === 'dynamic' ? 'Dynamic Challenge' : 'Multi-Flag Challenge'}
                   </h5>
                 </div>
 
@@ -454,21 +621,6 @@ export const Challenges: React.FC = () => {
                       />
                     </div>
 
-                    <Select
-                      label="Challenge Type"
-                      value={formData.challengeType}
-                      onChange={(e) => handleInputChange('challengeType', e.target.value)}
-                      options={[
-                        { value: 'web', label: 'web' },
-                        { value: 'jwt', label: 'jwt' },
-                        { value: 'crypto', label: 'crypto' },
-                        { value: 'reverse', label: 'reverse' },
-                        { value: 'pwn', label: 'pwn' },
-                        { value: 'forensics', label: 'forensics' },
-                        { value: 'misc', label: 'misc' },
-                      ]}
-                    />
-
                     <Input
                       label="Flag Format"
                       value={formData.flagFormat}
@@ -486,30 +638,93 @@ export const Challenges: React.FC = () => {
                       ]}
                     />
 
-                    <div>
-                      <div className="flex items-center gap-2 mb-2">
-                        <label className="block text-xs font-mono font-semibold text-neon-green tracking-wider">
-                          &gt; FLAG (SECRET)
-                        </label>
-                        <HelpCircle className="text-white/60" size={16} />
+                    {formData.challengeMode === 'dynamic' && (
+                      <div>
+                        <div className="flex items-center gap-2 mb-2">
+                          <label className="block text-xs font-mono font-semibold text-neon-green tracking-wider">
+                            &gt; FLAG (SECRET)
+                          </label>
+                          <HelpCircle className="text-white/60" size={16} />
+                        </div>
+                        <div className="relative">
+                          <input
+                            type={showFlag ? 'text' : 'password'}
+                            value={formData.flag}
+                            onChange={(e) => handleInputChange('flag', e.target.value)}
+                            placeholder="Enter flag"
+                            className="w-full px-4 py-3 pr-10 bg-cyber-800/50 border-2 border-neon-green/20 rounded-xl text-white placeholder:text-white/30 focus:outline-none focus:border-neon-green focus:ring-4 focus:ring-neon-green/20 transition-all"
+                          />
+                          <button
+                            type="button"
+                            onClick={() => setShowFlag(!showFlag)}
+                            className="absolute right-3 top-1/2 transform -translate-y-1/2 text-white/40 hover:text-neon-green transition-colors"
+                          >
+                            {showFlag ? <EyeOff size={18} /> : <Eye size={18} />}
+                          </button>
+                        </div>
                       </div>
-                      <div className="relative">
-                        <input
-                          type={showFlag ? 'text' : 'password'}
-                          value={formData.flag}
-                          onChange={(e) => handleInputChange('flag', e.target.value)}
-                          placeholder="Enter flag"
-                          className="w-full px-4 py-3 pr-10 bg-cyber-800/50 border-2 border-neon-green/20 rounded-xl text-white placeholder:text-white/30 focus:outline-none focus:border-neon-green focus:ring-4 focus:ring-neon-green/20 transition-all"
-                        />
-                        <button
-                          type="button"
-                          onClick={() => setShowFlag(!showFlag)}
-                          className="absolute right-3 top-1/2 transform -translate-y-1/2 text-white/40 hover:text-neon-green transition-colors"
-                        >
-                          {showFlag ? <EyeOff size={18} /> : <Eye size={18} />}
-                        </button>
+                    )}
+
+                    {formData.challengeMode === 'multi_flag' && (
+                      <div className="space-y-3">
+                        <div className="flex items-center gap-2 mb-1">
+                          <label className="block text-xs font-mono font-semibold text-neon-green tracking-wider">
+                            &gt; FLAGS
+                          </label>
+                          <HelpCircle className="text-white/60" size={16} />
+                        </div>
+                        {formData.flags.map((flag, idx) => (
+                          <div key={idx} className="border border-neon-green/30 rounded-xl p-4 space-y-3 bg-cyber-800/30">
+                            <div className="flex items-center justify-between gap-3">
+                              <Input
+                                label="Flag Name"
+                                value={flag.name}
+                                onChange={(e) => updateFlagItem(idx, 'name', e.target.value)}
+                                placeholder="flag1"
+                              />
+                              <Select
+                                label="Mode"
+                                value={flag.mode}
+                                onChange={(e) => updateFlagItem(idx, 'mode', e.target.value)}
+                                options={[
+                                  { value: 'static', label: 'Static' },
+                                  { value: 'dynamic', label: 'Dynamic' },
+                                ]}
+                              />
+                              <Select
+                                label="Architecture"
+                                value={flag.architecture || formData.architecture}
+                                onChange={(e) => updateFlagItem(idx, 'architecture', e.target.value)}
+                                options={[
+                                  { value: 'kubernetes', label: 'Kubernetes' },
+                                  { value: 'openstack', label: 'OpenStack' },
+                                ]}
+                              />
+                            </div>
+                            <Input
+                              label={flag.mode === 'static' ? 'Flag Value' : 'Flag Value (encrypted at delivery)'}
+                              value={flag.value}
+                              onChange={(e) => updateFlagItem(idx, 'value', e.target.value)}
+                              placeholder={flag.mode === 'static' ? 'CTF{...}' : 'Optional dynamic seed'}
+                            />
+                            <div className="flex justify-end">
+                              <Button
+                                type="button"
+                                variant="outline"
+                                size="sm"
+                                onClick={() => removeFlagItem(idx)}
+                                className="border-neon-orange/40 text-neon-orange hover:bg-neon-orange/10"
+                              >
+                                Remove
+                              </Button>
+                            </div>
+                          </div>
+                        ))}
+                        <Button type="button" variant="outline" size="sm" onClick={addFlagItem}>
+                          Add Flag
+                        </Button>
                       </div>
-                    </div>
+                    )}
 
                     <Input
                       label="Docker Image *"
@@ -625,6 +840,66 @@ export const Challenges: React.FC = () => {
                       />
                     </div>
 
+                    {(formData.challengeMode === 'dynamic' || formData.challengeMode === 'multi_flag') && (
+                      <div className="space-y-4">
+                        <div className="border border-neon-green/20 rounded-xl p-4">
+                          <h6 className="text-white font-semibold mb-2">Flag Server (HTTPS)</h6>
+                          <Input
+                            label="Flag Server URL"
+                            value={formData.flagServer.url}
+                            onChange={(e) => setFormData((prev) => ({ ...prev, flagServer: { ...prev.flagServer, url: e.target.value } }))}
+                            placeholder="https://flag-server.local/api/v1/flag-server"
+                          />
+                          <Input
+                            label="Server Token"
+                          value={formData.flagServer.serverToken}
+                          onChange={(e) => setFormData((prev) => ({ ...prev, flagServer: { ...prev.flagServer, serverToken: e.target.value } }))}
+                            placeholder="Shared token for flag server"
+                          />
+                          <Input
+                            label="Server Public Key (PEM)"
+                          value={formData.flagServer.publicKey}
+                          onChange={(e) => setFormData((prev) => ({ ...prev, flagServer: { ...prev.flagServer, publicKey: e.target.value } }))}
+                            placeholder="-----BEGIN PUBLIC KEY-----"
+                          />
+                        </div>
+
+                        <div className="border border-neon-cyan/20 rounded-xl p-4">
+                          <h6 className="text-white font-semibold mb-2">Baydrak Service</h6>
+                          <Input
+                            label="Endpoint"
+                            value={formData.baydrakService.endpoint}
+                            onChange={(e) => setFormData((prev) => ({ ...prev, baydrakService: { ...prev.baydrakService, endpoint: e.target.value } }))}
+                            placeholder="https://baydrak.service"
+                          />
+                          <Input
+                            label="API Key"
+                            value={formData.baydrakService.apiKey}
+                            onChange={(e) => setFormData((prev) => ({ ...prev, baydrakService: { ...prev.baydrakService, apiKey: e.target.value } }))}
+                            placeholder="API key"
+                          />
+                          <Input
+                            label="Project"
+                            value={formData.baydrakService.project}
+                            onChange={(e) => setFormData((prev) => ({ ...prev, baydrakService: { ...prev.baydrakService, project: e.target.value } }))}
+                            placeholder="Project / tenant"
+                          />
+                          <Input
+                            label="Namespace / Cluster"
+                            value={formData.baydrakService.namespace}
+                            onChange={(e) => setFormData((prev) => ({ ...prev, baydrakService: { ...prev.baydrakService, namespace: e.target.value } }))}
+                            placeholder="Namespace"
+                          />
+                          <Input
+                            label="Cluster"
+                            value={formData.baydrakService.cluster}
+                            onChange={(e) => setFormData((prev) => ({ ...prev, baydrakService: { ...prev.baydrakService, cluster: e.target.value } }))}
+                            placeholder="Cluster/region"
+                          />
+                        </div>
+                      </div>
+                    )}
+
                     <div className="flex items-center gap-2">
                       <input
                         type="checkbox"
@@ -689,7 +964,7 @@ export const Challenges: React.FC = () => {
             )}
 
             {/* Static Challenge Section */}
-            {category === 'static' && (
+            {formData.challengeMode === 'static' && (
               <div className="bg-cyber-900/80 backdrop-blur-xl rounded-2xl shadow-lg border border-neon-cyan/20 terminal-border p-6 space-y-6">
                 <div className="flex items-center gap-3 mb-4">
                   <div className="w-10 h-10 bg-neon-cyan/20 backdrop-blur-sm rounded-xl flex items-center justify-center border border-neon-cyan/40">

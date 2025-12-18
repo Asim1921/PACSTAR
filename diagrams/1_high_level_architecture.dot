@@ -1,0 +1,217 @@
+// PACSTAR - High-Level System Architecture
+// Render: dot -Tpng 1_high_level_architecture.dot -o 1_high_level_architecture.png
+
+digraph HighLevelArchitecture {
+    rankdir=TB;
+    compound=true;
+    fontname="Arial";
+    node [fontname="Arial", fontsize=11];
+    edge [fontname="Arial", fontsize=10];
+    
+    graph [
+        label="PACSTAR CTF Platform - High-Level System Architecture"
+        labelloc=t
+        fontsize=18
+        fontname="Arial Bold"
+        bgcolor="white"
+        pad="0.5"
+        nodesep=0.6
+        ranksep=0.8
+        dpi=150
+    ];
+
+    // ========== Users ==========
+    subgraph cluster_users {
+        label="External Users";
+        style=rounded;
+        bgcolor="#E8F5E9";
+        color="#4CAF50";
+        penwidth=2;
+        
+        users [
+            label="Users\n(Web Browser)"
+            shape=box3d
+            style=filled
+            fillcolor="#C8E6C9"
+            color="#2E7D32"
+        ];
+    }
+
+    // ========== Presentation Layer ==========
+    subgraph cluster_presentation {
+        label="PRESENTATION LAYER";
+        style=rounded;
+        bgcolor="#E3F2FD";
+        color="#1976D2";
+        penwidth=2;
+        
+        subgraph cluster_frontend {
+            label="Next.js 14 Frontend (Port 3505)";
+            style=filled;
+            fillcolor="#BBDEFB";
+            color="#1565C0";
+            
+            auth_ui [label="Auth UI\n(Login/Register)" shape=box style=filled fillcolor="#90CAF9"];
+            dashboard [label="Dashboard\n(Profile/Team)" shape=box style=filled fillcolor="#90CAF9"];
+            admin_ui [label="Admin Panel\n(Challenges)" shape=box style=filled fillcolor="#90CAF9"];
+            user_ui [label="User Panel\n(Participate)" shape=box style=filled fillcolor="#90CAF9"];
+            
+            ui_components [
+                label="UI Components\nButton | Input | Select | Toast"
+                shape=box
+                style="filled,rounded"
+                fillcolor="#64B5F6"
+            ];
+        }
+        
+        api_proxy [
+            label="API Proxy\n(/api/proxy/*)"
+            shape=box
+            style="filled,rounded"
+            fillcolor="#42A5F5"
+            color="#0D47A1"
+        ];
+    }
+
+    // ========== Application Layer ==========
+    subgraph cluster_application {
+        label="APPLICATION LAYER";
+        style=rounded;
+        bgcolor="#FFF3E0";
+        color="#F57C00";
+        penwidth=2;
+        
+        subgraph cluster_backend {
+            label="FastAPI Backend (Port 8000)";
+            style=filled;
+            fillcolor="#FFE0B2";
+            color="#EF6C00";
+            
+            subgraph cluster_endpoints {
+                label="API Endpoints (/api/v1)";
+                style=filled;
+                fillcolor="#FFCC80";
+                
+                ep_auth [label="/auth" shape=box style=filled fillcolor="#FFB74D"];
+                ep_users [label="/users" shape=box style=filled fillcolor="#FFB74D"];
+                ep_teams [label="/teams" shape=box style=filled fillcolor="#FFB74D"];
+                ep_challenges [label="/challenges" shape=box style=filled fillcolor="#FFB74D"];
+                ep_files [label="/files" shape=box style=filled fillcolor="#FFB74D"];
+                ep_builder [label="/builder" shape=box style=filled fillcolor="#FFB74D"];
+                ep_openstack [label="/openstack" shape=box style=filled fillcolor="#FFB74D"];
+                ep_events [label="/events" shape=box style=filled fillcolor="#FFB74D"];
+            }
+            
+            subgraph cluster_services {
+                label="Services Layer";
+                style=filled;
+                fillcolor="#FFCC80";
+                
+                svc_auth [label="AuthService" shape=ellipse style=filled fillcolor="#FFA726"];
+                svc_challenge [label="ChallengeService" shape=ellipse style=filled fillcolor="#FFA726"];
+                svc_k8s [label="KubernetesService" shape=ellipse style=filled fillcolor="#FFA726"];
+                svc_openstack [label="OpenStackService" shape=ellipse style=filled fillcolor="#FFA726"];
+            }
+            
+            subgraph cluster_middleware {
+                label="Middleware";
+                style=filled;
+                fillcolor="#FFCC80";
+                
+                mw_rbac [label="RBAC" shape=hexagon style=filled fillcolor="#FB8C00"];
+                mw_audit [label="Audit" shape=hexagon style=filled fillcolor="#FB8C00"];
+                mw_error [label="Error Handler" shape=hexagon style=filled fillcolor="#FB8C00"];
+            }
+        }
+    }
+
+    // ========== Data Layer ==========
+    subgraph cluster_data {
+        label="DATA LAYER";
+        style=rounded;
+        bgcolor="#F3E5F5";
+        color="#7B1FA2";
+        penwidth=2;
+        
+        subgraph cluster_mongodb {
+            label="MongoDB 7.0 (Port 27017)";
+            style=filled;
+            fillcolor="#E1BEE7";
+            color="#6A1B9A";
+            
+            col_users [label="users" shape=cylinder style=filled fillcolor="#CE93D8"];
+            col_teams [label="teams" shape=cylinder style=filled fillcolor="#CE93D8"];
+            col_challenges [label="challenges" shape=cylinder style=filled fillcolor="#CE93D8"];
+            col_instances [label="instances" shape=cylinder style=filled fillcolor="#CE93D8"];
+            col_submissions [label="submissions" shape=cylinder style=filled fillcolor="#CE93D8"];
+            col_events [label="events" shape=cylinder style=filled fillcolor="#CE93D8"];
+        }
+    }
+
+    // ========== Infrastructure Layer ==========
+    subgraph cluster_infrastructure {
+        label="INFRASTRUCTURE LAYER";
+        style=rounded;
+        bgcolor="#ECEFF1";
+        color="#455A64";
+        penwidth=2;
+        
+        subgraph cluster_kubernetes {
+            label="Kubernetes Cluster";
+            style=filled;
+            fillcolor="#CFD8DC";
+            color="#37474F";
+            
+            k8s_pods [label="Container\nChallenges\n(Pods)" shape=box3d style=filled fillcolor="#B0BEC5"];
+            k8s_services [label="LoadBalancer\nServices" shape=box style=filled fillcolor="#B0BEC5"];
+            metallb [label="MetalLB\n(IP Pool)" shape=box style=filled fillcolor="#90A4AE"];
+        }
+        
+        subgraph cluster_openstack {
+            label="OpenStack Cloud";
+            style=filled;
+            fillcolor="#CFD8DC";
+            color="#37474F";
+            
+            os_nova [label="Nova\n(Compute)" shape=box3d style=filled fillcolor="#B0BEC5"];
+            os_neutron [label="Neutron\n(Network)" shape=box style=filled fillcolor="#B0BEC5"];
+            os_heat [label="Heat\n(Orchestration)" shape=box style=filled fillcolor="#B0BEC5"];
+            os_glance [label="Glance\n(Images)" shape=cylinder style=filled fillcolor="#90A4AE"];
+        }
+    }
+
+    // ========== Connections ==========
+    users -> auth_ui [label="HTTPS\n:3505" color="#4CAF50" penwidth=2];
+    
+    auth_ui -> ui_components [style=dashed color="#1976D2"];
+    dashboard -> ui_components [style=dashed color="#1976D2"];
+    admin_ui -> ui_components [style=dashed color="#1976D2"];
+    user_ui -> ui_components [style=dashed color="#1976D2"];
+    
+    auth_ui -> api_proxy [color="#1976D2"];
+    dashboard -> api_proxy [color="#1976D2"];
+    admin_ui -> api_proxy [color="#1976D2"];
+    user_ui -> api_proxy [color="#1976D2"];
+    
+    api_proxy -> ep_auth [label="REST API" color="#F57C00" penwidth=2];
+    
+    ep_auth -> svc_auth [style=dashed color="#EF6C00"];
+    ep_challenges -> svc_challenge [style=dashed color="#EF6C00"];
+    ep_builder -> svc_k8s [style=dashed color="#EF6C00"];
+    ep_openstack -> svc_openstack [style=dashed color="#EF6C00"];
+    
+    svc_auth -> col_users [label="MongoDB" color="#7B1FA2" penwidth=2];
+    svc_challenge -> col_challenges [color="#7B1FA2"];
+    
+    svc_k8s -> k8s_pods [label="K8s API" color="#455A64" penwidth=2];
+    svc_openstack -> os_heat [label="OpenStack\nAPI" color="#455A64" penwidth=2];
+    
+    k8s_pods -> k8s_services [color="#455A64"];
+    k8s_services -> metallb [color="#455A64"];
+    
+    os_heat -> os_nova [color="#455A64"];
+    os_heat -> os_neutron [color="#455A64"];
+    os_nova -> os_glance [color="#455A64"];
+}
+
+
