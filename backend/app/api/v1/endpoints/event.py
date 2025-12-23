@@ -16,6 +16,9 @@ from typing import List, Optional
 from fastapi import APIRouter, Depends, HTTPException, status, Request, Query
 from fastapi.security import HTTPBearer
 import logging
+from datetime import datetime
+from pydantic import BaseModel, Field
+from bson import ObjectId
 
 from app.schemas.event import (
     EventCreate, EventUpdate, EventResponse, EventListResponse, EventStatus,
@@ -25,9 +28,10 @@ from app.schemas.event import (
     EventRegistrationResponse, AvailableChallengeResponse, ChallengeVisibility,
     ChallengeVisibilityUpdate, EventSummary
 )
-from app.schemas.user import UserResponse
+from app.schemas.user import UserResponse, PasswordResetRequest
 from app.services.event_service import event_service
 from app.api.v1.endpoints.user import get_current_user
+from app.core.security import hash_password
 
 logger = logging.getLogger(__name__)
 
@@ -225,8 +229,13 @@ async def get_notifications(
                     "type": n.get("type", "event_started"),
                     "event_id": n.get("event_id"),
                     "event_name": n.get("event_name"),
+                    "title": n.get("title") or n.get("event_name"),
                     "message": n.get("message"),
                     "action": n.get("action", "join_event"),
+                    "ui_type": n.get("ui_type", "toast"),
+                    "play_sound": bool(n.get("play_sound", False)),
+                    "source": n.get("source"),
+                    "broadcast_id": n.get("broadcast_id"),
                     "created_at": n.get("created_at").isoformat() if n.get("created_at") else None,
                     "read": n.get("read", False)
                 }
@@ -276,6 +285,145 @@ async def mark_notification_read(
             status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
             detail=f"Failed to mark notification as read: {str(e)}"
         )
+
+
+class BroadcastNotificationRequest(BaseModel):
+    title: str = Field(..., min_length=1, max_length=120, description="Notification title")
+    message: str = Field(..., min_length=1, max_length=2000, description="Notification content")
+    ui_type: str = Field(default="toast", description="toast | alert | background")
+    play_sound: bool = Field(default=False, description="Whether clients should play a sound")
+    zone: Optional[str] = Field(default=None, description="Optional zone filter. Omit for all zones.")
+    include_admins: bool = Field(default=True, description="Include Admin users (non-Master)")
+
+
+@router.post(
+    "/notifications/broadcast",
+    summary="Broadcast a notification (Master only)",
+    description="Broadcast a notification to all users/teams (optionally scoped by zone). Creates per-user notification rows."
+)
+async def broadcast_notification(
+    body: BroadcastNotificationRequest,
+    current_user: UserResponse = Depends(get_current_user)
+):
+    if current_user.role != "Master":
+        raise HTTPException(status_code=status.HTTP_403_FORBIDDEN, detail="Only Master can broadcast notifications")
+
+    ui_type = (body.ui_type or "toast").lower().strip()
+    if ui_type not in ["toast", "alert", "background"]:
+        raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail="Invalid ui_type (toast|alert|background)")
+
+    try:
+        from app.services.event_service import event_service
+
+        now = datetime.utcnow()
+        zone = (body.zone or "").strip() or None
+
+        # Create broadcast meta record (used for master feed + de-duplication)
+        broadcast_doc = {
+            "title": body.title.strip(),
+            "message": body.message.strip(),
+            "ui_type": ui_type,
+            "play_sound": bool(body.play_sound),
+            "zone": zone,
+            "created_at": now,
+            "created_by_user_id": str(current_user.id),
+            "created_by_username": current_user.username,
+        }
+        res = await event_service.db["notification_broadcasts"].insert_one(broadcast_doc)
+        broadcast_id = str(res.inserted_id)
+
+        # Determine recipients
+        user_query: dict = {"is_active": True, "role": {"$ne": "Master"}}
+        if not body.include_admins:
+            user_query["role"] = "User"
+        if zone:
+            user_query["zone"] = zone
+
+        users = await event_service.db["users"].find(
+            user_query,
+            {"username": 1, "zone": 1, "team_id": 1, "team_code": 1, "team_name": 1}
+        ).to_list(length=200000)
+
+        notifications = []
+        for u in users:
+            uid = str(u.get("_id"))
+            notifications.append({
+                "type": "broadcast",
+                "title": body.title.strip(),
+                "message": body.message.strip(),
+                "ui_type": ui_type,
+                "play_sound": bool(body.play_sound),
+                "source": "master_broadcast",
+                "broadcast_id": broadcast_id,
+                "zone": u.get("zone"),
+                "user_id": uid,
+                "username": u.get("username"),
+                "team_id": str(u.get("team_id")) if u.get("team_id") else None,
+                "team_code": u.get("team_code"),
+                "team_name": u.get("team_name"),
+                "action": "none",
+                "created_at": now,
+                "read": False,
+            })
+
+        if notifications:
+            # Batch insert for performance
+            await event_service.db["notifications"].insert_many(notifications)
+
+        await event_service.db["notification_broadcasts"].update_one(
+            {"_id": res.inserted_id},
+            {"$set": {"targets_count": len(notifications)}}
+        )
+
+        return {
+            "success": True,
+            "broadcast_id": broadcast_id,
+            "targets_count": len(notifications),
+            "created_at": now.isoformat(),
+        }
+    except HTTPException:
+        raise
+    except Exception as e:
+        logger.error(f"Failed to broadcast notification: {e}")
+        raise HTTPException(status_code=status.HTTP_500_INTERNAL_SERVER_ERROR, detail=f"Failed to broadcast notification: {str(e)}")
+
+
+@router.get(
+    "/notifications/broadcasts",
+    summary="Broadcast notification feed (Master only)",
+    description="Get recent Master broadcast notifications (deduplicated feed)."
+)
+async def list_broadcast_notifications(
+    zone: Optional[str] = Query(None, description="Optional zone filter"),
+    current_user: UserResponse = Depends(get_current_user)
+):
+    if current_user.role != "Master":
+        raise HTTPException(status_code=status.HTTP_403_FORBIDDEN, detail="Only Master can view broadcast feed")
+    try:
+        from app.services.event_service import event_service
+        q: dict = {}
+        if zone:
+            q["zone"] = zone
+        rows = await event_service.db["notification_broadcasts"].find(q).sort("created_at", -1).limit(50).to_list(length=50)
+        return {
+            "broadcasts": [
+                {
+                    "id": str(r.get("_id")),
+                    "title": r.get("title"),
+                    "message": r.get("message"),
+                    "ui_type": r.get("ui_type", "toast"),
+                    "play_sound": bool(r.get("play_sound", False)),
+                    "zone": r.get("zone"),
+                    "targets_count": r.get("targets_count", 0),
+                    "created_by_username": r.get("created_by_username"),
+                    "created_at": r.get("created_at").isoformat() if r.get("created_at") else None,
+                }
+                for r in rows
+            ]
+        }
+    except Exception as e:
+        logger.error(f"Failed to list broadcast notifications: {e}")
+        raise HTTPException(status_code=status.HTTP_500_INTERNAL_SERVER_ERROR, detail=f"Failed to list broadcast notifications: {str(e)}")
 
 
 # =============================================================================
@@ -747,6 +895,129 @@ async def ban_team_for_event(
         raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail=str(e))
     except Exception as e:
         logger.error(f"Failed to ban team: {e}")
+        raise HTTPException(status_code=status.HTTP_500_INTERNAL_SERVER_ERROR, detail=f"Failed: {str(e)}")
+
+
+@router.post(
+    "/{event_id}/teams/{team_id}/reset-password",
+    summary="Reset team users' passwords for this event",
+    description="Reset passwords for all **User** accounts in a specific team participating in this event's zone. Master/Admin/Event Admin."
+)
+async def reset_team_password_for_event(
+    event_id: str,
+    team_id: str,
+    body: PasswordResetRequest,
+    current_user: UserResponse = Depends(get_current_user)
+):
+    try:
+        # AuthZ: Master/Admin OR assigned Event Admin
+        if current_user.role not in ["Master", "Admin"]:
+            is_event_admin = await event_service.is_event_admin(event_id, str(current_user.id))
+            if not is_event_admin:
+                raise HTTPException(status_code=status.HTTP_403_FORBIDDEN, detail="Not authorized")
+
+        # Load event and enforce zone boundary (Admin + Event Admin are event-scoped)
+        if not ObjectId.is_valid(event_id):
+            raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail="Invalid event ID")
+        event = await event_service.events.find_one({"_id": ObjectId(event_id)}, {"zone": 1})
+        if not event:
+            raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Event not found")
+
+        event_zone = event.get("zone")
+        if current_user.role == "Admin" and current_user.zone != event_zone:
+            raise HTTPException(status_code=status.HTTP_403_FORBIDDEN, detail="Admin can only manage events in their zone")
+
+        # Verify team is actually participating in this event
+        team_participant = await event_service.event_participants.find_one({"event_id": event_id, "team_id": team_id})
+        if not team_participant and ObjectId.is_valid(team_id):
+            team_participant = await event_service.event_participants.find_one({"event_id": event_id, "team_id": ObjectId(team_id)})
+        if not team_participant:
+            raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Team is not registered for this event")
+
+        # Update all user accounts in that team for this event zone (Users only; never Admin/Master)
+        hashed = hash_password(body.new_password)
+        team_oid = ObjectId(team_id) if ObjectId.is_valid(team_id) else None
+        team_match = [{"team_id": team_id}]
+        if team_oid:
+            team_match.append({"team_id": team_oid})
+
+        result = await event_service.users.update_many(
+            {
+                "zone": event_zone,
+                "role": "User",
+                "$or": team_match,
+            },
+            {"$set": {"hashed_password": hashed}}
+        )
+
+        return {
+            "success": True,
+            "event_id": event_id,
+            "team_id": team_id,
+            "updated_users": result.modified_count,
+        }
+    except HTTPException:
+        raise
+    except Exception as e:
+        logger.error(f"Failed to reset team passwords for event {event_id}: {e}")
+        raise HTTPException(status_code=status.HTTP_500_INTERNAL_SERVER_ERROR, detail=f"Failed: {str(e)}")
+
+
+@router.post(
+    "/{event_id}/users/{user_id}/reset-password",
+    summary="Reset a user's password for this event",
+    description="Reset a **User** account password for a user participating in this event/zone. Master/Admin/Event Admin."
+)
+async def reset_user_password_for_event(
+    event_id: str,
+    user_id: str,
+    body: PasswordResetRequest,
+    current_user: UserResponse = Depends(get_current_user)
+):
+    try:
+        if current_user.role not in ["Master", "Admin"]:
+            is_event_admin = await event_service.is_event_admin(event_id, str(current_user.id))
+            if not is_event_admin:
+                raise HTTPException(status_code=status.HTTP_403_FORBIDDEN, detail="Not authorized")
+
+        if not ObjectId.is_valid(event_id):
+            raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail="Invalid event ID")
+        if not ObjectId.is_valid(user_id):
+            raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail="Invalid user ID")
+
+        event = await event_service.events.find_one({"_id": ObjectId(event_id)}, {"zone": 1})
+        if not event:
+            raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Event not found")
+        event_zone = event.get("zone")
+        if current_user.role == "Admin" and current_user.zone != event_zone:
+            raise HTTPException(status_code=status.HTTP_403_FORBIDDEN, detail="Admin can only manage events in their zone")
+
+        target = await event_service.users.find_one({"_id": ObjectId(user_id)}, {"role": 1, "zone": 1, "team_id": 1})
+        if not target:
+            raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="User not found")
+        if target.get("role") != "User":
+            raise HTTPException(status_code=status.HTTP_403_FORBIDDEN, detail="Only User accounts can be reset by event admin")
+        if target.get("zone") != event_zone:
+            raise HTTPException(status_code=status.HTTP_403_FORBIDDEN, detail="User is not in this event's zone")
+
+        # Verify participation: either the user registered directly OR their team is registered.
+        participant = await event_service.event_participants.find_one({"event_id": event_id, "user_id": user_id})
+        if not participant:
+            team_id_val = target.get("team_id")
+            if team_id_val:
+                participant = await event_service.event_participants.find_one({"event_id": event_id, "team_id": team_id_val})
+                if not participant and isinstance(team_id_val, str) and ObjectId.is_valid(team_id_val):
+                    participant = await event_service.event_participants.find_one({"event_id": event_id, "team_id": ObjectId(team_id_val)})
+        if not participant:
+            raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="User/team is not registered for this event")
+
+        hashed = hash_password(body.new_password)
+        await event_service.users.update_one({"_id": ObjectId(user_id)}, {"$set": {"hashed_password": hashed}})
+        return {"success": True, "event_id": event_id, "user_id": user_id}
+    except HTTPException:
+        raise
+    except Exception as e:
+        logger.error(f"Failed to reset user password for event {event_id}: {e}")
         raise HTTPException(status_code=status.HTTP_500_INTERNAL_SERVER_ERROR, detail=f"Failed: {str(e)}")
 
 

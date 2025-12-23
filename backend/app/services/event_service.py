@@ -21,7 +21,7 @@ from app.schemas.event import (
     EventCreate, EventUpdate, EventResponse, EventStatus, EventType,
     EventParticipationType, EventChallengeConfig, EventChallengeResponse,
     HintResponse, ChallengeVisibility, EventLiveStats, UserStats, TeamStats,
-    ChallengeStatsDetail, ScoreboardEntry, EventScoreboardResponse,
+    ChallengeStatsDetail, IPAddressDetail, ScoreboardEntry, EventScoreboardResponse,
     SubmissionResponse, HintUnlockResponse, EventApprovalRequest,
     EventPauseRequest, EventSummary
 )
@@ -1356,10 +1356,12 @@ class EventService:
         # Challenge stats
         challenges = event.get("challenges", [])
         total_challenges = len(challenges)
+        total_possible_points = 0
         
         most_solved = None
         least_solved = None
         challenges_by_category: Dict[str, int] = {}
+        per_challenge: List[ChallengeStatsDetail] = []
 
         # Precompute attempt counts per challenge in this event
         attempt_by_challenge: Dict[str, int] = {}
@@ -1377,6 +1379,7 @@ class EventService:
             # Use skill_category for analytics (fallback to legacy challenge_category)
             category = c.get("skill_category") or c.get("challenge_category", "unknown")
             challenges_by_category[category] = challenges_by_category.get(category, 0) + 1
+            total_possible_points += int(c.get("points", 0) or 0)
             
             challenge_stat = ChallengeStatsDetail(
                 challenge_id=c["challenge_id"],
@@ -1388,6 +1391,8 @@ class EventService:
                 first_blood_user=c.get("first_blood"),
                 first_blood_time=c.get("first_blood_time")
             )
+
+            per_challenge.append(challenge_stat)
             
             if most_solved is None or c.get("solve_count", 0) > most_solved.solve_count:
                 most_solved = challenge_stat
@@ -1417,6 +1422,45 @@ class EventService:
         ip_results = await self.event_submissions.aggregate(ip_pipeline).to_list(10000)
         ip_mappings = {str(r["_id"]): r["ips"] for r in ip_results}
         unique_ip_count = len(set(ip for ips in ip_mappings.values() for ip in ips))
+
+        # IP details: group by IP with users + activity count + last seen
+        ip_details: List[IPAddressDetail] = []
+        most_active_ip: Optional[str] = None
+        most_active_ip_activities: int = 0
+        total_activities_tracked: int = int(total_submissions or 0)
+        try:
+            ip_detail_pipeline = [
+                {"$match": {"event_id": event_id, "ip_address": {"$ne": None}}},
+                {"$group": {
+                    "_id": "$ip_address",
+                    "users": {"$addToSet": "$username"},
+                    "user_ids": {"$addToSet": "$user_id"},
+                    "activities": {"$sum": 1},
+                    "last_seen": {"$max": "$submitted_at"},
+                }},
+                {"$sort": {"activities": -1, "_id": 1}},
+            ]
+            ip_rows = await self.event_submissions.aggregate(ip_detail_pipeline).to_list(10000)
+            for r in ip_rows:
+                ip_addr = r.get("_id")
+                if not ip_addr:
+                    continue
+                activities = int(r.get("activities", 0) or 0)
+                if activities > most_active_ip_activities:
+                    most_active_ip_activities = activities
+                    most_active_ip = str(ip_addr)
+                ip_details.append(
+                    IPAddressDetail(
+                        ip_address=str(ip_addr),
+                        users=sorted([u for u in (r.get("users") or []) if u]),
+                        user_ids=sorted([uid for uid in (r.get("user_ids") or []) if uid]),
+                        activities=activities,
+                        sources=["submissions"],
+                        last_seen=r.get("last_seen"),
+                    )
+                )
+        except Exception:
+            ip_details = []
         
         # Timeline (last hour, by minute)
         one_hour_ago = now - timedelta(hours=1)
@@ -1453,26 +1497,40 @@ class EventService:
         # Category proficiency
         category_proficiency = await self._calculate_category_proficiency(event_id)
         
+        # Submission percentages
+        correct_pct = (correct_submissions / total_submissions * 100.0) if total_submissions else 0.0
+        incorrect_pct = (incorrect_submissions / total_submissions * 100.0) if total_submissions else 0.0
+
         return EventLiveStats(
             event_id=event_id,
             event_name=event["name"],
             event_status=EventStatus(event["status"]),
+            participation_type=EventParticipationType(event.get("participation_type")) if event.get("participation_type") else None,
+            event_zone=event.get("zone"),
             total_participants=total_participants,
             total_users=total_users,
             total_teams=total_teams,
             total_challenges=total_challenges,
+            total_possible_points=total_possible_points,
             total_submissions=total_submissions,
             correct_submissions=correct_submissions,
             incorrect_submissions=incorrect_submissions,
             submission_rate_per_minute=submission_rate,
+            correct_submission_percent=correct_pct,
+            incorrect_submission_percent=incorrect_pct,
             most_solved_challenge=most_solved,
             least_solved_challenge=least_solved,
             challenges_by_category=challenges_by_category,
+            challenge_stats=sorted(per_challenge, key=lambda x: (-(x.solve_count or 0), -(x.attempt_count or 0), x.challenge_name or "")),
             top_users=top_users,
             top_teams=top_teams,
             category_proficiency_distribution=category_proficiency,
             unique_ip_count=unique_ip_count,
             ip_mappings=ip_mappings,
+            ip_details=ip_details,
+            most_active_ip=most_active_ip,
+            most_active_ip_activities=most_active_ip_activities,
+            total_activities_tracked=total_activities_tracked,
             submissions_timeline=submissions_timeline,
             time_remaining_seconds=time_remaining if time_remaining > 0 else None,
             event_duration_seconds=event_duration,

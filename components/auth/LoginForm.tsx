@@ -57,13 +57,13 @@ export default function LoginForm({ onSwitchToRegister }: LoginFormProps) {
     setIsLoading(true);
     try {
       // Clear old user data before login
-      localStorage.removeItem('user_info');
-      localStorage.removeItem('user_id');
-      localStorage.removeItem('team_info');
+      sessionStorage.removeItem('user_info');
+      sessionStorage.removeItem('user_id');
+      sessionStorage.removeItem('team_info');
       
       const response = await authAPI.login(formData.username, formData.password);
       
-      const token = localStorage.getItem('auth_token');
+      const token = sessionStorage.getItem('auth_token');
       if (!token) {
         throw new Error('Token was not saved. Please try again.');
       }
@@ -72,18 +72,18 @@ export default function LoginForm({ onSwitchToRegister }: LoginFormProps) {
       try {
         const userProfile = await authAPI.me();
         if (userProfile && userProfile.id) {
-          localStorage.setItem('user_info', JSON.stringify(userProfile));
-          localStorage.setItem('user_id', userProfile.id);
+          sessionStorage.setItem('user_info', JSON.stringify(userProfile));
+          sessionStorage.setItem('user_id', userProfile.id);
         } else {
           // Fallback: Use response data if available
       if (response.user) {
-        localStorage.setItem('user_info', JSON.stringify(response.user));
+        sessionStorage.setItem('user_info', JSON.stringify(response.user));
         if (response.user.id) {
-          localStorage.setItem('user_id', response.user.id);
+          sessionStorage.setItem('user_id', response.user.id);
         }
       } else if (response.id) {
-        localStorage.setItem('user_id', response.id);
-        localStorage.setItem('user_info', JSON.stringify({
+        sessionStorage.setItem('user_id', response.id);
+        sessionStorage.setItem('user_info', JSON.stringify({
           id: response.id,
           username: formData.username,
           role: 'User',
@@ -95,13 +95,13 @@ export default function LoginForm({ onSwitchToRegister }: LoginFormProps) {
         console.error('Failed to fetch user profile:', meError);
         // Fallback: Try to use response data
         if (response.user) {
-          localStorage.setItem('user_info', JSON.stringify(response.user));
+          sessionStorage.setItem('user_info', JSON.stringify(response.user));
           if (response.user.id) {
-            localStorage.setItem('user_id', response.user.id);
+            sessionStorage.setItem('user_id', response.user.id);
           }
         } else if (response.id) {
-          localStorage.setItem('user_id', response.id);
-        localStorage.setItem('user_info', JSON.stringify({
+          sessionStorage.setItem('user_id', response.id);
+        sessionStorage.setItem('user_info', JSON.stringify({
             id: response.id,
           username: formData.username,
           role: 'User',

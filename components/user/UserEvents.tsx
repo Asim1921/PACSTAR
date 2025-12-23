@@ -139,7 +139,7 @@ export const UserEvents: React.FC<UserEventsProps> = ({ onJoinEvent, isAdmin = f
     }
   };
 
-  const currentUserId = typeof window !== 'undefined' ? localStorage.getItem('user_id') : null;
+  const currentUserId = typeof window !== 'undefined' ? sessionStorage.getItem('user_id') : null;
   const isEventAdminForSelected =
     !!selectedEvent?.event_admin_user_id && !!currentUserId && selectedEvent.event_admin_user_id === currentUserId;
 
@@ -192,6 +192,29 @@ export const UserEvents: React.FC<UserEventsProps> = ({ onJoinEvent, isAdmin = f
       await fetchEventTeams(selectedEvent.id);
     } catch (error: any) {
       showToast(error.response?.data?.detail || 'Failed to update team ban', 'error');
+    }
+  };
+
+  const handleResetTeamPasswords = async (teamId: string, teamName?: string) => {
+    if (!selectedEvent) return;
+    const label = teamName || teamId;
+    const newPassword = window.prompt(`Enter NEW password for team "${label}" (all users in this team for this event zone):`);
+    if (!newPassword) return;
+    if (newPassword.length < 6) {
+      showToast('Password must be at least 6 characters', 'error');
+      return;
+    }
+    const confirmPassword = window.prompt(`Re-enter the NEW password for team "${label}" to confirm:`);
+    if (confirmPassword !== newPassword) {
+      showToast('Passwords do not match', 'error');
+      return;
+    }
+
+    try {
+      const res = await eventAPI.resetTeamPasswordForEvent(selectedEvent.id, teamId, newPassword);
+      showToast(`Team password reset. Updated users: ${res.updated_users ?? 'N/A'}`, 'success');
+    } catch (error: any) {
+      showToast(error.response?.data?.detail || 'Failed to reset team password', 'error');
     }
   };
 
@@ -679,6 +702,15 @@ export const UserEvents: React.FC<UserEventsProps> = ({ onJoinEvent, isAdmin = f
                                 }`}
                               >
                                 {t.banned ? 'Unban' : 'Ban'}
+                              </Button>
+
+                              <Button
+                                size="sm"
+                                variant="outline"
+                                onClick={() => handleResetTeamPasswords(t.team_id, t.team_name)}
+                                className="border-2 border-neon-purple/40 hover:bg-neon-purple/10 text-neon-purple"
+                              >
+                                Reset Password
                               </Button>
                             </div>
                           </div>

@@ -71,9 +71,19 @@ export const Events: React.FC = () => {
   const [statusFilter, setStatusFilter] = useState<string>('all');
   const [eventTypeFilter, setEventTypeFilter] = useState<string>('all');
   
-  // Get user role from localStorage to check if Master
-  const userRole = typeof window !== 'undefined' ? localStorage.getItem('role') : null;
-  const isMaster = userRole === 'Master';
+  // Determine role from stored user_info (per-tab session storage)
+  const isMaster = (() => {
+    if (typeof window === 'undefined') return false;
+    try {
+      const raw = sessionStorage.getItem('user_info');
+      if (!raw) return false;
+      const parsed = JSON.parse(raw);
+      const role = (parsed?.role || '').toString().toLowerCase();
+      return role === 'master';
+    } catch {
+      return false;
+    }
+  })();
   
   // Create event form state
   const [formData, setFormData] = useState({

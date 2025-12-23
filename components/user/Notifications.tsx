@@ -1,6 +1,6 @@
 'use client';
 
-import React, { useState, useEffect, useCallback } from 'react';
+import React, { useState, useEffect, useCallback, useRef } from 'react';
 import { Bell, X, Calendar, CheckCircle, ExternalLink } from 'lucide-react';
 import { Button } from '@/components/ui/Button';
 import { eventAPI } from '@/lib/api';
@@ -11,8 +11,13 @@ interface Notification {
   type: string;
   event_id: string;
   event_name: string;
+  title?: string;
   message: string;
   action: string;
+  ui_type?: 'toast' | 'alert' | 'background' | string;
+  play_sound?: boolean;
+  source?: string;
+  broadcast_id?: string;
   created_at: string;
   read: boolean;
 }
@@ -29,11 +34,103 @@ export const Notifications: React.FC<NotificationsProps> = ({ onJoinEvent }) => 
   const [isLoading, setIsLoading] = useState(false);
   const [joiningEventId, setJoiningEventId] = useState<string | null>(null);
 
+  // Track "seen" + "sound played" without causing rerenders
+  const seenIdsRef = useRef<Set<string>>(new Set());
+  const soundedIdsRef = useRef<Set<string>>(new Set());
+
+  // Browsers require a user gesture to start audio. We "unlock" an AudioContext on first interaction.
+  const audioCtxRef = useRef<AudioContext | null>(null);
+  const audioUnlockedRef = useRef<boolean>(false);
+
+  useEffect(() => {
+    const unlock = async () => {
+      try {
+        const AudioCtx = (window as any).AudioContext || (window as any).webkitAudioContext;
+        if (!AudioCtx) return;
+        if (!audioCtxRef.current) audioCtxRef.current = new AudioCtx();
+        const ctx = audioCtxRef.current;
+        if (ctx && ctx.state === 'suspended') {
+          await ctx.resume();
+        }
+        audioUnlockedRef.current = true;
+      } catch {
+        // ignore
+      }
+    };
+
+    // Run once after first user gesture
+    window.addEventListener('pointerdown', unlock, { once: true });
+    window.addEventListener('keydown', unlock, { once: true });
+    return () => {
+      window.removeEventListener('pointerdown', unlock as any);
+      window.removeEventListener('keydown', unlock as any);
+    };
+  }, []);
+
+  const playBeep = () => {
+    try {
+      const ctx = audioCtxRef.current;
+      if (!ctx || !audioUnlockedRef.current) return;
+      const osc = ctx.createOscillator();
+      const gain = ctx.createGain();
+      osc.type = 'sine';
+      osc.frequency.value = 880;
+      gain.gain.value = 0.05;
+      osc.connect(gain);
+      gain.connect(ctx.destination);
+      osc.start();
+      setTimeout(() => {
+        try {
+          osc.stop();
+          osc.disconnect();
+          gain.disconnect();
+        } catch {}
+      }, 180);
+    } catch {
+      // ignore audio failures
+    }
+  };
+
   const fetchNotifications = useCallback(async () => {
     try {
       setIsLoading(true);
       const response = await eventAPI.getNotifications(false);
       const notifs = response.notifications || [];
+
+      // Detect newly-received notifications (by id) and surface them immediately.
+      // This avoids requiring the user to open the bell dropdown or refresh the page.
+      const newlyArrived: Notification[] = [];
+      for (const n of notifs as Notification[]) {
+        if (!n?.id) continue;
+        if (!seenIdsRef.current.has(n.id)) {
+          seenIdsRef.current.add(n.id);
+          newlyArrived.push(n);
+        }
+      }
+
+      // Show new notifications immediately (only if unread).
+      for (const n of newlyArrived) {
+        if (n.read) continue;
+        const ui = (n.ui_type || 'toast').toString().toLowerCase();
+        const title = n.title || n.event_name || 'Notification';
+        const msg = n.message || '';
+        if (ui === 'alert') {
+          // Using toast provider for non-blocking alert-style; can be upgraded to modal if desired.
+          showToast(`${title}\n${msg}`, 'error');
+        } else if (ui === 'background') {
+          showToast(`${title}: ${msg}`, 'info');
+        } else {
+          // toast
+          showToast(`${title}: ${msg}`, 'info');
+        }
+
+        // Sound (if requested)
+        if (n.play_sound && !soundedIdsRef.current.has(n.id)) {
+          soundedIdsRef.current.add(n.id);
+          playBeep();
+        }
+      }
+
       setNotifications(notifs);
       setUnreadCount(response.unread_count || 0);
     } catch (error: any) {
@@ -52,9 +149,22 @@ export const Notifications: React.FC<NotificationsProps> = ({ onJoinEvent }) => 
 
   useEffect(() => {
     fetchNotifications();
-    // Poll for new notifications every 30 seconds
-    const interval = setInterval(fetchNotifications, 30000);
-    return () => clearInterval(interval);
+    // Poll frequently so users don't feel like they must refresh.
+    const interval = setInterval(fetchNotifications, 5000);
+
+    // Also refetch when tab becomes visible / focused.
+    const onVis = () => {
+      if (document.visibilityState === 'visible') fetchNotifications();
+    };
+    const onFocus = () => fetchNotifications();
+    document.addEventListener('visibilitychange', onVis);
+    window.addEventListener('focus', onFocus);
+
+    return () => {
+      clearInterval(interval);
+      document.removeEventListener('visibilitychange', onVis);
+      window.removeEventListener('focus', onFocus);
+    };
   }, [fetchNotifications]);
 
   const handleJoinEvent = async (eventId: string, notificationId: string) => {
@@ -253,7 +363,7 @@ const NotificationItem: React.FC<NotificationItemProps> = ({
         
         <div className="flex-1 min-w-0">
           <p className="text-white font-medium text-sm mb-1">
-            {notification.event_name}
+            {notification.title || notification.event_name || 'Notification'}
           </p>
           <p className="text-white/70 text-xs mb-3">
             {notification.message}

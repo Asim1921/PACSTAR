@@ -171,28 +171,28 @@ export default function RegisterForm({ onSwitchToLogin }: RegisterFormProps) {
       }
 
       // Clear old user data before registration
-      localStorage.removeItem('user_info');
-      localStorage.removeItem('user_id');
-      localStorage.removeItem('team_info');
+      sessionStorage.removeItem('user_info');
+      sessionStorage.removeItem('user_id');
+      sessionStorage.removeItem('team_info');
 
       const response = await authAPI.register(registrationData);
       
       // Check if token was saved
-      const token = localStorage.getItem('auth_token');
+      const token = sessionStorage.getItem('auth_token');
       if (token) {
         // Try to fetch current user profile using the token
         try {
           const userProfile = await authAPI.me();
           if (userProfile && userProfile.id) {
-            localStorage.setItem('user_info', JSON.stringify(userProfile));
-            localStorage.setItem('user_id', userProfile.id);
+            sessionStorage.setItem('user_info', JSON.stringify(userProfile));
+            sessionStorage.setItem('user_id', userProfile.id);
           }
         } catch (meError: any) {
           console.log('auth/me failed after registration, using response data:', meError);
           // Fallback: Use response data
           if (response.id) {
-            localStorage.setItem('user_id', response.id);
-            localStorage.setItem('user_info', JSON.stringify({
+            sessionStorage.setItem('user_id', response.id);
+            sessionStorage.setItem('user_info', JSON.stringify({
               id: response.id,
               username: response.username || formData.username,
               email: response.email || formData.email,
@@ -200,17 +200,17 @@ export default function RegisterForm({ onSwitchToLogin }: RegisterFormProps) {
               zone: response.zone || (formData.registrationType === 'individual' ? formData.zone : 'zone1'),
             }));
           } else if (response.user) {
-        localStorage.setItem('user_info', JSON.stringify(response.user));
+        sessionStorage.setItem('user_info', JSON.stringify(response.user));
         if (response.user.id) {
-          localStorage.setItem('user_id', response.user.id);
+          sessionStorage.setItem('user_id', response.user.id);
         }
           }
         }
       } else {
         // No token, use response data if available
         if (response.id) {
-        localStorage.setItem('user_id', response.id);
-        localStorage.setItem('user_info', JSON.stringify({
+        sessionStorage.setItem('user_id', response.id);
+        sessionStorage.setItem('user_info', JSON.stringify({
           id: response.id,
             username: response.username || formData.username,
             email: response.email || formData.email,
@@ -218,9 +218,9 @@ export default function RegisterForm({ onSwitchToLogin }: RegisterFormProps) {
             zone: response.zone || (formData.registrationType === 'individual' ? formData.zone : 'zone1'),
         }));
         } else if (response.user) {
-          localStorage.setItem('user_info', JSON.stringify(response.user));
+          sessionStorage.setItem('user_info', JSON.stringify(response.user));
           if (response.user.id) {
-            localStorage.setItem('user_id', response.user.id);
+            sessionStorage.setItem('user_id', response.user.id);
           }
         }
       }

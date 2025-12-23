@@ -2,7 +2,8 @@
 
 import React, { useEffect, useState, useRef } from 'react';
 import { useRouter } from 'next/navigation';
-import { Shield, LogOut, User, Target, RefreshCw, ChevronDown, ChevronUp, Mail, Users, Crown, FileText, BookOpen, CheckCircle, Settings, Trophy, FileCode, BarChart3, Search, Cloud, Menu, X, Calendar } from 'lucide-react';
+import { Shield, LogOut, User, Target, RefreshCw, ChevronDown, ChevronUp, Mail, Users, Crown, FileText, BookOpen, CheckCircle, Settings, Trophy, FileCode, BarChart3, Search, Cloud, Menu, X, Calendar, TrendingUp, Award, Activity, Bell, Send } from 'lucide-react';
+import { BarChart, Bar, LineChart, Line, PieChart, Pie, Cell, XAxis, YAxis, CartesianGrid, Tooltip, Legend, ResponsiveContainer, AreaChart, Area, RadarChart, PolarGrid, PolarAngleAxis, PolarRadiusAxis, Radar } from 'recharts';
 import { Button } from '@/components/ui/Button';
 import { Select } from '@/components/ui/Select';
 import { authAPI, userAPI, teamAPI, challengeAPI, eventAPI } from '@/lib/api';
@@ -91,6 +92,18 @@ export default function Dashboard() {
   const [isLoadingLiveStats, setIsLoadingLiveStats] = useState(false);
   const [adminTeamsById, setAdminTeamsById] = useState<Record<string, Team>>({});
   const [challengesRefreshKey, setChallengesRefreshKey] = useState(0);
+
+  // Master broadcast notifications (admin-only)
+  const [notifTitle, setNotifTitle] = useState<string>('');
+  const [notifTitlePreset, setNotifTitlePreset] = useState<string>('announcement');
+  const [notifMessage, setNotifMessage] = useState<string>('');
+  const [notifUiType, setNotifUiType] = useState<'toast' | 'alert' | 'background'>('toast');
+  const [notifPlaySound, setNotifPlaySound] = useState<boolean>(false);
+  const [notifIncludeAdmins, setNotifIncludeAdmins] = useState<boolean>(true);
+  const [notifZone, setNotifZone] = useState<string>(''); // empty = all zones
+  const [isSendingNotif, setIsSendingNotif] = useState<boolean>(false);
+  const [broadcastFeed, setBroadcastFeed] = useState<any[]>([]);
+  const [isLoadingBroadcastFeed, setIsLoadingBroadcastFeed] = useState<boolean>(false);
   
   // Check if user is Master role
   const isMaster = userProfile.role?.toLowerCase() === 'master';
@@ -104,7 +117,7 @@ export default function Dashboard() {
 
     const fetchData = async () => {
       try {
-        const token = localStorage.getItem('auth_token');
+        const token = sessionStorage.getItem('auth_token');
         if (!token) {
           window.location.href = '/';
           return;
@@ -119,24 +132,24 @@ export default function Dashboard() {
             const currentUser = await authAPI.me();
             if (currentUser && currentUser.id) {
                   setUserProfile(currentUser);
-                  localStorage.setItem('user_info', JSON.stringify(currentUser));
-                    localStorage.setItem('user_id', currentUser.id);
+                  sessionStorage.setItem('user_info', JSON.stringify(currentUser));
+                    sessionStorage.setItem('user_id', currentUser.id);
                   }
           } catch (meError: any) {
             console.log('auth/me failed, trying alternative method:', meError);
             
             // Fallback: Try to get user ID from token and use getCurrentUser
-            let userId = localStorage.getItem('user_id');
+            let userId = sessionStorage.getItem('user_id');
             
             if (!userId) {
               // Try to extract from token
               try {
-                const token = localStorage.getItem('auth_token');
+                const token = sessionStorage.getItem('auth_token');
                 if (token) {
                   const decoded = JSON.parse(atob(token.split('.')[1]));
                   userId = decoded.sub || decoded.user_id || decoded.id;
                   if (userId) {
-                    localStorage.setItem('user_id', userId);
+                    sessionStorage.setItem('user_id', userId);
                   }
               }
               } catch (tokenError) {
@@ -148,14 +161,14 @@ export default function Dashboard() {
             try {
               const userResponse = await userAPI.getCurrentUser(userId);
               setUserProfile(userResponse);
-              localStorage.setItem('user_info', JSON.stringify(userResponse));
+              sessionStorage.setItem('user_info', JSON.stringify(userResponse));
               if (userResponse.id) {
-                localStorage.setItem('user_id', userResponse.id);
+                sessionStorage.setItem('user_id', userResponse.id);
               }
               } catch (userError: any) {
                 console.error('Failed to fetch user profile by ID:', userError);
                 // Last resort: use stored user info if available
-                const storedUser = localStorage.getItem('user_info');
+                const storedUser = sessionStorage.getItem('user_info');
                 if (storedUser) {
                   try {
                     const parsed = JSON.parse(storedUser);
@@ -167,13 +180,13 @@ export default function Dashboard() {
               }
             } else {
               // Last resort: use stored user info if available
-              const storedUser = localStorage.getItem('user_info');
+              const storedUser = sessionStorage.getItem('user_info');
               if (storedUser) {
                 try {
                   const parsed = JSON.parse(storedUser);
                   setUserProfile(parsed);
                   if (parsed.id) {
-                    localStorage.setItem('user_id', parsed.id);
+                    sessionStorage.setItem('user_id', parsed.id);
                   }
                 } catch (e) {
                   console.error('Error parsing stored user info:', e);
@@ -184,7 +197,7 @@ export default function Dashboard() {
         } catch (error: any) {
           console.error('Error in user profile fetch:', error);
           // Last resort: use stored user info if available
-          const storedUser = localStorage.getItem('user_info');
+          const storedUser = sessionStorage.getItem('user_info');
           if (storedUser) {
             try {
               const parsed = JSON.parse(storedUser);
@@ -199,7 +212,7 @@ export default function Dashboard() {
           const teamResponse = await teamAPI.getMyTeam();
           setTeam(teamResponse);
           if (teamResponse) {
-            localStorage.setItem('team_info', JSON.stringify(teamResponse));
+            sessionStorage.setItem('team_info', JSON.stringify(teamResponse));
           }
           
           if (teamResponse) {
@@ -213,7 +226,7 @@ export default function Dashboard() {
                 let currentUsername = prev.username;
                 if (!currentUsername) {
                   try {
-                    const storedUser = localStorage.getItem('user_info');
+                    const storedUser = sessionStorage.getItem('user_info');
                     if (storedUser) {
                       const parsed = JSON.parse(storedUser);
                       currentUsername = parsed.username;
@@ -230,11 +243,11 @@ export default function Dashboard() {
                   if (currentUserMember && currentUserMember.email) {
                     updated.email = currentUserMember.email;
                     try {
-                      const storedUser = localStorage.getItem('user_info');
+                      const storedUser = sessionStorage.getItem('user_info');
                       if (storedUser) {
                         const parsed = JSON.parse(storedUser);
                         parsed.email = currentUserMember.email;
-                        localStorage.setItem('user_info', JSON.stringify(parsed));
+                        sessionStorage.setItem('user_info', JSON.stringify(parsed));
                       }
                     } catch (e) {
                       console.error('Error updating stored user info with email:', e);
@@ -276,14 +289,14 @@ export default function Dashboard() {
   const handleRefresh = async () => {
     setIsDataLoading(true);
     try {
-      const storedUser = localStorage.getItem('user_info');
-      const userId = localStorage.getItem('user_id');
+      const storedUser = sessionStorage.getItem('user_info');
+      const userId = sessionStorage.getItem('user_id');
       
       if (userId) {
         try {
           const userResponse = await userAPI.getCurrentUser(userId);
           setUserProfile(userResponse);
-          localStorage.setItem('user_info', JSON.stringify(userResponse));
+          sessionStorage.setItem('user_info', JSON.stringify(userResponse));
         } catch (error: any) {
           console.error('Failed to refresh user profile:', error);
         }
@@ -293,7 +306,7 @@ export default function Dashboard() {
         const teamResponse = await teamAPI.getMyTeam();
         setTeam(teamResponse);
         if (teamResponse) {
-          localStorage.setItem('team_info', JSON.stringify(teamResponse));
+          sessionStorage.setItem('team_info', JSON.stringify(teamResponse));
         }
         showToast('Data refreshed successfully', 'success');
       } catch (error: any) {
@@ -368,6 +381,60 @@ export default function Dashboard() {
       setEventLiveStats(null);
     } finally {
       setIsLoadingLiveStats(false);
+    }
+  };
+
+  const fetchBroadcastFeed = async () => {
+    if (!isMaster) return;
+    try {
+      setIsLoadingBroadcastFeed(true);
+      const res = await eventAPI.getBroadcastNotificationsFeed(notifZone || undefined);
+      setBroadcastFeed(res?.broadcasts || []);
+    } catch (e: any) {
+      // keep silent-ish
+      setBroadcastFeed([]);
+    } finally {
+      setIsLoadingBroadcastFeed(false);
+    }
+  };
+
+  const handleSendBroadcast = async () => {
+    if (!isMaster) return;
+    const title =
+      (notifTitlePreset === 'custom' ? notifTitle : (
+        notifTitlePreset === 'maintenance' ? 'Maintenance' :
+        notifTitlePreset === 'warning' ? 'Warning' :
+        notifTitlePreset === 'info' ? 'Info' :
+        'Announcement'
+      )).trim();
+
+    if (!title) {
+      showToast('Please select/enter a notification title', 'error');
+      return;
+    }
+    if (!notifMessage.trim()) {
+      showToast('Please enter notification content', 'error');
+      return;
+    }
+
+    setIsSendingNotif(true);
+    try {
+      const res = await eventAPI.broadcastNotification({
+        title,
+        message: notifMessage.trim(),
+        ui_type: notifUiType,
+        play_sound: notifPlaySound,
+        zone: notifZone || null,
+        include_admins: notifIncludeAdmins,
+      });
+      showToast(`Notification sent to ${res?.targets_count ?? 0} users`, 'success');
+      setNotifMessage('');
+      // refresh feed
+      fetchBroadcastFeed();
+    } catch (e: any) {
+      showToast(e?.response?.data?.detail || 'Failed to send notification', 'error');
+    } finally {
+      setIsSendingNotif(false);
     }
   };
 
@@ -1044,11 +1111,180 @@ export default function Dashboard() {
                 {/* Stats Tab Content */}
                 {activeAdminTab === 'stats' && (
                   <div className="space-y-6">
+                    {/* Master Notification Center */}
+                    {isMaster && (
+                      <div className="bg-cyber-900/80 backdrop-blur-xl rounded-2xl shadow-lg border border-neon-green/20 terminal-border p-6">
+                        <div className="flex items-center justify-between gap-3 flex-wrap mb-4">
+                          <div className="flex items-center gap-3">
+                            <div className="w-10 h-10 bg-neon-green/20 rounded-xl flex items-center justify-center border border-neon-green/40">
+                              <Bell className="text-neon-green" size={20} />
+                            </div>
+                            <div>
+                              <h3 className="text-xl font-bold text-white gradient-text">Send a Notification</h3>
+                              <p className="text-white/60 text-sm">Broadcast to all users/teams (optionally filter by zone)</p>
+                            </div>
+                          </div>
+                          <div className="flex gap-2">
+                            <Button
+                              variant="outline"
+                              size="sm"
+                              onClick={fetchBroadcastFeed}
+                              disabled={isLoadingBroadcastFeed}
+                              className="border-neon-green/30 hover:bg-neon-green/10 text-white"
+                            >
+                              <RefreshCw size={14} className={`mr-2 ${isLoadingBroadcastFeed ? 'animate-spin' : ''}`} />
+                              Refresh Feed
+                            </Button>
+                          </div>
+                        </div>
+
+                        <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
+                          {/* Form */}
+                          <div className="bg-cyber-800/30 border border-neon-green/20 rounded-2xl p-4 space-y-4">
+                            <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
+                              <div>
+                                <label className="block text-sm font-semibold text-white/90 mb-2">Title</label>
+                                <select
+                                  value={notifTitlePreset}
+                                  onChange={(e) => setNotifTitlePreset(e.target.value)}
+                                  className="w-full px-4 py-3 bg-cyber-900/50 border-2 border-neon-green/20 rounded-xl text-white focus:outline-none focus:border-neon-green"
+                                >
+                                  <option value="announcement">Announcement</option>
+                                  <option value="info">Info</option>
+                                  <option value="warning">Warning</option>
+                                  <option value="maintenance">Maintenance</option>
+                                  <option value="custom">Custom…</option>
+                                </select>
+                              </div>
+                              <div>
+                                <label className="block text-sm font-semibold text-white/90 mb-2">Zone (optional)</label>
+                                <select
+                                  value={notifZone}
+                                  onChange={(e) => setNotifZone(e.target.value)}
+                                  className="w-full px-4 py-3 bg-cyber-900/50 border-2 border-neon-green/20 rounded-xl text-white focus:outline-none focus:border-neon-green"
+                                >
+                                  <option value="">All zones</option>
+                                  <option value="zone1">Zone 1</option>
+                                  <option value="zone2">Zone 2</option>
+                                  <option value="zone3">Zone 3</option>
+                                  <option value="zone4">Zone 4</option>
+                                  <option value="zone5">Zone 5</option>
+                                  <option value="main">Main</option>
+                                </select>
+                              </div>
+                            </div>
+
+                            {notifTitlePreset === 'custom' && (
+                              <div>
+                                <label className="block text-sm font-semibold text-white/90 mb-2">Custom Title</label>
+                                <input
+                                  value={notifTitle}
+                                  onChange={(e) => setNotifTitle(e.target.value)}
+                                  placeholder="Enter title"
+                                  className="w-full px-4 py-3 bg-cyber-900/50 border-2 border-neon-green/20 rounded-xl text-white focus:outline-none focus:border-neon-green"
+                                />
+                              </div>
+                            )}
+
+                            <div>
+                              <label className="block text-sm font-semibold text-white/90 mb-2">Content</label>
+                              <textarea
+                                value={notifMessage}
+                                onChange={(e) => setNotifMessage(e.target.value)}
+                                placeholder="Write your notification message…"
+                                rows={5}
+                                className="w-full px-4 py-3 bg-cyber-900/50 border-2 border-neon-green/20 rounded-xl text-white placeholder:text-white/30 focus:outline-none focus:border-neon-green resize-y"
+                              />
+                            </div>
+
+                            <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
+                              <div>
+                                <label className="block text-sm font-semibold text-white/90 mb-2">Notification Type</label>
+                                <select
+                                  value={notifUiType}
+                                  onChange={(e) => setNotifUiType(e.target.value as any)}
+                                  className="w-full px-4 py-3 bg-cyber-900/50 border-2 border-neon-green/20 rounded-xl text-white focus:outline-none focus:border-neon-green"
+                                >
+                                  <option value="toast">Toast</option>
+                                  <option value="alert">Alert</option>
+                                  <option value="background">Background</option>
+                                </select>
+                              </div>
+                              <div className="flex items-center gap-4 pt-7">
+                                <label className="flex items-center gap-2 text-sm text-white/80">
+                                  <input
+                                    type="checkbox"
+                                    checked={notifPlaySound}
+                                    onChange={(e) => setNotifPlaySound(e.target.checked)}
+                                    className="accent-neon-green"
+                                  />
+                                  Play Sound
+                                </label>
+                                <label className="flex items-center gap-2 text-sm text-white/80">
+                                  <input
+                                    type="checkbox"
+                                    checked={notifIncludeAdmins}
+                                    onChange={(e) => setNotifIncludeAdmins(e.target.checked)}
+                                    className="accent-neon-green"
+                                  />
+                                  Include Admins
+                                </label>
+                              </div>
+                            </div>
+
+                            <Button
+                              onClick={handleSendBroadcast}
+                              disabled={isSendingNotif}
+                              className="w-full bg-gradient-to-r from-neon-green/20 to-neon-cyan/20 border-2 border-neon-green/60 hover:border-neon-green/80 text-white"
+                              variant="outline"
+                            >
+                              <Send size={16} className={`mr-2 ${isSendingNotif ? 'animate-pulse' : ''}`} />
+                              {isSendingNotif ? 'Sending…' : 'Send Notification'}
+                            </Button>
+                          </div>
+
+                          {/* Feed */}
+                          <div className="bg-cyber-800/30 border border-neon-green/20 rounded-2xl p-4">
+                            <div className="flex items-center justify-between mb-3">
+                              <h4 className="text-lg font-bold text-white">Notification Feed</h4>
+                              <div className="text-xs text-white/50">Latest 50</div>
+                            </div>
+                            {isLoadingBroadcastFeed ? (
+                              <div className="text-white/60 text-sm py-4">Loading…</div>
+                            ) : (broadcastFeed.length === 0 ? (
+                              <div className="text-white/60 text-sm py-4">No broadcasts yet.</div>
+                            ) : (
+                              <div className="space-y-3 max-h-[360px] overflow-y-auto pr-1">
+                                {broadcastFeed.map((b: any) => (
+                                  <div key={b.id} className="p-3 bg-cyber-900/40 border border-neon-green/10 rounded-xl">
+                                    <div className="flex items-start justify-between gap-3">
+                                      <div className="min-w-0">
+                                        <div className="text-white font-semibold truncate">{b.title}</div>
+                                        <div className="text-white/70 text-sm whitespace-pre-wrap break-words">{b.message}</div>
+                                        <div className="text-xs text-white/50 mt-2">
+                                          {b.created_at ? new Date(b.created_at).toLocaleString() : '—'} · {b.ui_type} · targets {b.targets_count ?? 0}{b.zone ? ` · ${b.zone}` : ''}{b.play_sound ? ' · 🔊' : ''}
+                                        </div>
+                                      </div>
+                                    </div>
+                                  </div>
+                                ))}
+                              </div>
+                            ))}
+                          </div>
+                        </div>
+                      </div>
+                    )}
+
                     <div className="bg-cyber-900/80 backdrop-blur-xl rounded-2xl shadow-lg border border-neon-green/20 terminal-border p-6">
-                      <div className="flex flex-col md:flex-row md:items-center gap-3 md:justify-between mb-4">
-                        <div>
-                          <h3 className="text-xl font-bold text-white mb-1 gradient-text">Statistics Dashboard</h3>
-                          <p className="text-white/60 text-sm">Scores + event analytics (attempts, solves, categories)</p>
+                      <div className="flex flex-col md:flex-row md:items-center gap-4 md:justify-between mb-6">
+                        <div className="flex items-center gap-3">
+                          <div className="p-3 bg-gradient-to-br from-neon-green/20 to-neon-cyan/20 rounded-xl border border-neon-green/30">
+                            <Trophy className="text-neon-green" size={24} />
+                          </div>
+                          <div>
+                            <h3 className="text-2xl font-bold text-white mb-1 gradient-text">Statistics Dashboard</h3>
+                            <p className="text-white/60 text-sm">Scores + event analytics (attempts, solves, categories)</p>
+                          </div>
                         </div>
                         <div className="flex gap-2">
                           <Button
@@ -1056,89 +1292,221 @@ export default function Dashboard() {
                             size="sm"
                             onClick={fetchAdminScoreboard}
                             disabled={isLoadingScoreboard}
-                            className="border-neon-green/30 hover:bg-neon-green/10 text-white"
+                            className="border-neon-green/30 hover:bg-neon-green/10 text-white hover:border-neon-green/50 transition-all"
                           >
-                            <RefreshCw size={14} className={`mr-2 ${isLoadingScoreboard ? 'animate-spin' : ''}`} />
+                            <RefreshCw size={16} className={`mr-2 ${isLoadingScoreboard ? 'animate-spin' : ''}`} />
                             Refresh Scores
                           </Button>
                           <Button
                             variant="outline"
                             size="sm"
                             onClick={fetchStatsEvents}
-                            className="border-neon-green/30 hover:bg-neon-green/10 text-white"
+                            className="border-neon-green/30 hover:bg-neon-green/10 text-white hover:border-neon-green/50 transition-all"
                           >
-                            <RefreshCw size={14} className="mr-2" />
+                            <RefreshCw size={16} className="mr-2" />
                             Refresh Events
                           </Button>
                         </div>
                       </div>
 
-                      {/* Scoring Overview (moved from Users tab) */}
-                      <div className="bg-cyber-800/30 border border-neon-green/20 rounded-2xl p-4">
-                        <div className="mb-3">
-                          <h4 className="text-lg font-bold text-white">Scoring Overview</h4>
-                          <p className="text-white/60 text-sm">Top teams by points (live from submissions)</p>
+                      {/* Scoring Overview with Enhanced UI */}
+                      <div className="bg-gradient-to-br from-cyber-800/60 to-cyber-800/40 border-2 border-neon-green/30 rounded-2xl p-6 shadow-lg">
+                        <div className="flex items-center gap-2 mb-4">
+                          <div className="p-2 bg-neon-green/20 rounded-lg">
+                            <Trophy className="text-neon-green" size={20} />
+                          </div>
+                          <div>
+                            <h4 className="text-xl font-bold text-white">Scoring Overview</h4>
+                            <p className="text-white/60 text-sm">Top teams by points (live from submissions)</p>
+                          </div>
                         </div>
 
                         {isLoadingScoreboard ? (
-                          <div className="text-white/60 text-sm py-4">Loading scoreboard...</div>
+                          <div className="flex flex-col items-center justify-center py-12">
+                            <RefreshCw className="animate-spin text-neon-green mb-4" size={32} />
+                            <div className="text-white/60 text-sm">Loading scoreboard...</div>
+                          </div>
                         ) : adminScoreboard.length === 0 ? (
-                          <div className="text-white/60 text-sm py-4">No scores yet.</div>
+                          <div className="flex flex-col items-center justify-center py-12 bg-cyber-900/30 rounded-xl border border-neon-green/10">
+                            <Trophy className="text-neon-green/40 mb-4" size={48} />
+                            <div className="text-white/60 text-sm">No scores yet.</div>
+                          </div>
                         ) : (
-                          <div className="grid grid-cols-1 lg:grid-cols-2 gap-4">
-                            <div className="bg-cyber-900/30 border border-neon-green/10 rounded-xl p-4">
-                              <h5 className="text-white font-semibold mb-3">Points Chart</h5>
-                              {(() => {
-                                const top = adminScoreboard.slice(0, 10);
-                                const maxPoints = Math.max(...top.map((r: any) => Number(r.points || 0)), 1);
-                                return (
-                                  <div className="space-y-2">
-                                    {top.map((row: any) => {
-                                      const pct = Math.round((Number(row.points || 0) / maxPoints) * 100);
-                                      return (
-                                        <div key={row.team_id} className="flex items-center gap-3">
-                                          <div className="w-40 truncate text-xs text-white/70">
-                                            {row.team_name || row.team_code || row.team_id}
-                                          </div>
-                                          <div className="flex-1 bg-cyber-800/60 rounded-full h-2 overflow-hidden border border-neon-green/10">
-                                            <div className="h-2 bg-neon-green/60" style={{ width: `${pct}%` }} />
-                                          </div>
-                                          <div className="w-16 text-right text-xs text-white font-semibold">
-                                            {row.points || 0}
-                                          </div>
-                                        </div>
-                                      );
-                                    })}
+                          <div className="space-y-6">
+                            {/* Summary Stats Cards */}
+                            <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+                              <div className="bg-gradient-to-br from-cyber-900/60 to-cyber-900/40 border-2 border-neon-green/30 rounded-xl p-4 hover:border-neon-green/50 transition-all">
+                                <div className="flex items-center justify-between mb-2">
+                                  <div className="p-2 bg-neon-green/20 rounded-lg">
+                                    <Users className="text-neon-green" size={18} />
                                   </div>
-                                );
-                              })()}
+                                  <TrendingUp className="text-neon-green/40" size={16} />
+                                </div>
+                                <div className="text-white/60 text-xs mb-1">Total Teams</div>
+                                <div className="text-neon-green font-bold text-2xl">{adminScoreboard.length}</div>
+                              </div>
+                              <div className="bg-gradient-to-br from-cyber-900/60 to-cyber-900/40 border-2 border-neon-cyan/30 rounded-xl p-4 hover:border-neon-cyan/50 transition-all">
+                                <div className="flex items-center justify-between mb-2">
+                                  <div className="p-2 bg-neon-cyan/20 rounded-lg">
+                                    <Target className="text-neon-cyan" size={18} />
+                                  </div>
+                                  <TrendingUp className="text-neon-cyan/40" size={16} />
+                                </div>
+                                <div className="text-white/60 text-xs mb-1">Total Solves</div>
+                                <div className="text-neon-cyan font-bold text-2xl">
+                                  {adminScoreboard.reduce((sum: number, row: any) => sum + (Number(row.solves || 0)), 0)}
+                                </div>
+                              </div>
+                              <div className="bg-gradient-to-br from-cyber-900/60 to-cyber-900/40 border-2 border-neon-purple/30 rounded-xl p-4 hover:border-neon-purple/50 transition-all">
+                                <div className="flex items-center justify-between mb-2">
+                                  <div className="p-2 bg-neon-purple/20 rounded-lg">
+                                    <Award className="text-neon-purple" size={18} />
+                                  </div>
+                                  <TrendingUp className="text-neon-purple/40" size={16} />
+                                </div>
+                                <div className="text-white/60 text-xs mb-1">Total Points</div>
+                                <div className="text-neon-purple font-bold text-2xl">
+                                  {adminScoreboard.reduce((sum: number, row: any) => sum + (Number(row.points || 0)), 0)}
+                                </div>
+                              </div>
                             </div>
 
-                            <div className="bg-cyber-900/30 border border-neon-green/10 rounded-xl p-4 overflow-x-auto">
-                              <h5 className="text-white font-semibold mb-3">Leaderboard</h5>
-                              <table className="w-full text-sm">
-                                <thead className="text-white/70">
-                                  <tr>
-                                    <th className="text-left py-2 pr-2">Rank</th>
-                                    <th className="text-left py-2 pr-2">Team</th>
-                                    <th className="text-right py-2 pr-2">Solves</th>
-                                    <th className="text-right py-2">Points</th>
-                                  </tr>
-                                </thead>
-                                <tbody>
-                                  {adminScoreboard.slice(0, 10).map((row: any) => (
-                                    <tr key={row.team_id} className="border-t border-neon-green/10">
-                                      <td className="py-2 pr-2 text-white font-semibold">{row.rank ?? '—'}</td>
-                                      <td className="py-2 pr-2 text-white/90">
-                                        <div className="font-medium">{row.team_name || '—'}</div>
-                                        <div className="text-xs text-white/50">{row.team_code || row.team_id}</div>
-                                      </td>
-                                      <td className="py-2 pr-2 text-right text-white/80">{row.solves || 0}</td>
-                                      <td className="py-2 text-right text-neon-green font-bold">{row.points || 0}</td>
-                                    </tr>
-                                  ))}
-                                </tbody>
-                              </table>
+                            <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
+                              {/* Points Chart with Bar Chart */}
+                              <div className="bg-gradient-to-br from-cyber-900/60 to-cyber-900/40 border-2 border-neon-green/30 rounded-xl p-6 shadow-lg">
+                                <div className="flex items-center gap-2 mb-4">
+                                  <BarChart3 className="text-neon-green" size={18} />
+                                  <h5 className="text-white font-bold text-lg">Points Distribution</h5>
+                                </div>
+                                <ResponsiveContainer width="100%" height={400}>
+                                  <BarChart 
+                                    data={adminScoreboard.slice(0, 10).map((row: any, idx: number) => ({
+                                      name: (row.team_name || row.team_code || row.team_id)?.substring(0, 15) || 'Team',
+                                      points: Number(row.points || 0),
+                                      solves: Number(row.solves || 0),
+                                      rank: idx + 1
+                                    }))}
+                                    layout="vertical"
+                                  >
+                                    <CartesianGrid strokeDasharray="3 3" stroke="rgba(0, 255, 136, 0.1)" />
+                                    <XAxis type="number" tick={{ fill: '#fff', fontSize: 12 }} />
+                                    <YAxis 
+                                      type="category" 
+                                      dataKey="name" 
+                                      tick={{ fill: '#fff', fontSize: 11 }}
+                                      width={120}
+                                    />
+                                    <Tooltip 
+                                      contentStyle={{ 
+                                        backgroundColor: 'rgba(0, 0, 0, 0.8)', 
+                                        border: '1px solid rgba(0, 255, 136, 0.3)',
+                                        borderRadius: '8px',
+                                        color: '#fff'
+                                      }}
+                                      formatter={(value: any, name: string) => {
+                                        if (name === 'points') return [`${value} points`, 'Points'];
+                                        if (name === 'solves') return [`${value} solves`, 'Solves'];
+                                        return value;
+                                      }}
+                                    />
+                                    <Legend 
+                                      wrapperStyle={{ color: '#fff', paddingTop: '10px' }}
+                                    />
+                                    <Bar dataKey="points" fill="#00FF88" radius={[0, 8, 8, 0]} />
+                                  </BarChart>
+                                </ResponsiveContainer>
+                              </div>
+
+                              {/* Enhanced Leaderboard */}
+                              <div className="bg-gradient-to-br from-cyber-900/60 to-cyber-900/40 border-2 border-neon-cyan/30 rounded-xl p-6 shadow-lg">
+                                <div className="flex items-center gap-2 mb-4">
+                                  <Crown className="text-neon-cyan" size={18} />
+                                  <h5 className="text-white font-bold text-lg">Leaderboard</h5>
+                                </div>
+                                <div className="space-y-2 max-h-[400px] overflow-y-auto pr-2">
+                                  {adminScoreboard.slice(0, 10).map((row: any, idx: number) => {
+                                    const maxPoints = Math.max(...adminScoreboard.slice(0, 10).map((r: any) => Number(r.points || 0)), 1);
+                                    const pointsPercent = ((Number(row.points || 0)) / maxPoints) * 100;
+                                    return (
+                                      <div 
+                                        key={row.team_id} 
+                                        className="p-4 bg-cyber-800/50 border border-neon-cyan/10 rounded-lg hover:border-neon-cyan/30 transition-all"
+                                      >
+                                        <div className="flex items-center justify-between mb-3">
+                                          <div className="flex items-center gap-3">
+                                            <div className={`w-10 h-10 rounded-full flex items-center justify-center text-sm font-bold ${
+                                              idx === 0 ? 'bg-yellow-500/20 text-yellow-400 border-2 border-yellow-500/30' :
+                                              idx === 1 ? 'bg-gray-400/20 text-gray-300 border-2 border-gray-400/30' :
+                                              idx === 2 ? 'bg-orange-500/20 text-orange-400 border-2 border-orange-500/30' :
+                                              'bg-neon-cyan/10 text-neon-cyan border border-neon-cyan/20'
+                                            }`}>
+                                              {idx + 1}
+                                            </div>
+                                            <div>
+                                              <div className="font-semibold text-white text-sm">{row.team_name || '—'}</div>
+                                              <div className="text-xs text-white/50">{row.team_code || row.team_id}</div>
+                                            </div>
+                                          </div>
+                                          <div className="text-right">
+                                            <div className="text-neon-cyan font-bold text-lg">{row.points || 0}</div>
+                                            <div className="text-white/60 text-xs">points</div>
+                                          </div>
+                                        </div>
+                                        <div className="space-y-2">
+                                          <div className="flex items-center justify-between text-xs text-white/60">
+                                            <span>Solves: {row.solves || 0}</span>
+                                            <span>Rank: #{row.rank ?? idx + 1}</span>
+                                          </div>
+                                          <div className="bg-cyber-800/50 rounded-full h-2 overflow-hidden">
+                                            <div 
+                                              className="h-full bg-gradient-to-r from-neon-cyan to-neon-green transition-all"
+                                              style={{ width: `${Math.min(pointsPercent, 100)}%` }}
+                                            />
+                                          </div>
+                                        </div>
+                                      </div>
+                                    );
+                                  })}
+                                </div>
+                              </div>
+                            </div>
+
+                            {/* Solves vs Points Comparison Chart */}
+                            <div className="bg-gradient-to-br from-cyber-900/60 to-cyber-900/40 border-2 border-neon-purple/30 rounded-xl p-6 shadow-lg">
+                              <div className="flex items-center gap-2 mb-4">
+                                <Activity className="text-neon-purple" size={18} />
+                                <h5 className="text-white font-bold text-lg">Performance Analysis</h5>
+                              </div>
+                              <ResponsiveContainer width="100%" height={300}>
+                                <BarChart data={adminScoreboard.slice(0, 10).map((row: any) => ({
+                                  name: (row.team_name || row.team_code || row.team_id)?.substring(0, 12) || 'Team',
+                                  points: Number(row.points || 0),
+                                  solves: Number(row.solves || 0)
+                                }))}>
+                                  <CartesianGrid strokeDasharray="3 3" stroke="rgba(157, 78, 221, 0.1)" />
+                                  <XAxis 
+                                    dataKey="name" 
+                                    tick={{ fill: '#fff', fontSize: 11 }}
+                                    angle={-45}
+                                    textAnchor="end"
+                                    height={80}
+                                  />
+                                  <YAxis tick={{ fill: '#fff', fontSize: 12 }} />
+                                  <Tooltip 
+                                    contentStyle={{ 
+                                      backgroundColor: 'rgba(0, 0, 0, 0.8)', 
+                                      border: '1px solid rgba(157, 78, 221, 0.3)',
+                                      borderRadius: '8px',
+                                      color: '#fff'
+                                    }}
+                                  />
+                                  <Legend 
+                                    wrapperStyle={{ color: '#fff', paddingTop: '10px' }}
+                                  />
+                                  <Bar dataKey="points" fill="#9D4EDD" radius={[8, 8, 0, 0]} name="Points" />
+                                  <Bar dataKey="solves" fill="#00D9FF" radius={[8, 8, 0, 0]} name="Solves" />
+                                </BarChart>
+                              </ResponsiveContainer>
                             </div>
                           </div>
                         )}
@@ -1146,10 +1514,15 @@ export default function Dashboard() {
                     </div>
 
                     <div className="bg-cyber-900/80 backdrop-blur-xl rounded-2xl shadow-lg border border-neon-green/20 terminal-border p-6">
-                      <div className="flex flex-col md:flex-row md:items-center md:justify-between gap-3 mb-4">
+                      <div className="flex flex-col md:flex-row md:items-center md:justify-between gap-4 mb-6">
+                        <div className="flex items-center gap-3">
+                          <div className="p-3 bg-gradient-to-br from-neon-green/20 to-neon-cyan/20 rounded-xl border border-neon-green/30">
+                            <BarChart3 className="text-neon-green" size={24} />
+                          </div>
                         <div>
-                          <h4 className="text-lg font-bold text-white">Event Analytics</h4>
-                          <p className="text-white/60 text-sm">Attempts + category proficiency per event</p>
+                            <h4 className="text-2xl font-bold text-white gradient-text">Event Analytics</h4>
+                            <p className="text-white/60 text-sm">Comprehensive insights and performance metrics</p>
+                          </div>
                         </div>
                         <div className="flex gap-2 items-center">
                           <select
@@ -1159,7 +1532,7 @@ export default function Dashboard() {
                               setSelectedStatsEventId(id);
                               fetchEventLiveStats(id);
                             }}
-                            className="px-4 py-2 bg-cyber-800/50 border-2 border-neon-green/20 rounded-xl text-white focus:outline-none focus:border-neon-green"
+                            className="px-4 py-3 bg-cyber-800/50 border-2 border-neon-green/20 rounded-xl text-white focus:outline-none focus:border-neon-green hover:border-neon-green/40 transition-all"
                           >
                             <option value="">Select event…</option>
                             {statsEvents.map((ev: any) => (
@@ -1173,32 +1546,478 @@ export default function Dashboard() {
                             variant="outline"
                             onClick={() => selectedStatsEventId && fetchEventLiveStats(selectedStatsEventId)}
                             disabled={!selectedStatsEventId || isLoadingLiveStats}
-                            className="border-neon-green/30 hover:bg-neon-green/10 text-white"
+                            className="border-neon-green/30 hover:bg-neon-green/10 text-white hover:border-neon-green/50 transition-all"
                           >
-                            <RefreshCw size={14} className={`mr-2 ${isLoadingLiveStats ? 'animate-spin' : ''}`} />
+                            <RefreshCw size={16} className={`mr-2 ${isLoadingLiveStats ? 'animate-spin' : ''}`} />
                             Refresh
                           </Button>
                         </div>
                       </div>
 
                       {isLoadingLiveStats ? (
-                        <div className="text-white/60 text-sm py-6">Loading event stats…</div>
+                        <div className="flex flex-col items-center justify-center py-12">
+                          <RefreshCw className="animate-spin text-neon-green mb-4" size={32} />
+                          <div className="text-white/60 text-sm">Loading event analytics…</div>
+                        </div>
                       ) : !eventLiveStats ? (
-                        <div className="text-white/60 text-sm py-6">Select an event to view stats.</div>
+                        <div className="flex flex-col items-center justify-center py-12 bg-cyber-800/30 rounded-xl border border-neon-green/10">
+                          <BarChart3 className="text-neon-green/40 mb-4" size={48} />
+                          <div className="text-white/60 text-sm">Select an event to view analytics</div>
+                        </div>
                       ) : (
+                        <div className="space-y-6">
+                          {/* High-level KPI Cards with Icons */}
+                          <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
+                            <div className="bg-gradient-to-br from-cyber-800/60 to-cyber-800/40 border-2 border-neon-green/30 rounded-xl p-5 hover:border-neon-green/50 transition-all shadow-lg hover:shadow-neon-green/20 group">
+                              <div className="flex items-center justify-between mb-3">
+                                <div className="p-2 bg-neon-green/20 rounded-lg">
+                                  <Users className="text-neon-green" size={20} />
+                                </div>
+                                <TrendingUp className="text-neon-green/40 group-hover:text-neon-green transition-colors" size={18} />
+                              </div>
+                              <h5 className="text-white/70 text-sm font-semibold mb-3">Registrations</h5>
+                              <div className="space-y-2">
+                                <div className="flex items-center justify-between">
+                                  <span className="text-white/60 text-xs">Users</span>
+                                  <span className="text-white font-bold text-lg">{eventLiveStats.total_users ?? 0}</span>
+                                </div>
+                                <div className="flex items-center justify-between">
+                                  <span className="text-white/60 text-xs">Teams</span>
+                                  <span className="text-white font-bold text-lg">{eventLiveStats.total_teams ?? 0}</span>
+                                </div>
+                                <div className="flex items-center justify-between pt-2 border-t border-neon-green/10">
+                                  <span className="text-neon-green text-xs font-semibold">Total Participants</span>
+                                  <span className="text-neon-green font-bold text-xl">{eventLiveStats.total_participants ?? 0}</span>
+                                </div>
+                              </div>
+                            </div>
+
+                            <div className="bg-gradient-to-br from-cyber-800/60 to-cyber-800/40 border-2 border-neon-cyan/30 rounded-xl p-5 hover:border-neon-cyan/50 transition-all shadow-lg hover:shadow-neon-cyan/20 group">
+                              <div className="flex items-center justify-between mb-3">
+                                <div className="p-2 bg-neon-cyan/20 rounded-lg">
+                                  <Activity className="text-neon-cyan" size={20} />
+                                </div>
+                                <TrendingUp className="text-neon-cyan/40 group-hover:text-neon-cyan transition-colors" size={18} />
+                              </div>
+                              <h5 className="text-white/70 text-sm font-semibold mb-3">Submissions</h5>
+                              <div className="space-y-2">
+                                <div className="flex items-center justify-between">
+                                  <span className="text-white/60 text-xs">Total</span>
+                                  <span className="text-white font-bold text-lg">{eventLiveStats.total_submissions ?? 0}</span>
+                                </div>
+                                <div className="flex items-center justify-between">
+                                  <span className="text-white/60 text-xs">Correct</span>
+                                  <span className="text-neon-green font-bold text-lg">
+                                    {eventLiveStats.correct_submissions ?? 0} ({Number(eventLiveStats.correct_submission_percent ?? 0).toFixed(1)}%)
+                                  </span>
+                                </div>
+                                <div className="flex items-center justify-between">
+                                  <span className="text-white/60 text-xs">Incorrect</span>
+                                  <span className="text-orange-400 font-bold text-lg">
+                                    {eventLiveStats.incorrect_submissions ?? 0} ({Number(eventLiveStats.incorrect_submission_percent ?? 0).toFixed(1)}%)
+                                  </span>
+                                </div>
+                                <div className="flex items-center justify-between pt-2 border-t border-neon-cyan/10">
+                                  <span className="text-neon-cyan text-xs font-semibold">IP Addresses</span>
+                                  <span className="text-neon-cyan font-bold text-xl">{eventLiveStats.unique_ip_count ?? 0}</span>
+                                </div>
+                              </div>
+                            </div>
+
+                            <div className="bg-gradient-to-br from-cyber-800/60 to-cyber-800/40 border-2 border-neon-purple/30 rounded-xl p-5 hover:border-neon-purple/50 transition-all shadow-lg hover:shadow-neon-purple/20 group">
+                              <div className="flex items-center justify-between mb-3">
+                                <div className="p-2 bg-neon-purple/20 rounded-lg">
+                                  <Target className="text-neon-purple" size={20} />
+                                </div>
+                                <TrendingUp className="text-neon-purple/40 group-hover:text-neon-purple transition-colors" size={18} />
+                              </div>
+                              <h5 className="text-white/70 text-sm font-semibold mb-3">Challenges</h5>
+                              <div className="space-y-2">
+                                <div className="flex items-center justify-between">
+                                  <span className="text-white/60 text-xs">Total Challenges</span>
+                                  <span className="text-white font-bold text-lg">{eventLiveStats.total_challenges ?? 0}</span>
+                                </div>
+                                <div className="flex items-center justify-between">
+                                  <span className="text-white/60 text-xs">Total Points</span>
+                                  <span className="text-white font-bold text-lg">{eventLiveStats.total_possible_points ?? 0}</span>
+                                </div>
+                                <div className="pt-2 border-t border-neon-purple/10">
+                                  <div className="text-white/60 text-xs mb-1">Most Solved</div>
+                                  <div className="text-neon-purple font-semibold text-sm truncate">
+                                    {eventLiveStats.most_solved_challenge?.challenge_name || '—'}
+                                  </div>
+                                </div>
+                              </div>
+                            </div>
+                          </div>
+
+                          {/* Submissions Chart */}
+                          <div className="bg-gradient-to-br from-cyber-800/60 to-cyber-800/40 border-2 border-neon-green/30 rounded-xl p-6 shadow-lg">
+                            <div className="flex items-center gap-2 mb-4">
+                              <BarChart3 className="text-neon-green" size={20} />
+                              <h5 className="text-white font-bold text-lg">Submission Distribution</h5>
+                            </div>
+                            <ResponsiveContainer width="100%" height={300}>
+                              <PieChart>
+                                <Pie
+                                  data={[
+                                    { name: 'Correct', value: eventLiveStats.correct_submissions ?? 0, color: '#00FF88' },
+                                    { name: 'Incorrect', value: eventLiveStats.incorrect_submissions ?? 0, color: '#FF6B35' }
+                                  ]}
+                                  cx="50%"
+                                  cy="50%"
+                                  labelLine={false}
+                                  label={({ name, percent }) => `${name}: ${(((percent ?? 0) as number) * 100).toFixed(1)}%`}
+                                  outerRadius={100}
+                                  fill="#8884d8"
+                                  dataKey="value"
+                                >
+                                  {[
+                                    { name: 'Correct', value: eventLiveStats.correct_submissions ?? 0, color: '#00FF88' },
+                                    { name: 'Incorrect', value: eventLiveStats.incorrect_submissions ?? 0, color: '#FF6B35' }
+                                  ].map((entry, index) => (
+                                    <Cell key={`cell-${index}`} fill={entry.color} />
+                                  ))}
+                                </Pie>
+                                <Tooltip 
+                                  contentStyle={{ 
+                                    backgroundColor: 'rgba(0, 0, 0, 0.8)', 
+                                    border: '1px solid rgba(0, 255, 136, 0.3)',
+                                    borderRadius: '8px',
+                                    color: '#fff'
+                                  }}
+                                />
+                                <Legend 
+                                  wrapperStyle={{ color: '#fff', paddingTop: '20px' }}
+                                />
+                              </PieChart>
+                            </ResponsiveContainer>
+                          </div>
+
+                          {/* IP Address Details */}
+                          <div className="bg-gradient-to-br from-cyber-800/60 to-cyber-800/40 border-2 border-neon-cyan/30 rounded-xl p-6 shadow-lg">
+                            <div className="flex items-center justify-between gap-3 mb-4 flex-wrap">
+                              <div className="flex items-center gap-2">
+                                <div className="p-2 bg-neon-cyan/20 rounded-lg">
+                                  <Cloud className="text-neon-cyan" size={18} />
+                                </div>
+                                <h5 className="text-white font-bold text-lg">
+                                  IP Addresses ({eventLiveStats.unique_ip_count ?? 0})
+                                </h5>
+                              </div>
+                              <div className="text-xs text-white/50 bg-cyber-900/50 px-3 py-1 rounded-lg">
+                                Source: submissions tracking
+                              </div>
+                            </div>
+
+                            <div className="grid grid-cols-1 md:grid-cols-4 gap-4 mb-6">
+                              <div className="p-4 bg-cyber-900/50 border border-neon-cyan/20 rounded-xl hover:border-neon-cyan/40 transition-all">
+                                <div className="text-white/60 text-xs mb-2">Unique IP Addresses</div>
+                                <div className="text-neon-cyan font-bold text-2xl">{eventLiveStats.unique_ip_count ?? 0}</div>
+                              </div>
+                              <div className="p-4 bg-cyber-900/50 border border-neon-cyan/20 rounded-xl hover:border-neon-cyan/40 transition-all">
+                                <div className="text-white/60 text-xs mb-2">Most Active IP</div>
+                                <div className="text-white font-bold text-lg">
+                                  {eventLiveStats.most_active_ip ? (
+                                    <>
+                                      <div className="text-neon-cyan">{eventLiveStats.most_active_ip}</div>
+                                      <div className="text-white/60 text-sm mt-1">({eventLiveStats.most_active_ip_activities ?? 0} activities)</div>
+                                    </>
+                                  ) : (
+                                    <span className="text-white/40">—</span>
+                                  )}
+                                </div>
+                              </div>
+                              <div className="p-4 bg-cyber-900/50 border border-neon-cyan/20 rounded-xl hover:border-neon-cyan/40 transition-all">
+                                <div className="text-white/60 text-xs mb-2">Total Activities</div>
+                                <div className="text-white font-bold text-2xl">{eventLiveStats.total_activities_tracked ?? 0}</div>
+                              </div>
+                              <div className="p-4 bg-cyber-900/50 border border-neon-cyan/20 rounded-xl hover:border-neon-cyan/40 transition-all">
+                                <div className="text-white/60 text-xs mb-2">IP Records</div>
+                                <div className="text-white font-bold text-2xl">{(eventLiveStats.ip_details || []).length}</div>
+                              </div>
+                            </div>
+
+                            {(eventLiveStats.ip_details || []).length === 0 ? (
+                              <div className="text-center py-8">
+                                <Cloud className="text-neon-cyan/40 mx-auto mb-2" size={32} />
+                                <div className="text-white/50 text-sm">No IP activity yet.</div>
+                              </div>
+                            ) : (
+                              <div className="space-y-2 max-h-[400px] overflow-y-auto pr-2">
+                                {(eventLiveStats.ip_details || []).map((row: any, idx: number) => {
+                                  const users = Array.isArray(row.users) ? row.users : [];
+                                  const sources = Array.isArray(row.sources) ? row.sources : ['submissions'];
+                                  const lastSeen = row.last_seen ? new Date(row.last_seen).toLocaleString() : '—';
+                                  const maxActivities = Math.max(...(eventLiveStats.ip_details || []).map((r: any) => r.activities || 0), 1);
+                                  const activityPercent = ((row.activities || 0) / maxActivities) * 100;
+                                  return (
+                                    <div 
+                                      key={`${row.ip_address}-${idx}`} 
+                                      className="p-4 bg-cyber-900/50 border border-neon-cyan/10 rounded-lg hover:border-neon-cyan/30 transition-all"
+                                    >
+                                      <div className="flex items-center justify-between mb-3">
+                                        <div className="flex items-center gap-3">
+                                          {idx < 3 && (
+                                            <div className={`w-8 h-8 rounded-full flex items-center justify-center text-xs font-bold ${
+                                              idx === 0 ? 'bg-yellow-500/20 text-yellow-400 border border-yellow-500/30' :
+                                              idx === 1 ? 'bg-gray-400/20 text-gray-300 border border-gray-400/30' :
+                                              'bg-orange-500/20 text-orange-400 border border-orange-500/30'
+                                            }`}>
+                                              {idx + 1}
+                                            </div>
+                                          )}
+                                          <div>
+                                            <div className="font-semibold text-white">{row.ip_address}</div>
+                                            <div className="text-xs text-white/50 mt-1">
+                                              {users.length ? `${users.length} user(s): ${users.slice(0, 2).join(', ')}${users.length > 2 ? '...' : ''}` : 'No users'}
+                                            </div>
+                                          </div>
+                                        </div>
+                                        <div className="text-right">
+                                          <div className="text-neon-cyan font-bold text-lg">{row.activities ?? 0}</div>
+                                          <div className="text-white/60 text-xs">activities</div>
+                                        </div>
+                                      </div>
+                                      <div className="space-y-2">
+                                        <div className="flex items-center justify-between text-xs text-white/60">
+                                          <span>Sources: {sources.join(', ')}</span>
+                                          <span>Last seen: {lastSeen}</span>
+                                        </div>
+                                        <div className="bg-cyber-800/50 rounded-full h-2 overflow-hidden">
+                                          <div 
+                                            className="h-full bg-gradient-to-r from-neon-cyan to-neon-green transition-all"
+                                            style={{ width: `${Math.min(activityPercent, 100)}%` }}
+                                          />
+                                        </div>
+                                      </div>
+                                    </div>
+                                  );
+                                })}
+                              </div>
+                            )}
+                          </div>
+
+                          {/* Top 10 Users with Chart */}
+                          <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
+                            <div className="bg-gradient-to-br from-cyber-800/60 to-cyber-800/40 border-2 border-neon-green/30 rounded-xl p-6 shadow-lg">
+                              <div className="flex items-center gap-2 mb-4">
+                                <div className="p-2 bg-neon-green/20 rounded-lg">
+                                  <Trophy className="text-neon-green" size={18} />
+                                </div>
+                                <h5 className="text-white font-bold text-lg">Top 10 Users</h5>
+                              </div>
+                              {(eventLiveStats.top_users || []).length === 0 ? (
+                                <div className="text-white/50 text-sm text-center py-8">No user stats yet.</div>
+                              ) : (
+                                <div className="space-y-2 max-h-[400px] overflow-y-auto pr-2">
+                                  {(eventLiveStats.top_users || []).slice(0, 10).map((u: any, idx: number) => {
+                                    const total = Number(u.total_submissions || 0);
+                                    const correct = Number(u.correct_submissions || 0);
+                                    const pct = total ? (correct / total) * 100 : 0;
+                                    return (
+                                      <div 
+                                        key={u.user_id} 
+                                        className="p-3 bg-cyber-900/50 border border-neon-green/10 rounded-lg hover:border-neon-green/30 transition-all"
+                                      >
+                                        <div className="flex items-center justify-between mb-2">
+                                          <div className="flex items-center gap-2">
+                                            <div className={`w-6 h-6 rounded-full flex items-center justify-center text-xs font-bold ${
+                                              idx === 0 ? 'bg-yellow-500/20 text-yellow-400 border border-yellow-500/30' :
+                                              idx === 1 ? 'bg-gray-400/20 text-gray-300 border border-gray-400/30' :
+                                              idx === 2 ? 'bg-orange-500/20 text-orange-400 border border-orange-500/30' :
+                                              'bg-neon-green/10 text-neon-green border border-neon-green/20'
+                                            }`}>
+                                              {idx + 1}
+                                            </div>
+                                            <div>
+                                              <div className="font-semibold text-white text-sm">{u.username || '—'}</div>
+                                              <div className="text-xs text-white/50">{u.user_id?.substring(0, 12)}...</div>
+                                            </div>
+                                          </div>
+                                          <div className="text-right">
+                                            <div className="text-neon-green font-bold">{u.total_points || 0} pts</div>
+                                            <div className="text-white/60 text-xs">{u.challenges_solved || 0} solves</div>
+                                          </div>
+                                        </div>
+                                        <div className="flex items-center gap-2 mt-2">
+                                          <div className="flex-1 bg-cyber-800/50 rounded-full h-2 overflow-hidden">
+                                            <div 
+                                              className="h-full bg-gradient-to-r from-neon-green to-neon-cyan transition-all"
+                                              style={{ width: `${Math.min(pct, 100)}%` }}
+                                            />
+                                          </div>
+                                          <span className="text-white/70 text-xs min-w-[50px] text-right">{pct.toFixed(1)}%</span>
+                                        </div>
+                                      </div>
+                                    );
+                                  })}
+                                </div>
+                              )}
+                            </div>
+
+                            {/* Top Users Bar Chart */}
+                            {(eventLiveStats.top_users || []).length > 0 && (
+                              <div className="bg-gradient-to-br from-cyber-800/60 to-cyber-800/40 border-2 border-neon-green/30 rounded-xl p-6 shadow-lg">
+                                <div className="flex items-center gap-2 mb-4">
+                                  <BarChart3 className="text-neon-green" size={18} />
+                                  <h5 className="text-white font-bold text-lg">User Performance</h5>
+                                </div>
+                                <ResponsiveContainer width="100%" height={300}>
+                                  <BarChart data={(eventLiveStats.top_users || []).slice(0, 10).map((u: any) => ({
+                                    name: u.username?.substring(0, 10) || 'User',
+                                    points: u.total_points || 0,
+                                    solves: u.challenges_solved || 0
+                                  }))}>
+                                    <CartesianGrid strokeDasharray="3 3" stroke="rgba(0, 255, 136, 0.1)" />
+                                    <XAxis 
+                                      dataKey="name" 
+                                      tick={{ fill: '#fff', fontSize: 12 }}
+                                      angle={-45}
+                                      textAnchor="end"
+                                      height={80}
+                                    />
+                                    <YAxis tick={{ fill: '#fff', fontSize: 12 }} />
+                                    <Tooltip 
+                                      contentStyle={{ 
+                                        backgroundColor: 'rgba(0, 0, 0, 0.8)', 
+                                        border: '1px solid rgba(0, 255, 136, 0.3)',
+                                        borderRadius: '8px',
+                                        color: '#fff'
+                                      }}
+                                    />
+                                    <Legend 
+                                      wrapperStyle={{ color: '#fff', paddingTop: '10px' }}
+                                    />
+                                    <Bar dataKey="points" fill="#00FF88" radius={[8, 8, 0, 0]} />
+                                    <Bar dataKey="solves" fill="#00D9FF" radius={[8, 8, 0, 0]} />
+                                  </BarChart>
+                                </ResponsiveContainer>
+                              </div>
+                            )}
+                          </div>
+
+                          {/* Challenge breakdown with Chart */}
+                          <div className="bg-gradient-to-br from-cyber-800/60 to-cyber-800/40 border-2 border-neon-purple/30 rounded-xl p-6 shadow-lg">
+                            <div className="flex items-center gap-2 mb-4">
+                              <div className="p-2 bg-neon-purple/20 rounded-lg">
+                                <Target className="text-neon-purple" size={18} />
+                              </div>
+                              <h5 className="text-white font-bold text-lg">Challenge Breakdown</h5>
+                            </div>
+                            {(eventLiveStats.challenge_stats || []).length === 0 ? (
+                              <div className="text-white/50 text-sm text-center py-8">No challenges data yet.</div>
+                            ) : (
+                              <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
+                                <div className="space-y-3 max-h-[500px] overflow-y-auto pr-2">
+                                  {(eventLiveStats.challenge_stats || []).map((c: any) => {
+                                    const denom =
+                                      (eventLiveStats.participation_type === 'team_based'
+                                        ? Number(eventLiveStats.total_teams || 0)
+                                        : Number(eventLiveStats.total_users || 0)) || 0;
+                                    const solves = Number(c.solve_count || 0);
+                                    const attempts = Number(c.attempt_count || 0);
+                                    const solvePct = denom ? (solves / denom) * 100 : 0;
+                                    const attemptShare = (eventLiveStats.total_submissions || 0)
+                                      ? (attempts / Number(eventLiveStats.total_submissions || 1)) * 100
+                                      : 0;
+                                    return (
+                                      <div 
+                                        key={c.challenge_id} 
+                                        className="p-4 bg-cyber-900/50 border border-neon-purple/10 rounded-lg hover:border-neon-purple/30 transition-all"
+                                      >
+                                        <div className="flex items-start justify-between mb-2">
+                                          <div className="flex-1">
+                                            <div className="font-semibold text-white text-sm mb-1">{c.challenge_name || '—'}</div>
+                                            <div className="text-xs text-white/50 mb-2">{c.category || '—'}</div>
+                                          </div>
+                                          <div className="text-right ml-4">
+                                            <div className="text-neon-purple font-bold">{solves}</div>
+                                            <div className="text-white/60 text-xs">solves</div>
+                                          </div>
+                                        </div>
+                                        <div className="space-y-2">
+                                          <div className="flex items-center justify-between text-xs">
+                                            <span className="text-white/60">Solve Rate</span>
+                                            <span className="text-white/80">{solvePct.toFixed(1)}%</span>
+                                          </div>
+                                          <div className="bg-cyber-800/50 rounded-full h-2 overflow-hidden">
+                                            <div 
+                                              className="h-full bg-gradient-to-r from-neon-purple to-neon-cyan transition-all"
+                                              style={{ width: `${Math.min(solvePct, 100)}%` }}
+                                            />
+                                          </div>
+                                          <div className="flex items-center justify-between text-xs text-white/60">
+                                            <span>Attempts: {attempts}</span>
+                                            <span>Share: {attemptShare.toFixed(1)}%</span>
+                                          </div>
+                                        </div>
+                                      </div>
+                                    );
+                                  })}
+                                </div>
+                                <div>
+                                  <ResponsiveContainer width="100%" height={400}>
+                                    <BarChart data={(eventLiveStats.challenge_stats || []).map((c: any) => {
+                                      const denom =
+                                        (eventLiveStats.participation_type === 'team_based'
+                                          ? Number(eventLiveStats.total_teams || 0)
+                                          : Number(eventLiveStats.total_users || 0)) || 0;
+                                      const solves = Number(c.solve_count || 0);
+                                      const solvePct = denom ? (solves / denom) * 100 : 0;
+                                      return {
+                                        name: c.challenge_name?.substring(0, 15) || 'Challenge',
+                                        solves: solves,
+                                        solveRate: solvePct
+                                      };
+                                    })}>
+                                      <CartesianGrid strokeDasharray="3 3" stroke="rgba(157, 78, 221, 0.1)" />
+                                      <XAxis 
+                                        dataKey="name" 
+                                        tick={{ fill: '#fff', fontSize: 11 }}
+                                        angle={-45}
+                                        textAnchor="end"
+                                        height={100}
+                                      />
+                                      <YAxis tick={{ fill: '#fff', fontSize: 12 }} />
+                                      <Tooltip 
+                                        contentStyle={{ 
+                                          backgroundColor: 'rgba(0, 0, 0, 0.8)', 
+                                          border: '1px solid rgba(157, 78, 221, 0.3)',
+                                          borderRadius: '8px',
+                                          color: '#fff'
+                                        }}
+                                      />
+                                      <Legend 
+                                        wrapperStyle={{ color: '#fff', paddingTop: '10px' }}
+                                      />
+                                      <Bar dataKey="solves" fill="#9D4EDD" radius={[8, 8, 0, 0]} />
+                                    </BarChart>
+                                  </ResponsiveContainer>
+                                </div>
+                              </div>
+                            )}
+                          </div>
+
+                          {/* Category breakdown */}
                         <div className="grid grid-cols-1 lg:grid-cols-2 gap-4">
                           <div className="bg-cyber-900/30 border border-neon-green/10 rounded-xl p-4">
-                            <h5 className="text-white font-semibold mb-3">Summary</h5>
-                            <div className="text-sm text-white/80 space-y-1">
-                              <div>Participants: <span className="text-white font-semibold">{eventLiveStats.total_participants}</span></div>
-                              <div>Total submissions: <span className="text-white font-semibold">{eventLiveStats.total_submissions}</span></div>
-                              <div>Correct: <span className="text-neon-green font-semibold">{eventLiveStats.correct_submissions}</span></div>
-                              <div>Incorrect: <span className="text-neon-orange font-semibold">{eventLiveStats.incorrect_submissions}</span></div>
+                              <h5 className="text-white font-semibold mb-3">Category breakdown (challenges)</h5>
+                              <div className="space-y-2">
+                                {Object.entries(eventLiveStats.challenges_by_category || {}).map(([cat, count]: any) => (
+                                  <div key={cat} className="flex items-center justify-between text-sm">
+                                    <div className="text-white/80">{cat}</div>
+                                    <div className="text-white/60">{count}</div>
+                                  </div>
+                                ))}
+                                {Object.keys(eventLiveStats.challenges_by_category || {}).length === 0 && (
+                                  <div className="text-white/50 text-sm">No category data yet.</div>
+                                )}
                             </div>
                           </div>
 
                           <div className="bg-cyber-900/30 border border-neon-green/10 rounded-xl p-4">
-                            <h5 className="text-white font-semibold mb-3">Category proficiency (event-wide)</h5>
+                              <h5 className="text-white font-semibold mb-3">Category proficiency (solves/attempts)</h5>
                             <div className="space-y-2">
                               {Object.entries(eventLiveStats.category_proficiency_distribution || {}).map(([cat, v]: any) => (
                                 <div key={cat} className="flex items-center justify-between text-sm">
@@ -1211,6 +2030,7 @@ export default function Dashboard() {
                               {Object.keys(eventLiveStats.category_proficiency_distribution || {}).length === 0 && (
                                 <div className="text-white/50 text-sm">No category data yet.</div>
                               )}
+                              </div>
                             </div>
                           </div>
                         </div>

@@ -289,7 +289,7 @@ export const OpenStack: React.FC = () => {
         >
           <div className="flex items-center gap-3">
             <Camera className="text-neon-green" size={20} />
-            <h3 className="text-lg font-mono font-bold gradient-text tracking-wider">
+            <h3 className="text-lg font-mono font-bold text-neon-green tracking-wider">
               Snapshots
             </h3>
           </div>
@@ -308,7 +308,7 @@ export const OpenStack: React.FC = () => {
                 size="sm"
                 onClick={handleRefreshSnapshots}
                 disabled={isRefreshingSnapshots}
-                className=" text-xs"
+                className="border-neon-green/40 hover:bg-neon-green/10 text-neon-green text-xs"
               >
                 <RefreshCw 
                   size={14} 
@@ -317,50 +317,47 @@ export const OpenStack: React.FC = () => {
                 Refresh Snapshots
               </Button>
             </div>
-            
             {snapshots.length === 0 ? (
               <InfoBox
                 type="info"
                 message="No snapshots loaded yet. Click 'Refresh Snapshots' to load data."
               />
             ) : (
-              <div className="space-y-2">
+              <div className="space-y-3 max-h-[600px] overflow-y-auto pr-2">
                 {snapshots.map((snapshot, index) => (
                   <div
                     key={snapshot.id || index}
-                    className="p-3 bg-cyber-800/50 border border-neon-green/20 terminal-border rounded-xl data-panel font-mono text-sm"
+                    className="p-4 bg-gradient-to-br from-cyber-800/60 to-cyber-800/40 border-2 border-neon-green/40 rounded-xl hover:border-neon-green/60 transition-all shadow-lg"
                   >
-                    <div className="flex items-start justify-between gap-4">
-                      <div className="flex-1 space-y-1">
-                        <div className="flex items-center gap-2">
-                          <span className="text-neon-green font-semibold">ID:</span>
-                          <span className="text-white">{snapshot.id || 'N/A'}</span>
-                        </div>
-                        {snapshot.name && (
-                          <div className="flex items-center gap-2">
-                            <span className="text-neon-green font-semibold">Name:</span>
-                            <span className="text-white">{snapshot.name}</span>
-                          </div>
-                        )}
-                        {snapshot.size !== undefined && (
-                          <div className="flex items-center gap-2">
-                            <span className="text-neon-green font-semibold">Size:</span>
-                            <span className="text-white">{(snapshot.size / 1024 / 1024 / 1024).toFixed(2)} GB</span>
-                          </div>
-                        )}
-                        {snapshot.status && (
-                          <div className="flex items-center gap-2">
-                            <span className="text-neon-green font-semibold">Status:</span>
-                            <span className="text-white capitalize">{snapshot.status}</span>
-                          </div>
-                        )}
-                        {snapshot.created_at && (
-                          <div className="flex items-center gap-2">
-                            <span className="text-neon-green font-semibold">Created:</span>
-                            <span className="text-white/60 text-xs">{new Date(snapshot.created_at).toLocaleString()}</span>
-                          </div>
-                        )}
+                    <div className="space-y-2">
+                      <div className="flex items-start gap-2">
+                        <span className="text-neon-green font-semibold min-w-[60px]">ID:</span>
+                        <span className="text-white/90 text-sm break-all font-mono">{snapshot.id || 'N/A'}</span>
                       </div>
+                      {snapshot.name && (
+                        <div className="flex items-start gap-2">
+                          <span className="text-neon-green font-semibold min-w-[60px]">Name:</span>
+                          <span className="text-white/90 text-sm">{snapshot.name}</span>
+                        </div>
+                      )}
+                      {snapshot.status && (
+                        <div className="flex items-start gap-2">
+                          <span className="text-neon-green font-semibold min-w-[60px]">Status:</span>
+                          <span className={`text-sm font-semibold ${
+                            snapshot.status === 'ACTIVE' ? 'text-neon-green' :
+                            snapshot.status === 'QUEUED' ? 'text-neon-cyan' :
+                            'text-white/90'
+                          }`}>
+                            {snapshot.status}
+                          </span>
+                        </div>
+                      )}
+                      {snapshot.created_at && (
+                        <div className="flex items-start gap-2">
+                          <span className="text-neon-green font-semibold min-w-[60px]">Created:</span>
+                          <span className="text-white/70 text-sm">{new Date(snapshot.created_at).toLocaleString()}</span>
+                        </div>
+                      )}
                     </div>
                   </div>
                 ))}
@@ -507,7 +504,7 @@ export const OpenStack: React.FC = () => {
         >
           <div className="flex items-center gap-3">
             <Globe className="text-neon-green" size={20} />
-            <h3 className="text-lg font-mono font-bold gradient-text tracking-wider">
+            <h3 className="text-lg font-mono font-bold text-neon-green tracking-wider">
               Networks
             </h3>
           </div>
@@ -526,7 +523,7 @@ export const OpenStack: React.FC = () => {
                 size="sm"
                 onClick={handleRefreshNetworks}
                 disabled={isRefreshingNetworks}
-                className=" text-xs"
+                className="border-neon-green/40 hover:bg-neon-green/10 text-neon-green text-xs"
               >
                 <RefreshCw 
                   size={14} 
@@ -535,56 +532,55 @@ export const OpenStack: React.FC = () => {
                 Refresh Networks
               </Button>
             </div>
-            
             {networks.length === 0 ? (
               <InfoBox
                 type="info"
                 message="No networks loaded yet. Click 'Refresh Networks' to load data."
               />
             ) : (
-              <div className="space-y-2">
+              <div className="space-y-3 max-h-[600px] overflow-y-auto pr-2 relative">
+                {/* Vertical divider line */}
+                <div className="absolute left-1/2 top-0 bottom-0 w-px bg-neon-green/20 transform -translate-x-1/2 pointer-events-none" />
+                
                 {networks.map((network, index) => (
                   <div
                     key={network.id || index}
-                    className="p-3 bg-cyber-800/50 border border-neon-green/20 terminal-border rounded-xl data-panel font-mono text-sm"
+                    className="p-4 bg-gradient-to-br from-cyber-800/60 to-cyber-800/40 border-2 border-neon-green/40 rounded-xl hover:border-neon-green/60 transition-all shadow-lg"
                   >
-                    <div className="flex items-start justify-between gap-4">
-                      <div className="flex-1 space-y-1">
-                        <div className="flex items-center gap-2">
-                          <span className="text-neon-green font-semibold">ID:</span>
-                          <span className="text-white">{network.id || 'N/A'}</span>
-                        </div>
-                        {network.name && (
-                          <div className="flex items-center gap-2">
-                            <span className="text-neon-green font-semibold">Name:</span>
-                            <span className="text-white">{network.name}</span>
-                          </div>
-                        )}
-                        {network.available_ips !== undefined && (
-                          <div className="flex items-center gap-2">
-                            <span className="text-neon-green font-semibold">Available IPs:</span>
-                            <span className="text-white">{network.available_ips}</span>
-                          </div>
-                        )}
-                        {network.used_ips !== undefined && (
-                          <div className="flex items-center gap-2">
-                            <span className="text-neon-green font-semibold">Used IPs:</span>
-                            <span className="text-white">{network.used_ips}</span>
-                          </div>
-                        )}
-                        {network.cidr && (
-                          <div className="flex items-center gap-2">
-                            <span className="text-neon-green font-semibold">CIDR:</span>
-                            <span className="text-white">{network.cidr}</span>
-                          </div>
-                        )}
-                        {network.status && (
-                          <div className="flex items-center gap-2">
-                            <span className="text-neon-green font-semibold">Status:</span>
-                            <span className="text-white capitalize">{network.status}</span>
-                          </div>
-                        )}
+                    <div className="space-y-2">
+                      <div className="flex items-start gap-2">
+                        <span className="text-neon-green font-semibold min-w-[100px]">ID:</span>
+                        <span className="text-white/90 text-sm break-all font-mono">{network.id || 'N/A'}</span>
                       </div>
+                      {network.name && (
+                        <div className="flex items-start gap-2">
+                          <span className="text-neon-green font-semibold min-w-[100px]">Name:</span>
+                          <span className="text-white/90 text-sm">{network.name}</span>
+                        </div>
+                      )}
+                      {network.available_ips !== undefined && (
+                        <div className="flex items-start gap-2">
+                          <span className="text-neon-green font-semibold min-w-[100px]">Available IPs:</span>
+                          <span className="text-white/90 text-sm">{network.available_ips}</span>
+                        </div>
+                      )}
+                      {network.used_ips !== undefined && (
+                        <div className="flex items-start gap-2">
+                          <span className="text-neon-green font-semibold min-w-[100px]">Used IPs:</span>
+                          <span className="text-white/90 text-sm">{network.used_ips}</span>
+                        </div>
+                      )}
+                      {network.status && (
+                        <div className="flex items-start gap-2">
+                          <span className="text-neon-green font-semibold min-w-[100px]">Status:</span>
+                          <span className={`text-sm font-semibold ${
+                            network.status === 'ACTIVE' ? 'text-neon-green' :
+                            'text-white/90'
+                          }`}>
+                            {network.status}
+                          </span>
+                        </div>
+                      )}
                     </div>
                   </div>
                 ))}

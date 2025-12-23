@@ -7,6 +7,44 @@ const API_BASE_URL = USE_PROXY
   ? '/api/proxy'  // Next.js API route proxy
   : 'http://localhost:8001/api/v1';  // Direct backend URL
 
+/**
+ * IMPORTANT: We use sessionStorage for auth/user state to prevent cross-tab session bleed.
+ * localStorage is shared across tabs; sessionStorage is per-tab.
+ *
+ * We do a one-time per-tab migration from localStorage -> sessionStorage if needed,
+ * so existing users don't get unexpectedly logged out after this change.
+ */
+const authStore = {
+  get: (key: string) => {
+    if (typeof window === 'undefined') return null;
+    // Prefer per-tab session state
+    const v = window.sessionStorage.getItem(key);
+    if (v !== null) return v;
+
+    // One-time migration path for existing deployments
+    const legacy = window.localStorage.getItem(key);
+    if (legacy !== null) {
+      try {
+        window.sessionStorage.setItem(key, legacy);
+      } catch {
+        // ignore storage failures (e.g., quota or blocked storage)
+      }
+      return legacy;
+    }
+    return null;
+  },
+  set: (key: string, value: string) => {
+    if (typeof window === 'undefined') return;
+    window.sessionStorage.setItem(key, value);
+  },
+  del: (key: string) => {
+    if (typeof window === 'undefined') return;
+    window.sessionStorage.removeItem(key);
+  },
+};
+
+const getAuthToken = () => authStore.get('auth_token') || authStore.get('access_token');
+
 // Helper function to decode JWT token and extract user ID
 const decodeJWT = (token: string): any => {
   try {
@@ -37,11 +75,11 @@ const apiClient = axios.create({
 apiClient.interceptors.request.use(
   (config) => {
     // Add auth token if available (check both auth_token and access_token)
-    const token = localStorage.getItem('auth_token') || localStorage.getItem('access_token');
+    const token = getAuthToken();
     if (token) {
       config.headers.Authorization = `Bearer ${token}`;
     } else {
-      console.warn('No authentication token found in localStorage');
+      console.warn('No authentication token found in sessionStorage');
     }
     return config;
   },
@@ -84,7 +122,11 @@ app.add_middleware(
     
     if (error.response?.status === 401) {
       // Handle unauthorized
-      localStorage.removeItem('auth_token');
+      authStore.del('auth_token');
+      authStore.del('access_token');
+      authStore.del('user_info');
+      authStore.del('user_id');
+      authStore.del('team_info');
       window.location.href = '/';
     }
     return Promise.reject(error);
@@ -111,8 +153,8 @@ export const authAPI = {
     // Handle different possible token field names
     const token = response.data.token || response.data.access_token || response.data.accessToken;
     if (token) {
-      localStorage.setItem('auth_token', token);
-      console.log('Token saved to localStorage');
+      authStore.set('auth_token', token);
+      console.log('Token saved to sessionStorage');
     } else {
       console.warn('No token found in login response:', response.data);
     }
@@ -131,16 +173,17 @@ export const authAPI = {
     const path = USE_PROXY ? '/auth/register' : '/auth/register';
     const response = await apiClient.post(path, data);
     if (response.data.token) {
-      localStorage.setItem('auth_token', response.data.token);
+      authStore.set('auth_token', response.data.token);
     }
     return response.data;
   },
 
   logout: () => {
-    localStorage.removeItem('auth_token');
-    localStorage.removeItem('user_info');
-    localStorage.removeItem('user_id');
-    localStorage.removeItem('team_info');
+    authStore.del('auth_token');
+    authStore.del('access_token');
+    authStore.del('user_info');
+    authStore.del('user_id');
+    authStore.del('team_info');
   },
 
   getZones: async () => {
@@ -161,11 +204,11 @@ export const userAPI = {
   // Get current user by ID (users can only get themselves)
   getCurrentUser: async (userId?: string) => {
     // If userId is provided, use it; otherwise try to get from localStorage
-    let id = userId || localStorage.getItem('user_id');
+    let id = userId || authStore.get('user_id');
     
     // If still no ID, try to extract from JWT token
     if (!id) {
-      const token = localStorage.getItem('auth_token');
+      const token = authStore.get('auth_token');
       if (token) {
         try {
           const decoded = decodeJWT(token);
@@ -177,7 +220,7 @@ export const userAPI = {
             id = decoded.id;
           }
           if (id) {
-            localStorage.setItem('user_id', id);
+            authStore.set('user_id', id);
           }
         } catch (error) {
           console.error('Error extracting user ID from token:', error);
@@ -325,7 +368,7 @@ export const challengeAPI = {
     const path = USE_PROXY ? `/challenges/${challengeId}/start` : `/challenges/${challengeId}/start`;
     try {
       // Log the request for debugging
-      const token = localStorage.getItem('auth_token') || localStorage.getItem('access_token');
+      const token = getAuthToken();
       if (!token) {
         throw new Error('Authentication token not found. Please log in again.');
       }
@@ -443,7 +486,7 @@ export const fileAPI = {
     const formData = new FormData();
     formData.append('file', file);
     
-    const token = localStorage.getItem('auth_token');
+    const token = getAuthToken();
     const backendUrl = 'http://192.168.15.248:8000/api/v1';
     const path = '/files/upload';
     
@@ -535,7 +578,7 @@ export const builderAPI = {
       formData.append('registry', options.registry);
     }
 
-    const token = localStorage.getItem('auth_token');
+    const token = getAuthToken();
     const backendUrl = 'http://192.168.15.248:8000/api/v1';
     const path = '/builder/build-image';
 
@@ -872,6 +915,23 @@ export const eventAPI = {
     return response.data;
   },
 
+  // Event Admin: password reset scoped to this event (backend enforces zone + participation)
+  resetTeamPasswordForEvent: async (eventId: string, teamId: string, newPassword: string) => {
+    const path = USE_PROXY
+      ? `/events/${eventId}/teams/${teamId}/reset-password`
+      : `/events/${eventId}/teams/${teamId}/reset-password`;
+    const response = await apiClient.post(path, { new_password: newPassword });
+    return response.data;
+  },
+
+  resetUserPasswordForEvent: async (eventId: string, userId: string, newPassword: string) => {
+    const path = USE_PROXY
+      ? `/events/${eventId}/users/${userId}/reset-password`
+      : `/events/${eventId}/users/${userId}/reset-password`;
+    const response = await apiClient.post(path, { new_password: newPassword });
+    return response.data;
+  },
+
   // Register for event
   registerForEvent: async (eventId: string) => {
     const path = USE_PROXY ? `/events/${eventId}/register` : `/events/${eventId}/register`;
@@ -890,6 +950,27 @@ export const eventAPI = {
   getNotifications: async (unreadOnly: boolean = false) => {
     const path = USE_PROXY ? `/events/notifications` : `/events/notifications`;
     const response = await apiClient.get(`${path}?unread_only=${unreadOnly}`);
+    return response.data;
+  },
+
+  // Master broadcast notifications
+  broadcastNotification: async (payload: {
+    title: string;
+    message: string;
+    ui_type: 'toast' | 'alert' | 'background';
+    play_sound?: boolean;
+    zone?: string | null;
+    include_admins?: boolean;
+  }) => {
+    const path = USE_PROXY ? `/events/notifications/broadcast` : `/events/notifications/broadcast`;
+    const response = await apiClient.post(path, payload);
+    return response.data;
+  },
+
+  getBroadcastNotificationsFeed: async (zone?: string) => {
+    const path = USE_PROXY ? `/events/notifications/broadcasts` : `/events/notifications/broadcasts`;
+    const url = zone ? `${path}?zone=${encodeURIComponent(zone)}` : path;
+    const response = await apiClient.get(url);
     return response.data;
   },
 

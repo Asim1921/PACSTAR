@@ -308,28 +308,44 @@ class ChallengeStatsDetail(BaseModel):
     average_solve_time_minutes: Optional[float] = None
 
 
+class IPAddressDetail(BaseModel):
+    """IP address activity details within an event"""
+    ip_address: str
+    users: List[str] = Field(default_factory=list, description="Usernames seen from this IP")
+    user_ids: List[str] = Field(default_factory=list, description="User IDs seen from this IP")
+    activities: int = Field(default=0, description="Total submissions from this IP (all users)")
+    sources: List[str] = Field(default_factory=lambda: ["submissions"], description="Activity sources contributing to this row")
+    last_seen: Optional[datetime] = None
+
+
 class EventLiveStats(BaseModel):
     """Live statistics for event dashboard"""
     event_id: str
     event_name: str
     event_status: EventStatus
+    participation_type: Optional[EventParticipationType] = None
+    event_zone: Optional[str] = None
     
     # Summary stats
     total_participants: int = 0
     total_users: int = 0
     total_teams: int = 0
     total_challenges: int = 0
+    total_possible_points: int = 0
     
     # Submission stats
     total_submissions: int = 0
     correct_submissions: int = 0
     incorrect_submissions: int = 0
     submission_rate_per_minute: float = 0.0
+    correct_submission_percent: float = 0.0
+    incorrect_submission_percent: float = 0.0
     
     # Challenge breakdown
     most_solved_challenge: Optional[ChallengeStatsDetail] = None
     least_solved_challenge: Optional[ChallengeStatsDetail] = None
     challenges_by_category: Dict[str, int] = Field(default_factory=dict)
+    challenge_stats: List[ChallengeStatsDetail] = Field(default_factory=list, description="Per-challenge solves/attempts within this event")
     
     # Top performers
     top_users: List[UserStats] = Field(default_factory=list)
@@ -344,6 +360,10 @@ class EventLiveStats(BaseModel):
         default_factory=dict, 
         description="Participant ID to IP addresses mapping"
     )
+    ip_details: List[IPAddressDetail] = Field(default_factory=list, description="Per-IP activity breakdown")
+    most_active_ip: Optional[str] = None
+    most_active_ip_activities: int = 0
+    total_activities_tracked: int = 0
     
     # Timeline
     submissions_timeline: List[Dict[str, Any]] = Field(

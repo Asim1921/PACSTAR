@@ -873,3 +873,13 @@ html {
   top: 0;
   left: 0;
 }
+
+/* Calendar icon styling for datetime-local inputs */
+input[type="datetime-local"]::-webkit-calendar-picker-indicator {
+  filter: invert(1) brightness(2);
+  cursor: pointer;
+}
+
+input[type="datetime-local"]::-webkit-calendar-picker-indicator:hover {
+  filter: invert(1) brightness(2.5);
+}
