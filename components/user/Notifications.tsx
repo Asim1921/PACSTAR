@@ -264,20 +264,24 @@ const NotificationItem: React.FC<NotificationItemProps> = ({
             <Button
               onClick={() => onJoinEvent(notification.event_id, notification.id)}
               disabled={isJoining}
-              className="w-full bg-neon-green/20 hover:bg-neon-green/30 border border-neon-green/40 text-neon-green text-sm py-2"
+              className="w-full bg-gradient-to-r from-neon-green to-neon-cyan hover:from-neon-green hover:to-neon-cyan/90 !text-black border-2 border-neon-green/60 hover:border-neon-green/80 transition-all duration-300 shadow-lg shadow-neon-green/20 hover:shadow-neon-green/40 font-bold text-sm py-2.5 relative overflow-hidden"
               size="sm"
+              style={{ color: '#000000' }}
             >
-              {isJoining ? (
-                <>
-                  <span className="animate-spin mr-2">⏳</span>
-                  Joining...
-                </>
-              ) : (
-                <>
-                  <ExternalLink size={14} className="mr-2" />
-                  Join Event
-                </>
-              )}
+              <span className="relative z-10 flex items-center justify-center gap-2 !text-black font-bold" style={{ color: '#000000' }}>
+                {isJoining ? (
+                  <>
+                    <span className="animate-spin mr-2" style={{ color: '#000000' }}>⏳</span>
+                    <span style={{ color: '#000000' }}>Joining...</span>
+                  </>
+                ) : (
+                  <>
+                    <ExternalLink size={14} style={{ color: '#000000' }} />
+                    <span style={{ color: '#000000' }}>Join Event</span>
+                  </>
+                )}
+              </span>
+              <div className="absolute inset-0 bg-gradient-to-r from-white/20 via-transparent to-white/20 translate-x-[-100%] hover:translate-x-[100%] transition-transform duration-700" />
             </Button>
           )}
           

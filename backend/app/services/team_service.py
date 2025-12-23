@@ -208,9 +208,15 @@ class TeamService:
         updated_team = await self.get_team_by_id(team["id"])
         return updated_team
     
-    async def list_teams(self, skip: int = 0, limit: int = 100) -> list:
-        """List all active teams"""
-        cursor = self.teams.find({"is_active": True}).skip(skip).limit(limit)
+    async def list_teams(self, skip: int = 0, limit: int = 100, include_inactive: bool = False, zone: str | None = None) -> list:
+        """List teams (optionally include inactive; optionally filter by zone)."""
+        query: dict = {}
+        if not include_inactive:
+            query["is_active"] = True
+        if zone:
+            query["zone"] = zone
+
+        cursor = self.teams.find(query).skip(skip).limit(limit)
         teams = []
         async for team in cursor:
             team["_id"] = str(team["_id"])
@@ -239,6 +245,20 @@ class TeamService:
         if not team:
             return []
         return team.get("members", [])
+
+    async def set_team_active(self, team_id: str, is_active: bool) -> dict:
+        """Enable/disable (ban/unban) a team by ID."""
+        if not ObjectId.is_valid(team_id):
+            raise HTTPException(status_code=400, detail="Invalid team ID")
+
+        await self.teams.update_one(
+            {"_id": ObjectId(team_id)},
+            {"$set": {"is_active": bool(is_active), "updated_at": datetime.utcnow()}},
+        )
+        updated = await self.get_team_by_id(team_id)
+        if not updated:
+            raise HTTPException(status_code=404, detail="Team not found")
+        return updated
 
 
 # Global instance

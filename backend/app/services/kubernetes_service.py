@@ -72,6 +72,30 @@ class KubernetesService:
         
         logger.info(f"Initialized IP pool with {len(self.available_ips)} available IPs")
     
+    def _sanitize_label_value(self, value: str) -> str:
+        """Sanitize a value for use in Kubernetes labels
+        
+        Kubernetes labels must:
+        - Be alphanumeric characters, '-', '_', or '.'
+        - Start and end with an alphanumeric character
+        - Be max 63 characters
+        """
+        import re
+        # Replace invalid characters with '-'
+        sanitized = re.sub(r'[^A-Za-z0-9._-]', '-', value)
+        # Replace multiple consecutive hyphens with single hyphen
+        sanitized = re.sub(r'-+', '-', sanitized)
+        # Remove leading/trailing non-alphanumeric characters
+        sanitized = sanitized.strip('-._')
+        # Ensure it starts with alphanumeric
+        if not sanitized or not sanitized[0].isalnum():
+            sanitized = "label-" + sanitized if sanitized else "label"
+        # Ensure it ends with alphanumeric
+        if not sanitized[-1].isalnum():
+            sanitized = sanitized.rstrip('-._') + "0"
+        # Truncate to 63 characters (Kubernetes label value limit)
+        return sanitized[:63]
+    
     def _generate_unique_name(self, challenge_name: str, team_id: str) -> str:
         """Generate unique names for K8s resources"""
         # Sanitize names for Kubernetes (lowercase, alphanumeric, hyphens only)
@@ -140,8 +164,7 @@ class KubernetesService:
                     raise
             
             # Create namespace with sanitized label values
-            sanitized_label = re.sub(r'[^A-Za-z0-9._-]', '-', challenge_name)
-            sanitized_label = re.sub(r'-+', '-', sanitized_label).strip('-')
+            sanitized_label = self._sanitize_label_value(challenge_name)
             
             # Create namespace
             namespace = client.V1Namespace(
@@ -149,7 +172,7 @@ class KubernetesService:
                     name=namespace_name,
                     labels={
                         "app": "challenge",
-                        "challenge-name": sanitized_label[:63],  # Kubernetes label value limit
+                        "challenge-name": sanitized_label,
                         "managed-by": "pacstar"
                     }
                 )
@@ -232,6 +255,9 @@ class KubernetesService:
     def _create_deployment(self, pod_name: str, challenge_name: str, team_id: str, config: Dict, namespace: str):
         """Create Kubernetes deployment"""
         
+        # Sanitize challenge name for Kubernetes labels
+        sanitized_challenge_name = self._sanitize_label_value(challenge_name)
+        
         # Container spec
         container = client.V1Container(
             name=pod_name,
@@ -252,7 +278,7 @@ class KubernetesService:
             metadata=client.V1ObjectMeta(
                 labels={
                     "app": "challenge",
-                    "challenge-name": challenge_name,
+                    "challenge-name": sanitized_challenge_name,
                     "team-id": team_id,
                     "instance": pod_name
                 }
@@ -278,7 +304,7 @@ class KubernetesService:
                 namespace=namespace,
                 labels={
                     "app": "challenge",
-                    "challenge-name": challenge_name,
+                    "challenge-name": sanitized_challenge_name,
                     "team-id": team_id
                 }
             ),

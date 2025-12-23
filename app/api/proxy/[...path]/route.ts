@@ -23,6 +23,13 @@ export async function PUT(
   return handleRequest(request, params.path, 'PUT');
 }
 
+export async function PATCH(
+  request: NextRequest,
+  { params }: { params: { path: string[] } }
+) {
+  return handleRequest(request, params.path, 'PATCH');
+}
+
 export async function DELETE(
   request: NextRequest,
   { params }: { params: { path: string[] } }
@@ -65,8 +72,8 @@ async function handleRequest(
       headers,
     };
 
-    // Add body for POST, PUT, DELETE requests
-    if (['POST', 'PUT', 'DELETE'].includes(method)) {
+    // Add body for POST, PUT, PATCH, DELETE requests
+    if (['POST', 'PUT', 'PATCH', 'DELETE'].includes(method)) {
       if (isFileUpload) {
         try {
           // For file uploads, read the FormData and reconstruct it properly

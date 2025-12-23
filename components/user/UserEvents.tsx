@@ -49,6 +49,9 @@ interface Event {
   participant_count: number;
   challenge_count?: number;
   challenges?: Challenge[];
+  event_admin_user_id?: string | null;
+  event_admin_username?: string | null;
+  banned_team_ids?: string[];
 }
 
 interface Challenge {
@@ -75,14 +78,20 @@ interface Hint {
 
 type ViewType = 'list' | 'details' | 'scoreboard' | 'stats';
 
-export const UserEvents: React.FC = () => {
+interface UserEventsProps {
+  onJoinEvent?: () => void;
+  isAdmin?: boolean;
+}
+
+export const UserEvents: React.FC<UserEventsProps> = ({ onJoinEvent, isAdmin = false }) => {
   const { showToast } = useToast();
   const [events, setEvents] = useState<Event[]>([]);
   const [selectedEvent, setSelectedEvent] = useState<Event | null>(null);
   const [viewType, setViewType] = useState<ViewType>('list');
   const [isLoading, setIsLoading] = useState(false);
   const [searchTerm, setSearchTerm] = useState('');
-  const [statusFilter, setStatusFilter] = useState<string>('running');
+  // For regular users, always filter to 'running'. For admins, allow all statuses
+  const [statusFilter, setStatusFilter] = useState<string>(isAdmin ? 'all' : 'running');
   const [expandedChallenges, setExpandedChallenges] = useState<Set<string>>(new Set());
   
   // Flag submission
@@ -92,13 +101,20 @@ export const UserEvents: React.FC = () => {
   // Scoreboard
   const [scoreboard, setScoreboard] = useState<any>(null);
   const [myStats, setMyStats] = useState<any>(null);
+  const [eventTeams, setEventTeams] = useState<Array<{ team_id: string; team_name?: string; banned: boolean }>>([]);
+  const [isLoadingEventTeams, setIsLoadingEventTeams] = useState(false);
 
   // Fetch events
   const fetchEvents = async () => {
     setIsLoading(true);
     try {
       const filters: any = {};
-      if (statusFilter !== 'all') filters.status_filter = statusFilter;
+      // Regular users should only see running events
+      if (!isAdmin) {
+        filters.status_filter = 'running';
+      } else if (statusFilter !== 'all') {
+        filters.status_filter = statusFilter;
+      }
       
       const response = await eventAPI.listEvents(filters);
       setEvents(response.events || []);
@@ -120,6 +136,62 @@ export const UserEvents: React.FC = () => {
       showToast(error.response?.data?.detail || 'Failed to fetch event details', 'error');
     } finally {
       setIsLoading(false);
+    }
+  };
+
+  const currentUserId = typeof window !== 'undefined' ? localStorage.getItem('user_id') : null;
+  const isEventAdminForSelected =
+    !!selectedEvent?.event_admin_user_id && !!currentUserId && selectedEvent.event_admin_user_id === currentUserId;
+
+  const fetchEventTeams = async (eventId: string) => {
+    setIsLoadingEventTeams(true);
+    try {
+      const res = await eventAPI.listEventTeams(eventId);
+      setEventTeams(res?.teams || []);
+    } catch (error: any) {
+      console.error('Failed to fetch event teams:', error);
+    } finally {
+      setIsLoadingEventTeams(false);
+    }
+  };
+
+  const handlePauseResumeAsEventAdmin = async (paused: boolean) => {
+    if (!selectedEvent) return;
+    try {
+      await eventAPI.pauseEvent(selectedEvent.id, paused, paused ? 'Paused by Event Admin' : 'Resumed by Event Admin');
+      showToast(paused ? 'Event paused' : 'Event resumed', 'success');
+      await fetchEventDetails(selectedEvent.id);
+    } catch (error: any) {
+      showToast(error.response?.data?.detail || 'Failed to pause/resume event', 'error');
+    }
+  };
+
+  const handleEndAsEventAdmin = async () => {
+    if (!selectedEvent) return;
+    // eslint-disable-next-line no-restricted-globals
+    if (!confirm('Are you sure you want to end this event?')) return;
+    try {
+      await eventAPI.endEvent(selectedEvent.id);
+      showToast('Event ended', 'success');
+      await fetchEventDetails(selectedEvent.id);
+    } catch (error: any) {
+      showToast(error.response?.data?.detail || 'Failed to end event', 'error');
+    }
+  };
+
+  const handleToggleBanTeam = async (teamId: string, ban: boolean) => {
+    if (!selectedEvent) return;
+    try {
+      if (ban) {
+        await eventAPI.banTeamForEvent(selectedEvent.id, teamId);
+        showToast('Team banned for this event', 'success');
+      } else {
+        await eventAPI.unbanTeamForEvent(selectedEvent.id, teamId);
+        showToast('Team unbanned for this event', 'success');
+      }
+      await fetchEventTeams(selectedEvent.id);
+    } catch (error: any) {
+      showToast(error.response?.data?.detail || 'Failed to update team ban', 'error');
     }
   };
 
@@ -181,6 +253,15 @@ export const UserEvents: React.FC = () => {
     fetchEvents();
   }, [statusFilter]);
 
+  // If user is the Event Admin for the currently-selected event, load event teams (for ban/unban UI)
+  useEffect(() => {
+    if (selectedEvent && isEventAdminForSelected) {
+      fetchEventTeams(selectedEvent.id);
+    } else {
+      setEventTeams([]);
+    }
+  }, [selectedEvent?.id, isEventAdminForSelected]);
+
   // Check registration for all events on load
   useEffect(() => {
     events.forEach(event => {
@@ -208,6 +289,10 @@ export const UserEvents: React.FC = () => {
       fetchEvents();
       if (selectedEvent?.id === eventId) {
         fetchEventDetails(eventId);
+      }
+      // Trigger challenges refresh
+      if (onJoinEvent) {
+        onJoinEvent();
       }
     } catch (error: any) {
       showToast(error.response?.data?.detail || 'Failed to join event', 'error');
@@ -301,6 +386,16 @@ export const UserEvents: React.FC = () => {
 
   // Filter events
   const filteredEvents = events.filter((event) => {
+    // Regular users should only see running events
+    if (!isAdmin && event.status !== 'running') {
+      return false;
+    }
+    
+    // Admin users can filter by statusFilter
+    if (isAdmin && statusFilter !== 'all' && event.status !== statusFilter) {
+      return false;
+    }
+    
     const matchesSearch = event.name.toLowerCase().includes(searchTerm.toLowerCase()) ||
                          event.description.toLowerCase().includes(searchTerm.toLowerCase());
     return matchesSearch;
@@ -326,18 +421,21 @@ export const UserEvents: React.FC = () => {
                   className="w-full pl-12 pr-4 py-3 bg-cyber-800/50 border-2 border-neon-green/20 rounded-xl focus:outline-none focus:border-neon-green focus:ring-4 focus:ring-neon-green/20 text-white placeholder:text-white/30"
                 />
               </div>
-              <Select
-                value={statusFilter}
-                onChange={(e) => setStatusFilter(e.target.value)}
-                className="w-full sm:w-48 bg-cyber-800/50 border-neon-green/20 text-white"
-                options={[
-                  { value: 'all', label: 'All Status' },
-                  { value: 'scheduled', label: 'Scheduled' },
-                  { value: 'running', label: 'Live' },
-                  { value: 'paused', label: 'Paused' },
-                  { value: 'completed', label: 'Completed' },
-                ]}
-              />
+              {/* Only show status filter for admins */}
+              {isAdmin && (
+                <Select
+                  value={statusFilter}
+                  onChange={(e) => setStatusFilter(e.target.value)}
+                  className="w-full sm:w-48 bg-cyber-800/50 border-neon-green/20 text-white"
+                  options={[
+                    { value: 'all', label: 'All Status' },
+                    { value: 'scheduled', label: 'Scheduled' },
+                    { value: 'running', label: 'Live' },
+                    { value: 'paused', label: 'Paused' },
+                    { value: 'completed', label: 'Completed' },
+                  ]}
+                />
+              )}
               <Button
                 variant="outline"
                 size="md"
@@ -430,13 +528,13 @@ export const UserEvents: React.FC = () => {
                       {canJoin ? (
                         <Button
                           onClick={() => handleRegister(event.id)}
-                          className="flex-1 relative overflow-hidden group bg-neon-green/20 hover:bg-neon-green/30 border-2 border-neon-green/40 hover:border-neon-green/60 text-neon-green transition-all duration-300 shadow-lg shadow-neon-green/10 hover:shadow-neon-green/20 font-bold py-3"
+                          className="flex-1 relative overflow-hidden group bg-gradient-to-r from-neon-green to-neon-cyan hover:from-neon-green hover:to-neon-cyan/80 text-white border-2 border-neon-green/60 hover:border-neon-green/80 transition-all duration-300 shadow-lg shadow-neon-green/20 hover:shadow-neon-green/40 hover:shadow-xl font-bold py-3"
                         >
-                          <span className="relative z-10 flex items-center justify-center gap-2">
+                          <span className="relative z-10 flex items-center justify-center gap-2 text-white drop-shadow-[0_0_8px_rgba(0,0,0,0.5)]">
                             <Shield size={18} className="group-hover:scale-110 transition-transform" />
                             Join Event
                           </span>
-                          <div className="absolute inset-0 bg-gradient-to-r from-neon-green/0 via-neon-green/10 to-neon-green/0 translate-x-[-100%] group-hover:translate-x-[100%] transition-transform duration-700" />
+                          <div className="absolute inset-0 bg-gradient-to-r from-neon-green/0 via-white/10 to-neon-cyan/0 translate-x-[-100%] group-hover:translate-x-[100%] transition-transform duration-700" />
                         </Button>
                       ) : event.status === 'running' && isRegistered && (
                         <Button
@@ -489,6 +587,108 @@ export const UserEvents: React.FC = () => {
                 </div>
               </div>
             </div>
+
+            {/* Event Admin Controls */}
+            {isEventAdminForSelected && (
+              <div className="mt-6 bg-cyber-800/30 border border-neon-orange/20 rounded-2xl p-4">
+                <div className="flex items-center justify-between gap-4 flex-wrap mb-3">
+                  <div>
+                    <h4 className="text-lg font-bold text-white">Event Admin Controls</h4>
+                    <p className="text-white/60 text-sm">
+                      You are the Event Admin for this event. You can pause/resume, end, and ban/unban teams.
+                    </p>
+                  </div>
+                  <div className="flex gap-2">
+                    {(selectedEvent.status === 'running' || selectedEvent.status === 'paused') && (
+                      <Button
+                        variant="outline"
+                        onClick={() => handlePauseResumeAsEventAdmin(selectedEvent.status === 'running')}
+                        className="border-neon-cyan/40 hover:bg-neon-cyan/10 text-neon-cyan"
+                      >
+                        {selectedEvent.status === 'running' ? (
+                          <>
+                            <Pause size={16} className="mr-2" /> Pause
+                          </>
+                        ) : (
+                          <>
+                            <Play size={16} className="mr-2" /> Resume
+                          </>
+                        )}
+                      </Button>
+                    )}
+                    {(selectedEvent.status === 'running' || selectedEvent.status === 'paused') && (
+                      <Button
+                        variant="outline"
+                        onClick={handleEndAsEventAdmin}
+                        className="border-neon-orange/40 hover:bg-neon-orange/10 text-neon-orange"
+                      >
+                        <XCircle size={16} className="mr-2" /> End Event
+                      </Button>
+                    )}
+                  </div>
+                </div>
+
+                {/* Team Ban/Unban */}
+                {selectedEvent.participation_type === 'team_based' && (
+                  <div className="mt-4">
+                    <div className="flex items-center justify-between mb-2">
+                      <h5 className="text-white font-semibold">Teams in this event</h5>
+                      <Button
+                        size="sm"
+                        variant="outline"
+                        onClick={() => fetchEventTeams(selectedEvent.id)}
+                        className="border-neon-green/30 hover:bg-neon-green/10 text-white"
+                      >
+                        <RefreshCw size={14} className={`mr-2 ${isLoadingEventTeams ? 'animate-spin' : ''}`} />
+                        Refresh
+                      </Button>
+                    </div>
+                    {isLoadingEventTeams ? (
+                      <p className="text-white/60 text-sm">Loading teams...</p>
+                    ) : eventTeams.length === 0 ? (
+                      <p className="text-white/60 text-sm">No teams registered yet.</p>
+                    ) : (
+                      <div className="space-y-2">
+                        {eventTeams.map((t) => (
+                          <div
+                            key={t.team_id}
+                            className="flex items-center justify-between gap-3 p-3 bg-cyber-900/40 border border-neon-green/10 rounded-xl"
+                          >
+                            <div className="min-w-0">
+                              <div className="text-white font-medium truncate">{t.team_name || t.team_id}</div>
+                              <div className="text-xs text-white/50">{t.team_id}</div>
+                            </div>
+                            <div className="flex items-center gap-2">
+                              {t.banned ? (
+                                <span className="text-xs font-semibold text-neon-orange bg-neon-orange/10 border border-neon-orange/30 px-2 py-1 rounded-full">
+                                  Banned
+                                </span>
+                              ) : (
+                                <span className="text-xs font-semibold text-neon-green bg-neon-green/10 border border-neon-green/30 px-2 py-1 rounded-full">
+                                  Active
+                                </span>
+                              )}
+                              <Button
+                                size="sm"
+                                variant="outline"
+                                onClick={() => handleToggleBanTeam(t.team_id, !t.banned)}
+                                className={`border-2 ${
+                                  t.banned
+                                    ? 'border-neon-green/40 hover:bg-neon-green/10 text-neon-green'
+                                    : 'border-neon-orange/40 hover:bg-neon-orange/10 text-neon-orange'
+                                }`}
+                              >
+                                {t.banned ? 'Unban' : 'Ban'}
+                              </Button>
+                            </div>
+                          </div>
+                        ))}
+                      </div>
+                    )}
+                  </div>
+                )}
+              </div>
+            )}
 
             <div className="flex flex-wrap gap-3">
               <Button

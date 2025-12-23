@@ -35,7 +35,7 @@ import { Button } from '@/components/ui/Button';
 import { Input } from '@/components/ui/Input';
 import { Select } from '@/components/ui/Select';
 import { InfoBox } from '@/components/ui/InfoBox';
-import { eventAPI } from '@/lib/api';
+import { eventAPI, authAPI } from '@/lib/api';
 import { useToast } from '@/components/ui/ToastProvider';
 
 type EventAction = 'list' | 'create' | 'pending' | 'edit' | 'view' | 'stats';
@@ -81,7 +81,7 @@ export const Events: React.FC = () => {
     description: '',
     event_type: 'ctf' as EventType,
     participation_type: 'team_based' as ParticipationType,
-    zone: '',
+    zone: 'zone1', // Default zone to enable challenge fetching
     start_time: '',
     end_time: '',
     max_participants: '',
@@ -89,13 +89,46 @@ export const Events: React.FC = () => {
   });
   const [selectedChallenges, setSelectedChallenges] = useState<string[]>([]);
   const [availableChallenges, setAvailableChallenges] = useState<any[]>([]);
+  const [availableZones, setAvailableZones] = useState<Array<{value: string, label: string}>>([]);
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [editingEventId, setEditingEventId] = useState<string | null>(null);
+  const [eventAdminCandidates, setEventAdminCandidates] = useState<any[]>([]);
+  const [selectedEventAdminId, setSelectedEventAdminId] = useState<string>('');
+  const [currentEventAdmin, setCurrentEventAdmin] = useState<{ user_id?: string; username?: string } | null>(null);
   const [selectedEvent, setSelectedEvent] = useState<Event | null>(null);
   const [eventStats, setEventStats] = useState<any>(null);
   const [eventScoreboard, setEventScoreboard] = useState<any>(null);
   const [eventDetails, setEventDetails] = useState<any>(null);
   const [challengeConfigs, setChallengeConfigs] = useState<Record<string, any>>({});
+
+  // Fetch available zones
+  const fetchZones = async () => {
+    try {
+      const response = await authAPI.getZones();
+      // Handle both array and object responses
+      const zones = Array.isArray(response) ? response : (response.zones || []);
+      const zoneOptions = zones.map((zone: any) => ({
+        value: zone.name || zone.value || zone,
+        label: zone.label || zone.name || zone.value || zone
+      }));
+      setAvailableZones(zoneOptions);
+      // Set default zone if not set and zones are available
+      if (zoneOptions.length > 0 && !formData.zone) {
+        setFormData(prev => ({ ...prev, zone: zoneOptions[0].value }));
+      }
+    } catch (error: any) {
+      console.error('Failed to fetch zones:', error);
+      // Fallback to default zones if API fails
+      setAvailableZones([
+        { value: 'zone1', label: 'Zone 1' },
+        { value: 'zone2', label: 'Zone 2' },
+        { value: 'zone3', label: 'Zone 3' },
+        { value: 'zone4', label: 'Zone 4' },
+        { value: 'zone5', label: 'Zone 5' },
+        { value: 'main', label: 'Main Zone' }
+      ]);
+    }
+  };
 
   // Fetch events
   const fetchEvents = async () => {
@@ -142,19 +175,32 @@ export const Events: React.FC = () => {
         return;
       }
       
-      // Otherwise, fetch challenges for the specific zone
+      // If zone is not set, try to fetch all challenges for Master, or use default zone1
       if (!zone) {
-        setAvailableChallenges([]);
+        if (isMaster) {
+          // Master can see all challenges even without zone
+          const response = await eventAPI.getAvailableChallenges();
+          setAvailableChallenges(Array.isArray(response) ? response : []);
+        } else {
+          // For non-Master, use default zone1 if zone not set
+          const response = await eventAPI.getAvailableChallenges('zone1');
+          setAvailableChallenges(Array.isArray(response) ? response : []);
+        }
         return;
       }
+      
+      // Fetch challenges for the specific zone
       const response = await eventAPI.getAvailableChallenges(zone);
       setAvailableChallenges(Array.isArray(response) ? response : []);
     } catch (error: any) {
+      console.error('Error fetching available challenges:', error);
       showToast(error.response?.data?.detail || 'Failed to fetch available challenges', 'error');
+      setAvailableChallenges([]);
     }
   };
 
   useEffect(() => {
+    fetchZones();
     if (activeAction === 'list') {
       fetchEvents();
     } else if (activeAction === 'pending') {
@@ -163,6 +209,13 @@ export const Events: React.FC = () => {
       fetchAvailableChallenges();
     }
   }, [activeAction, statusFilter, eventTypeFilter]);
+
+  // Refetch challenges when zone changes in create mode
+  useEffect(() => {
+    if (activeAction === 'create' && formData.zone) {
+      fetchAvailableChallenges();
+    }
+  }, [formData.zone]);
 
   // Helper function to convert datetime-local to ISO string (UTC)
   // datetime-local format is "YYYY-MM-DDTHH:mm" and represents local browser time
@@ -386,6 +439,20 @@ export const Events: React.FC = () => {
     // Fetch event details to get challenges
     try {
       const eventDetails = await eventAPI.getEvent(event.id);
+      setCurrentEventAdmin({
+        user_id: eventDetails.event_admin_user_id,
+        username: eventDetails.event_admin_username,
+      });
+      setSelectedEventAdminId(eventDetails.event_admin_user_id || '');
+      
+      if (isMaster) {
+        try {
+          const candRes = await eventAPI.getEventAdminCandidates(event.id);
+          setEventAdminCandidates(candRes?.candidates || []);
+        } catch (e) {
+          setEventAdminCandidates([]);
+        }
+      }
       if (eventDetails.challenges) {
         setSelectedChallenges(eventDetails.challenges.map((c: any) => c.challenge_id));
         const configs: Record<string, any> = {};
@@ -405,6 +472,23 @@ export const Events: React.FC = () => {
       setActiveAction('edit');
     } catch (error: any) {
       showToast('Failed to load event details', 'error');
+    }
+  };
+
+  const handleAssignEventAdmin = async () => {
+    if (!editingEventId) return;
+    if (!isMaster) return;
+    try {
+      await eventAPI.setEventAdmin(editingEventId, selectedEventAdminId || null);
+      showToast('Event Admin updated successfully', 'success');
+      const refreshed = await eventAPI.getEvent(editingEventId);
+      setCurrentEventAdmin({
+        user_id: refreshed.event_admin_user_id,
+        username: refreshed.event_admin_username,
+      });
+      setSelectedEventAdminId(refreshed.event_admin_user_id || '');
+    } catch (error: any) {
+      showToast(error.response?.data?.detail || 'Failed to set Event Admin', 'error');
     }
   };
 
@@ -763,6 +847,55 @@ export const Events: React.FC = () => {
           </h3>
           
           <div className="space-y-6">
+            {/* Event Admin (Master only) */}
+            {isMaster && editingEventId && (
+              <div className="bg-cyber-800/30 border border-neon-green/20 rounded-2xl p-4">
+                <div className="flex items-start justify-between gap-4 flex-wrap">
+                  <div>
+                    <h4 className="text-lg font-bold text-white">Event Admin</h4>
+                    <p className="text-white/60 text-sm">
+                      Assign one user (from registered participants) who can pause/end this event and ban/unban teams for this event.
+                    </p>
+                    <p className="text-white/70 text-sm mt-2">
+                      Current: <span className="text-neon-green font-semibold">{currentEventAdmin?.username || 'None'}</span>
+                    </p>
+                  </div>
+                </div>
+
+                <div className="mt-4 grid grid-cols-1 md:grid-cols-3 gap-3 items-end">
+                  <div className="md:col-span-2">
+                    <label className="block text-sm font-semibold text-white/90 mb-2">Select User</label>
+                    <select
+                      value={selectedEventAdminId}
+                      onChange={(e) => setSelectedEventAdminId(e.target.value)}
+                      className="w-full px-4 py-3 bg-cyber-900/50 border-2 border-neon-green/20 rounded-xl focus:outline-none focus:border-neon-green focus:ring-4 focus:ring-neon-green/20 text-white"
+                    >
+                      <option value="">None (clear)</option>
+                      {eventAdminCandidates.map((c: any) => (
+                        <option key={c.user_id} value={c.user_id}>
+                          {c.username} {c.team_name ? `— ${c.team_name}` : ''} {c.team_code ? `(${c.team_code})` : ''}
+                        </option>
+                      ))}
+                    </select>
+                    {eventAdminCandidates.length === 0 && (
+                      <p className="text-white/50 text-xs mt-2">
+                        No candidates yet. Users must register for the event first.
+                      </p>
+                    )}
+                  </div>
+                  <div>
+                    <Button
+                      onClick={handleAssignEventAdmin}
+                      className="w-full border-2 border-neon-green/40 hover:bg-neon-green/10 text-neon-green"
+                      variant="outline"
+                    >
+                      Save Event Admin
+                    </Button>
+                  </div>
+                </div>
+              </div>
+            )}
+
             {/* Basic Info */}
             <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
               <div>
@@ -776,7 +909,7 @@ export const Events: React.FC = () => {
               </div>
               <div>
                 <label className="block text-sm font-semibold text-white/90 mb-2">Zone *</label>
-                <Input
+                <Select
                   value={formData.zone}
                   onChange={(e) => {
                     setFormData({ ...formData, zone: e.target.value });
@@ -785,8 +918,15 @@ export const Events: React.FC = () => {
                       fetchAvailableChallenges(e.target.value);
                     }
                   }}
-                  placeholder="zone1"
                   className="bg-cyber-800/50 border-neon-green/20 text-white"
+                  options={availableZones.length > 0 ? availableZones : [
+                    { value: 'zone1', label: 'Zone 1' },
+                    { value: 'zone2', label: 'Zone 2' },
+                    { value: 'zone3', label: 'Zone 3' },
+                    { value: 'zone4', label: 'Zone 4' },
+                    { value: 'zone5', label: 'Zone 5' },
+                    { value: 'main', label: 'Main Zone' }
+                  ]}
                 />
               </div>
             </div>

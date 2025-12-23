@@ -97,6 +97,7 @@ class EventChallengeResponse(BaseModel):
     challenge_id: str
     challenge_name: str
     challenge_category: str
+    skill_category: Optional[str] = None
     description: str
     visibility: ChallengeVisibility
     points: int
@@ -186,6 +187,10 @@ class EventResponse(EventBase):
     paused_at: Optional[datetime] = None
     pause_reason: Optional[str] = None
     participant_count: int = Field(default=0)
+    # Event-scoped admin controls
+    event_admin_user_id: Optional[str] = Field(None, description="User ID assigned as admin for this event")
+    event_admin_username: Optional[str] = Field(None, description="Username of the event admin")
+    banned_team_ids: List[str] = Field(default_factory=list, description="Team IDs banned for this event (team-based events)")
     created_at: datetime
     updated_at: datetime
 

@@ -39,6 +39,9 @@ class UserInDB(UserBase):
     id: PyObjectId = Field(default_factory=PyObjectId, alias="_id")
     hashed_password: str
     last_login: Optional[datetime] = None
+    team_id: Optional[str] = Field(None, description="Team ID if user belongs to a team")
+    team_code: Optional[str] = Field(None, description="Team code if user belongs to a team")
+    team_name: Optional[str] = Field(None, description="Team name if user belongs to a team")
 
     def dict(self, *args, **kwargs):
         data = super().dict(*args, **kwargs)
@@ -60,6 +63,9 @@ class UserInDB(UserBase):
 class UserPublic(UserBase):
     id: PyObjectId = Field(default_factory=PyObjectId, alias="_id")
     last_login: Optional[datetime] = None
+    team_id: Optional[str] = Field(None, description="Team ID if user belongs to a team")
+    team_code: Optional[str] = Field(None, description="Team code if user belongs to a team")
+    team_name: Optional[str] = Field(None, description="Team name if user belongs to a team")
 
     class Config:
         populate_by_name = True

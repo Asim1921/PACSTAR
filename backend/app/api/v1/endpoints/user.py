@@ -1,7 +1,7 @@
 from fastapi import APIRouter, Depends, Request, HTTPException, status
 from app.services.user_service import UserService
 from app.db.models.user import UserInDB, UserPublic
-from app.schemas.user import UserUpdate
+from app.schemas.user import UserUpdate, PasswordResetRequest
 
 
 router = APIRouter(prefix="/users", tags=["users"])
@@ -75,3 +75,23 @@ async def update_user(
     """
     updated = await user_service.update_user(current_user, user_id, update)
     return UserPublic.model_validate(updated.dict(by_alias=True))
+
+
+@router.post("/{user_id}/reset-password", response_model=dict)
+async def reset_user_password(
+    user_id: str,
+    body: PasswordResetRequest,
+    current_user: UserInDB = Depends(get_current_user),
+):
+    """
+    Reset a user's password (Master/Admin only).
+    - Master: can reset anyone
+    - Admin: can reset users in their own zone; cannot reset Admin/Master accounts
+    """
+    if current_user.role not in ["Master", "Admin"]:
+        raise HTTPException(status_code=status.HTTP_403_FORBIDDEN, detail="Not authorized")
+
+    # Reuse existing RBAC logic in user_service.update_user (handles zone + role restrictions)
+    update = UserUpdate(password=body.new_password)
+    updated = await user_service.update_user(current_user, user_id, update)
+    return {"success": True, "user_id": str(updated.id)}

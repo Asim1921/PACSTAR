@@ -206,22 +206,17 @@ async def check_and_start_events():
                         # Check if end time has passed
                         if end_time_pakistan <= now_pakistan:
                             logger.info(f"⏰ Event '{event_name}' (ID: {event_id}) end time reached (Pakistan: {end_time_pakistan.strftime('%Y-%m-%d %H:%M:%S PKT')} <= {now_pakistan.strftime('%Y-%m-%d %H:%M:%S PKT')}). Ending...")
-                            
-                            # End the event
-                            result = await event_service.events.update_one(
-                                {"_id": event["_id"]},
-                                {
-                                    "$set": {
-                                        "status": EventStatus.COMPLETED.value,
-                                        "updated_at": datetime.utcnow()
-                                    }
-                                }
-                            )
-                            
-                            if result.modified_count > 0:
+
+                            # Use service-layer end_event so cleanup runs (stop/delete challenge instances)
+                            try:
+                                await event_service.end_event(
+                                    event_id=event_id,
+                                    user_role="Master",
+                                    user_zone=event.get("zone", "unknown"),
+                                )
                                 logger.info(f"✅ Auto-ended event: {event_name} (ID: {event_id})")
-                            else:
-                                logger.warning(f"⚠️ Failed to update event {event_id} status to completed (no documents modified)")
+                            except Exception as end_err:
+                                logger.error(f"⚠️ Failed to auto-end event {event_id}: {end_err}", exc_info=True)
                         else:
                             time_diff = (end_time_pakistan - now_pakistan).total_seconds()
                             if time_diff < 300:  # Log if ending within 5 minutes

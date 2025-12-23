@@ -13,9 +13,10 @@ def register_exception_handlers(app):
     @app.exception_handler(HTTPException)
     async def http_exception_handler(request: Request, exc: HTTPException):
         logger.warning(f"HTTP {exc.status_code} at {request.url}: {exc.detail}")
+        # Return the actual error detail for better debugging
         return JSONResponse(
             status_code=exc.status_code,
-            content={"detail": "Request could not be completed."},
+            content={"detail": exc.detail},
         )
 
     @app.exception_handler(StarletteHTTPException)

@@ -62,6 +62,37 @@ class ChallengeService:
             self._challenge_instance_collection = db["challenge_instances"]
             self._submissions_collection = db["submissions"]
         return self._challenge_collection, self._challenge_instance_collection
+
+    async def _normalize_team_id(self, team_id: str) -> str:
+        """
+        Normalize team identifiers to the canonical format stored in challenge.instances.
+        - If already `team-XXXXXXXX` → keep.
+        - If Mongo ObjectId → look up team_code and hash it.
+        - Else → hash the provided string.
+        """
+        if not team_id:
+            raise ValueError("team_id is required")
+
+        if team_id.startswith("team-") and len(team_id) > 5:
+            return team_id
+
+        # MongoDB ObjectId string: resolve via team_code if possible
+        if len(team_id) == 24:
+            try:
+                from app.db.init_db import get_database
+                db = await get_database()
+                team_doc = await db["teams"].find_one({"_id": ObjectId(team_id)}, {"team_code": 1})
+                if team_doc and team_doc.get("team_code"):
+                    import hashlib
+                    hash_val = hashlib.md5(team_doc["team_code"].encode()).hexdigest()[:8]
+                    return f"team-{hash_val}"
+            except Exception:
+                # Fall through to hashing the raw string
+                pass
+
+        import hashlib
+        hash_val = hashlib.md5(team_id.encode()).hexdigest()[:8]
+        return f"team-{hash_val}"
     
     async def create_challenge(self, challenge_data: ChallengeCreate, created_by: str) -> ChallengeResponse:
         """Create a new challenge"""
@@ -89,6 +120,7 @@ class ChallengeService:
                 "description": challenge_data.description,
                 "challenge_category": derived_category,
                 "zone": challenge_data.zone,  # Store zone for challenge segregation
+                "skill_category": getattr(challenge_data, "skill_category", None) or "web",
                 "config": config_dict,
                 "flag": getattr(challenge_data, "flag", None),
                 "flags": getattr(challenge_data, "flags", None),
@@ -333,8 +365,11 @@ class ChallengeService:
                 print(f"🔄 Deploying STATIC challenge...", flush=True)
                 # Handle static challenge - provide download link instead of deploying
                 result = await self._deploy_static_challenge_for_team(challenge, team_id)
+                # Get updated challenge with instances
+                challenges, _ = await self._get_collections()
+                updated_challenge = await challenges.find_one({"_id": ObjectId(challenge_id)})
                 # Convert to ChallengeResponse
-                return await self._challenge_to_response(challenge, result["instances"])
+                return self._challenge_to_response(updated_challenge)
             elif architecture == "openstack":
                 print(f"🔄 Deploying OPENSTACK challenge...", flush=True)
                 # Handle OpenStack challenge - deploy using Heat template
@@ -345,15 +380,79 @@ class ChallengeService:
                 return result
             
             # Get existing instances (for containerized challenges)
+            # Normalize team_id FIRST to ensure consistent matching
+            # If team_id is already in hash format (team-XXXXXXXX), use it as-is
+            # Otherwise, normalize it based on team_code or team_id
+            normalized_team_id = team_id
+            if team_id.startswith("team-") and len(team_id) > 5:
+                # Already in normalized format (e.g., team-690193a1) - use as-is
+                logger.info(f"Team_id {team_id} is already normalized, using as-is")
+            elif len(team_id) == 24 and not team_id.startswith("team-"):
+                # MongoDB ObjectId - get team_code and convert to hash format
+                try:
+                    from app.db.init_db import get_database
+                    db = await get_database()
+                    team_doc = await db["teams"].find_one({"_id": ObjectId(team_id)})
+                    if team_doc and team_doc.get("team_code"):
+                        import hashlib
+                        team_code = team_doc["team_code"]
+                        hash_val = hashlib.md5(team_code.encode()).hexdigest()[:8]
+                        normalized_team_id = f"team-{hash_val}"
+                        logger.info(f"Normalized team_id {team_id} to {normalized_team_id} for instance lookup (team_code: {team_code})")
+                    else:
+                        # If no team_code, hash the team_id itself
+                        import hashlib
+                        hash_val = hashlib.md5(team_id.encode()).hexdigest()[:8]
+                        normalized_team_id = f"team-{hash_val}"
+                        logger.info(f"Normalized team_id {team_id} (no team_code) to {normalized_team_id}")
+                except Exception as e:
+                    logger.warning(f"Failed to normalize team_id {team_id}: {e}, using as-is")
+            elif not team_id.startswith("team-"):
+                # If team_id is not in expected format, try to normalize it
+                # This handles cases where team_id might be a zone or other format
+                import hashlib
+                hash_val = hashlib.md5(team_id.encode()).hexdigest()[:8]
+                normalized_team_id = f"team-{hash_val}"
+                logger.info(f"Normalized non-standard team_id {team_id} to {normalized_team_id}")
+            
             existing_instances = challenge.get("instances", [])
-            existing_instance = next(
-                (inst for inst in existing_instances if inst.get("team_id") == team_id), 
-                None
-            )
+            
+            # Find existing instance - only check for normalized team_id to ensure we only match same team
+            existing_instance = None
+            for inst in existing_instances:
+                if inst.get("team_id") == normalized_team_id:
+                    existing_instance = inst
+                    logger.info(f"Found existing instance for normalized team_id {normalized_team_id}: {inst.get('team_id')}")
+                    break
+            
+            # Also check if team_id was passed in a different format (for backward compatibility)
+            # But only if we didn't find a match with normalized format
+            if not existing_instance and team_id != normalized_team_id:
+                for inst in existing_instances:
+                    if inst.get("team_id") == team_id:
+                        existing_instance = inst
+                        logger.info(f"Found existing instance for original team_id {team_id}: {inst.get('team_id')}")
+                        break
             
             if existing_instance and not force_redeploy:
                 if existing_instance.get("status") == ChallengeStatus.RUNNING:
-                    raise ValueError(f"Instance for {team_id} is already running. Use force_redeploy=True to redeploy.")
+                    # Return existing instance - team members should share the same instance
+                    logger.info(f"Instance for team {team_id} already running, returning existing instance")
+                    # Update challenge status and return
+                    challenge_status = ChallengeStatus.RUNNING
+                    # Update challenge document with latest instances before converting to response
+                    challenge["instances"] = existing_instances
+                    challenge["status"] = challenge_status
+                    await challenges.update_one(
+                        {"_id": ObjectId(challenge_id)},
+                        {
+                            "$set": {
+                                "status": challenge_status,
+                                "updated_at": datetime.utcnow()
+                            }
+                        }
+                    )
+                    return self._challenge_to_response(challenge)
                 # If instance exists but is not running, we can redeploy it
             
             # Create namespace if not exists
@@ -373,17 +472,20 @@ class ChallengeService:
                     except Exception as stop_error:
                         logger.warning(f"Failed to stop existing instance: {stop_error}, continuing with deployment")
                 
+                # Use the normalized_team_id we calculated earlier for consistency
+                # This ensures we use the same normalized format for storage as we used for lookup
+                
                 # Deploy instance
                 instance_data = await self.k8s_service.deploy_challenge_instance(
                     challenge["name"],
-                    team_id,
+                    normalized_team_id,  # Use normalized team_id for deployment
                     challenge["config"],
                     namespace
                 )
                 
-                # Create instance document
+                # Create instance document - use normalized team_id for consistency
                 instance_doc = {
-                    "team_id": team_id,
+                    "team_id": normalized_team_id,
                     "instance_id": instance_data["instance_id"],
                     "public_ip": instance_data["public_ip"],
                     "internal_ip": instance_data["internal_ip"],
@@ -400,15 +502,23 @@ class ChallengeService:
                     instance_doc["last_reset_at"] = datetime.utcnow()
                 
                 # Update or add instance to challenge
-                if existing_instance:
-                    # Update existing instance
+                # Check if instance exists with normalized team_id (should have been found earlier, but double-check)
+                instance_to_update = None
+                for inst in existing_instances:
+                    if inst.get("team_id") == normalized_team_id:
+                        instance_to_update = inst
+                        break
+                
+                if instance_to_update:
+                    # Update existing instance (match by normalized team_id)
                     updated_instances = [
-                        inst if inst.get("team_id") != team_id else instance_doc
+                        inst if inst.get("team_id") != normalized_team_id else instance_doc
                         for inst in existing_instances
                     ]
                 else:
-                    # Add new instance
+                    # Add new instance (this should be a new team)
                     updated_instances = existing_instances + [instance_doc]
+                    logger.info(f"Adding new instance for normalized team_id {normalized_team_id} (new team)")
                 
                 # Determine overall challenge status
                 running_count = sum(1 for inst in updated_instances if inst.get("status") == ChallengeStatus.RUNNING)
@@ -517,6 +627,64 @@ class ChallengeService:
         except Exception as e:
             logger.error(f"Failed to stop challenge {challenge_id}: {e}")
             raise RuntimeError(f"Failed to stop challenge: {e}")
+
+    async def stop_challenge_for_team(self, challenge_id: str, team_id: str) -> bool:
+        """
+        Stop/delete a single team's instance for a challenge and remove it from Mongo.
+        Used for event cleanup so instances from ended events don't persist.
+        """
+        challenges, _ = await self._get_collections()
+        challenge = await challenges.find_one({"_id": ObjectId(challenge_id)})
+        if not challenge:
+            return False
+
+        normalized_team_id = await self._normalize_team_id(team_id)
+        instances = challenge.get("instances", []) or []
+        instance = next((i for i in instances if i.get("team_id") == normalized_team_id), None)
+        if not instance:
+            return False
+
+        architecture = self._resolve_architecture(challenge)
+
+        # Stop underlying infra
+        try:
+            if architecture == "openstack":
+                stack_id = instance.get("stack_id")
+                if stack_id:
+                    from app.services.openstack_service import openstack_service
+                    if openstack_service.enabled:
+                        await self._delete_heat_stack(openstack_service, stack_id)
+            else:
+                await self.k8s_service.stop_challenge_instance(
+                    instance.get("namespace"),
+                    instance.get("pod_name"),
+                    instance.get("service_name"),
+                    instance.get("team_id"),
+                )
+        except Exception as e:
+            logger.warning(f"Failed stopping infra for challenge={challenge_id} team={normalized_team_id}: {e}")
+
+        # Remove from instances list
+        updated_instances = [i for i in instances if i.get("team_id") != normalized_team_id]
+
+        update_doc: Dict[str, Any] = {"instances": updated_instances, "updated_at": datetime.utcnow()}
+        update_doc["status"] = ChallengeStatus.RUNNING if any(
+            (i.get("status") == ChallengeStatus.RUNNING or i.get("status") == ChallengeStatus.RUNNING.value)
+            for i in updated_instances
+        ) else ChallengeStatus.STOPPED
+
+        await challenges.update_one({"_id": ObjectId(challenge_id)}, {"$set": update_doc})
+
+        # If no instances remain, cleanup namespace (k8s) once
+        if architecture != "openstack" and not updated_instances:
+            try:
+                namespace = instance.get("namespace")
+                if namespace:
+                    await self.k8s_service.cleanup_challenge_namespace(namespace)
+            except Exception as e:
+                logger.warning(f"Failed cleaning namespace for challenge={challenge_id}: {e}")
+
+        return True
     
     async def get_challenge(self, challenge_id: str) -> Optional[ChallengeResponse]:
         """Get a challenge by ID"""
@@ -648,21 +816,76 @@ class ChallengeService:
             raise RuntimeError(f"Failed to delete challenge: {e}")
     
     async def get_team_access_info(self, challenge_id: str, team_id: str) -> Optional[Dict]:
-        """Get access information for a specific team"""
+        """Get access information for a specific team
+        
+        team_id can be either:
+        - MongoDB ObjectId (e.g., 694398a0238ad5ca9b203a58) - will lookup team_code and hash it
+        - Hash-based team ID (e.g., team-d5a953ec) - will match directly
+        """
         try:
             challenges, _ = await self._get_collections()
             challenge = await challenges.find_one({"_id": ObjectId(challenge_id)})
             if not challenge:
+                logger.warning(f"Challenge {challenge_id} not found")
                 return None
             
-            # Find team instance
+            logger.info(f"🔍 get_team_access_info called: challenge_id={challenge_id}, team_id={team_id}")
+            
+            # Normalize team_id FIRST to ensure consistent matching (same as deployment)
+            # If team_id is already in hash format (team-XXXXXXXX), use it as-is
+            # Otherwise, normalize it based on team_code or team_id
+            normalized_team_id = team_id
+            if team_id.startswith("team-") and len(team_id) > 5:
+                # Already in normalized format (e.g., team-690193a1) - use as-is
+                logger.info(f"✅ Team_id {team_id} is already normalized, using as-is")
+            elif len(team_id) == 24 and not team_id.startswith("team-"):
+                # MongoDB ObjectId - get team_code and convert to hash format
+                try:
+                    from app.db.init_db import get_database
+                    db = await get_database()
+                    team_doc = await db["teams"].find_one({"_id": ObjectId(team_id)})
+                    if team_doc and team_doc.get("team_code"):
+                        import hashlib
+                        team_code = team_doc["team_code"]
+                        hash_val = hashlib.md5(team_code.encode()).hexdigest()[:8]
+                        normalized_team_id = f"team-{hash_val}"
+                        logger.info(f"✅ Normalized team_id {team_id} → {normalized_team_id} (team_code: {team_code})")
+                    else:
+                        # If no team_code, hash the team_id itself
+                        import hashlib
+                        hash_val = hashlib.md5(team_id.encode()).hexdigest()[:8]
+                        normalized_team_id = f"team-{hash_val}"
+                        logger.info(f"✅ Normalized team_id {team_id} (no team_code) → {normalized_team_id}")
+                except Exception as e:
+                    logger.warning(f"❌ Failed to normalize team_id {team_id}: {e}")
+            elif not team_id.startswith("team-"):
+                # If team_id is not in expected format, try to normalize it
+                import hashlib
+                hash_val = hashlib.md5(team_id.encode()).hexdigest()[:8]
+                normalized_team_id = f"team-{hash_val}"
+                logger.info(f"✅ Normalized non-standard team_id {team_id} → {normalized_team_id}")
+            
+            logger.info(f"🎯 Searching for instance with normalized team_id: {normalized_team_id}")
+            logger.info(f"📋 Available instances in challenge: {[inst['team_id'] for inst in challenge.get('instances', [])]}")
+            
+            # Find team instance - only match exact normalized team_id to ensure we only get same team's instance
             team_instance = None
             for instance in challenge.get("instances", []):
-                if instance["team_id"] == team_id:
+                if instance["team_id"] == normalized_team_id:
                     team_instance = instance
+                    logger.info(f"✅ MATCH FOUND! Instance team_id={instance['team_id']} matches normalized {normalized_team_id}")
                     break
             
+            # Also check original team_id format for backward compatibility (only if no match found)
+            if not team_instance and team_id != normalized_team_id:
+                for instance in challenge.get("instances", []):
+                    if instance["team_id"] == team_id:
+                        team_instance = instance
+                        logger.info(f"✅ MATCH FOUND! Instance team_id={instance['team_id']} matches original {team_id}")
+                        break
+            
             if not team_instance:
+                logger.info(f"❌ NO MATCH! No instance found for normalized team_id {normalized_team_id} or original {team_id}")
                 return None
             
             # Build access info
@@ -786,6 +1009,9 @@ class ChallengeService:
             description=challenge["description"],
             config=challenge["config"],
             zone=challenge.get("zone", "zone1"),  # Default to zone1 for existing challenges without zone
+            skill_category=challenge.get("skill_category")
+            or challenge.get("config", {}).get("challenge_type")
+            or "web",
             flag=challenge.get("flag"),
             flags=challenge.get("flags"),
             points=challenge.get("points", 100),
@@ -850,9 +1076,15 @@ class ChallengeService:
                         "flag_name": name
                     }
                     await self._submissions_collection.insert_one(doc)
-                    return {"status": "correct", "points": points_per_flag, "flag": name}
+                    return {
+                        "success": True,
+                        "status": "correct",
+                        "points": points_per_flag,
+                        "flag": name,
+                        "message": f"Correct! ({name}) +{points_per_flag} points"
+                    }
 
-            return {"status": "incorrect", "points": 0}
+            return {"success": False, "status": "incorrect", "points": 0, "message": "Incorrect flag"}
 
         # Single-flag (legacy/dynamic)
         correct_flag = challenge.get("flag")
@@ -869,10 +1101,10 @@ class ChallengeService:
             "team_id": team_id
         })
         if existing:
-            return {"status": "already_solved", "points": 0}
+            return {"success": False, "status": "already_solved", "points": 0, "message": "Already solved by your team"}
 
         if submitted_flag.strip() != str(correct_flag).strip():
-            return {"status": "incorrect", "points": 0}
+            return {"success": False, "status": "incorrect", "points": 0, "message": "Incorrect flag"}
 
         points = int(challenge.get("points", 100))
         doc = {
@@ -884,7 +1116,7 @@ class ChallengeService:
         }
         await self._submissions_collection.insert_one(doc)
 
-        return {"status": "correct", "points": points}
+        return {"success": True, "status": "correct", "points": points, "message": f"Correct! +{points} points"}
 
     async def get_scoreboard(self) -> List[Dict[str, Any]]:
         """Compute simple team scoreboard from submissions: total points and solves per team."""
@@ -899,8 +1131,40 @@ class ChallengeService:
             {"$sort": {"points": -1, "solves": -1, "_id": 1}}
         ]
         results = await self._submissions_collection.aggregate(pipeline).to_list(length=1000)
-        # Map to expected structure
-        scoreboard = [{"team_id": r["_id"], "points": r["points"], "solves": r["solves"]} for r in results]
+        # Enrich with team name/code when possible (team_id is typically `team-<md5prefix>` for real teams)
+        team_name_by_team_id: Dict[str, str] = {}
+        team_code_by_team_id: Dict[str, str] = {}
+        try:
+            from app.db.init_db import get_database
+            db = await get_database()
+            teams = await db["teams"].find({}).to_list(length=5000)
+            import hashlib
+            for t in teams:
+                code = t.get("team_code")
+                name = t.get("name")
+                if not code:
+                    continue
+                hash_val = hashlib.md5(code.encode()).hexdigest()[:8]
+                canonical = f"team-{hash_val}"
+                if name:
+                    team_name_by_team_id[canonical] = name
+                team_code_by_team_id[canonical] = code
+        except Exception as e:
+            logger.warning(f"Scoreboard team enrichment failed: {e}")
+
+        scoreboard: List[Dict[str, Any]] = []
+        rank = 1
+        for r in results:
+            tid = r["_id"]
+            scoreboard.append({
+                "team_id": tid,
+                "team_name": team_name_by_team_id.get(tid),
+                "team_code": team_code_by_team_id.get(tid),
+                "points": r["points"],
+                "solves": r["solves"],
+                "rank": rank,
+            })
+            rank += 1
         return scoreboard
 
 
@@ -1015,15 +1279,79 @@ class ChallengeService:
             
             # Get existing instances
             challenges, _ = await self._get_collections()
+            
+            # Normalize team_id FIRST to ensure consistent matching (same as containerized)
+            # If team_id is already in hash format (team-XXXXXXXX), use it as-is
+            # Otherwise, normalize it based on team_code or team_id
+            normalized_team_id = team_id
+            if team_id.startswith("team-") and len(team_id) > 5:
+                # Already in normalized format (e.g., team-690193a1) - use as-is
+                logger.info(f"OpenStack team_id {team_id} is already normalized, using as-is")
+            elif len(team_id) == 24 and not team_id.startswith("team-"):
+                # MongoDB ObjectId - get team_code and convert to hash format
+                try:
+                    from app.db.init_db import get_database
+                    db = await get_database()
+                    team_doc = await db["teams"].find_one({"_id": ObjectId(team_id)})
+                    if team_doc and team_doc.get("team_code"):
+                        import hashlib
+                        team_code = team_doc["team_code"]
+                        hash_val = hashlib.md5(team_code.encode()).hexdigest()[:8]
+                        normalized_team_id = f"team-{hash_val}"
+                        logger.info(f"Normalized OpenStack team_id {team_id} to {normalized_team_id} for instance lookup (team_code: {team_code})")
+                    else:
+                        # If no team_code, hash the team_id itself
+                        import hashlib
+                        hash_val = hashlib.md5(team_id.encode()).hexdigest()[:8]
+                        normalized_team_id = f"team-{hash_val}"
+                        logger.info(f"Normalized OpenStack team_id {team_id} (no team_code) to {normalized_team_id}")
+                except Exception as e:
+                    logger.warning(f"Failed to normalize OpenStack team_id {team_id}: {e}, using as-is")
+            elif not team_id.startswith("team-"):
+                # If team_id is not in expected format, try to normalize it
+                import hashlib
+                hash_val = hashlib.md5(team_id.encode()).hexdigest()[:8]
+                normalized_team_id = f"team-{hash_val}"
+                logger.info(f"Normalized OpenStack non-standard team_id {team_id} to {normalized_team_id}")
+            
             existing_instances = challenge.get("instances", [])
-            existing_instance = next(
-                (inst for inst in existing_instances if inst.get("team_id") == team_id),
-                None
-            )
+            
+            # Find existing instance - only check for normalized team_id to ensure we only match same team
+            existing_instance = None
+            for inst in existing_instances:
+                if inst.get("team_id") == normalized_team_id:
+                    existing_instance = inst
+                    logger.info(f"Found existing OpenStack instance for normalized team_id {normalized_team_id}: {inst.get('team_id')}")
+                    break
+            
+            # Also check if team_id was passed in a different format (for backward compatibility)
+            # But only if we didn't find a match with normalized format
+            if not existing_instance and team_id != normalized_team_id:
+                for inst in existing_instances:
+                    if inst.get("team_id") == team_id:
+                        existing_instance = inst
+                        logger.info(f"Found existing OpenStack instance for original team_id {team_id}: {inst.get('team_id')}")
+                        break
             
             if existing_instance and not force_redeploy:
                 if existing_instance.get("status") == ChallengeStatus.RUNNING:
-                    raise ValueError(f"Instance for {team_id} is already running. Use force_redeploy=True to redeploy.")
+                    # Return existing instance - team members should share the same instance
+                    logger.info(f"OpenStack instance for team {team_id} already running, returning existing instance")
+                    # Update challenge status and return
+                    challenge_status = ChallengeStatus.RUNNING
+                    # Update challenge document with latest instances before converting to response
+                    challenge["instances"] = existing_instances
+                    challenge["status"] = challenge_status
+                    await challenges.update_one(
+                        {"_id": ObjectId(challenge_id)},
+                        {
+                            "$set": {
+                                "status": challenge_status,
+                                "updated_at": datetime.utcnow()
+                            }
+                        }
+                    )
+                    return self._challenge_to_response(challenge)
             
             # Prepare Heat template parameters
             heat_params = config.get("heat_template_parameters", {}).copy()
@@ -1483,10 +1811,13 @@ class ChallengeService:
             # Calculate auto-delete time (1 hour from now)
             auto_delete_at = datetime.utcnow() + timedelta(hours=1)
             
-            # Create instance document
+            # Use the normalized_team_id we calculated earlier for consistency
+            # This ensures we use the same normalized format for storage as we used for lookup
+            
+            # Create instance document - use normalized team_id for consistency
             instance_doc = {
-                "team_id": team_id,
-                "instance_id": f"{challenge_id}-{team_id}",
+                "team_id": normalized_team_id,
+                "instance_id": f"{challenge_id}-{normalized_team_id}",
                 "public_ip": server_ip or "Pending",
                 "internal_ip": "N/A",
                 "status": ChallengeStatus.RUNNING,
@@ -1510,13 +1841,23 @@ class ChallengeService:
                 instance_doc["last_reset_at"] = datetime.utcnow()
             
             # Update or add instance to challenge
-            if existing_instance:
+            # Check if instance exists with normalized team_id (should have been found earlier, but double-check)
+            instance_to_update = None
+            for inst in existing_instances:
+                if inst.get("team_id") == normalized_team_id:
+                    instance_to_update = inst
+                    break
+            
+            if instance_to_update:
+                # Update existing instance (match by normalized team_id)
                 updated_instances = [
-                    inst if inst.get("team_id") != team_id else instance_doc
+                    inst if inst.get("team_id") != normalized_team_id else instance_doc
                     for inst in existing_instances
                 ]
             else:
+                # Add new instance (this should be a new team)
                 updated_instances = existing_instances + [instance_doc]
+                logger.info(f"Adding new OpenStack instance for normalized team_id {normalized_team_id} (new team)")
             
             # Determine overall challenge status
             running_count = sum(1 for inst in updated_instances if inst.get("status") == ChallengeStatus.RUNNING)

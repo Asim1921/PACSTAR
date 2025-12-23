@@ -12,19 +12,19 @@ from pathlib import Path
 sys.path.append(str(Path(__file__).parent))
 
 if __name__ == "__main__":
-    # Set environment variables for testing
-    os.environ.setdefault("MONGODB_URI", "mongodb://localhost:27017")
-    os.environ.setdefault("MONGODB_DB", "pacstar_test")
-    os.environ.setdefault("MONGODB_TLS", "False")
-    os.environ.setdefault("JWT_SECRET_KEY", "test-jwt-secret-key-for-development")
-    os.environ.setdefault("JWT_REFRESH_SECRET_KEY", "test-jwt-refresh-secret-key-for-development")
-    os.environ.setdefault("MASTER_ADMIN_USERNAME", "master_admin")
-    os.environ.setdefault("MASTER_ADMIN_EMAIL", "admin@pacstar.com")
-    os.environ.setdefault("MASTER_ADMIN_PASSWORD", "admin123")
-    os.environ.setdefault("SESSION_SECRET_KEY", "test-session-secret-key-for-development")
-    os.environ.setdefault("ENV", "dev")
-    os.environ.setdefault("ALLOWED_HOSTS", '["*"]')
-    os.environ.setdefault("ALLOW_ORIGINS", '["*"]')
+    # Set environment variables for TEST server (force overrides so .env doesn't accidentally point to prod DB)
+    os.environ["MONGODB_URI"] = os.environ.get("MONGODB_URI") or "mongodb://localhost:27017"
+    os.environ["MONGODB_DB"] = "pacstar_test"
+    os.environ["MONGODB_TLS"] = os.environ.get("MONGODB_TLS") or "False"
+    os.environ["JWT_SECRET_KEY"] = os.environ.get("JWT_SECRET_KEY") or "test-jwt-secret-key-for-development"
+    os.environ["JWT_REFRESH_SECRET_KEY"] = os.environ.get("JWT_REFRESH_SECRET_KEY") or "test-jwt-refresh-secret-key-for-development"
+    os.environ["MASTER_ADMIN_USERNAME"] = os.environ.get("MASTER_ADMIN_USERNAME") or "master_admin"
+    os.environ["MASTER_ADMIN_EMAIL"] = os.environ.get("MASTER_ADMIN_EMAIL") or "admin@pacstar.com"
+    os.environ["MASTER_ADMIN_PASSWORD"] = os.environ.get("MASTER_ADMIN_PASSWORD") or "admin123"
+    os.environ["SESSION_SECRET_KEY"] = os.environ.get("SESSION_SECRET_KEY") or "test-session-secret-key-for-development"
+    os.environ["ENV"] = os.environ.get("ENV") or "dev"
+    os.environ["ALLOWED_HOSTS"] = os.environ.get("ALLOWED_HOSTS") or '["*"]'
+    os.environ["ALLOW_ORIGINS"] = os.environ.get("ALLOW_ORIGINS") or '["*"]'
     
     print("🚀 Starting PACSTAR Challenge Management Server")
     print("📋 Environment: Development")

@@ -95,7 +95,25 @@ class EventService:
         now = datetime.utcnow()
         
         # Determine initial status based on creator role
-        initial_status = EventStatus.PENDING_APPROVAL if user_role == "Admin" else EventStatus.DRAFT
+        # - Admin: requires approval
+        # - Master: no approval; auto-schedule or auto-run based on start_time
+        if user_role == "Admin":
+            initial_status = EventStatus.PENDING_APPROVAL
+        elif user_role == "Master":
+            now_utc = datetime.utcnow()
+            try:
+                start_dt = event_data.start_time
+                # Normalize to naive UTC for comparison
+                if isinstance(start_dt, datetime) and start_dt.tzinfo is not None:
+                    start_dt_cmp = start_dt.astimezone(timezone.utc).replace(tzinfo=None)
+                else:
+                    start_dt_cmp = start_dt
+                initial_status = EventStatus.RUNNING if start_dt_cmp <= now_utc else EventStatus.SCHEDULED
+            except Exception:
+                # Safe fallback
+                initial_status = EventStatus.DRAFT
+        else:
+            initial_status = EventStatus.DRAFT
         
         # Build challenges with hints
         event_challenges = []
@@ -117,6 +135,7 @@ class EventService:
                 "challenge_id": config.challenge_id,
                 "challenge_name": challenge["name"],
                 "challenge_category": challenge.get("challenge_category", "containerized"),
+                "skill_category": challenge.get("skill_category") or challenge.get("config", {}).get("challenge_type") or "web",
                 "description": challenge["description"],
                 "visibility": config.visibility.value,
                 "points": config.points_override or challenge.get("points", 100),
@@ -149,6 +168,10 @@ class EventService:
             "paused_at": None,
             "pause_reason": None,
             "participant_count": 0,
+            # Event-scoped admin + bans
+            "event_admin_user_id": None,
+            "event_admin_username": None,
+            "banned_team_ids": [],
             "created_at": now,
             "updated_at": now
         }
@@ -348,6 +371,7 @@ class EventService:
                     "challenge_id": config.challenge_id,
                     "challenge_name": challenge["name"],
                     "challenge_category": challenge.get("challenge_category", "containerized"),
+                    "skill_category": challenge.get("skill_category") or challenge.get("config", {}).get("challenge_type") or "web",
                     "description": challenge["description"],
                     "visibility": config.visibility.value,
                     "points": config.points_override or challenge.get("points", 100),
@@ -631,7 +655,129 @@ class EventService:
         
         updated_event = await self.events.find_one({"_id": ObjectId(event_id)})
         logger.info(f"Event {event_id} ended")
+
+        # Cleanup deployed challenge instances so old IPs don't persist into future events.
+        try:
+            await self.cleanup_event_challenge_instances(event_id)
+        except Exception as e:
+            logger.error(f"Failed to cleanup challenge instances for event {event_id}: {e}", exc_info=True)
+
         return self._event_to_response(updated_event)
+
+    # =========================================================================
+    # Event-scoped Admin + Team Bans
+    # =========================================================================
+
+    async def is_event_admin(self, event_id: str, user_id: str) -> bool:
+        event = await self.events.find_one({"_id": ObjectId(event_id)}, {"event_admin_user_id": 1})
+        if not event:
+            return False
+        return str(event.get("event_admin_user_id") or "") == str(user_id)
+
+    async def set_event_admin(self, event_id: str, user_id: Optional[str]) -> Dict[str, Any]:
+        """Assign (or clear) an event admin for a specific event."""
+        event = await self.events.find_one({"_id": ObjectId(event_id)})
+        if not event:
+            raise ValueError("Event not found")
+
+        admin_username = None
+        admin_user_id = None
+        if user_id:
+            user_doc = await self.users.find_one({"_id": ObjectId(user_id)}, {"username": 1})
+            if not user_doc:
+                raise ValueError("User not found")
+            admin_username = user_doc.get("username")
+            admin_user_id = str(user_doc["_id"])
+
+        await self.events.update_one(
+            {"_id": ObjectId(event_id)},
+            {"$set": {
+                "event_admin_user_id": admin_user_id,
+                "event_admin_username": admin_username,
+                "updated_at": datetime.utcnow(),
+            }}
+        )
+        updated = await self.events.find_one({"_id": ObjectId(event_id)})
+        return {
+            "event_id": event_id,
+            "event_admin_user_id": updated.get("event_admin_user_id"),
+            "event_admin_username": updated.get("event_admin_username"),
+        }
+
+    async def list_event_admin_candidates(self, event_id: str) -> List[Dict[str, Any]]:
+        """Return users registered for the event (eligible to be event admin)."""
+        event = await self.events.find_one({"_id": ObjectId(event_id)}, {"_id": 1})
+        if not event:
+            raise ValueError("Event not found")
+
+        participants = await self.event_participants.find({"event_id": event_id}).to_list(length=2000)
+        user_ids = list({p.get("user_id") for p in participants if p.get("user_id")})
+        if not user_ids:
+            return []
+
+        users = await self.users.find({"_id": {"$in": [ObjectId(uid) for uid in user_ids if ObjectId.is_valid(uid)]}},
+                                      {"username": 1, "email": 1, "team_id": 1, "team_name": 1, "team_code": 1}).to_list(length=2000)
+        # Normalize
+        out: List[Dict[str, Any]] = []
+        for u in users:
+            out.append({
+                "user_id": str(u["_id"]),
+                "username": u.get("username"),
+                "email": u.get("email"),
+                "team_id": str(u.get("team_id")) if u.get("team_id") else None,
+                "team_name": u.get("team_name"),
+                "team_code": u.get("team_code"),
+            })
+        return sorted(out, key=lambda x: (x.get("team_name") or "", x.get("username") or ""))
+
+    async def ban_team_for_event(self, event_id: str, team_id: str) -> Dict[str, Any]:
+        """Ban a team (by Mongo team_id) within an event."""
+        event = await self.events.find_one({"_id": ObjectId(event_id)}, {"banned_team_ids": 1})
+        if not event:
+            raise ValueError("Event not found")
+        await self.events.update_one(
+            {"_id": ObjectId(event_id)},
+            {"$addToSet": {"banned_team_ids": str(team_id)}, "$set": {"updated_at": datetime.utcnow()}}
+        )
+        return {"event_id": event_id, "team_id": str(team_id), "banned": True}
+
+    async def unban_team_for_event(self, event_id: str, team_id: str) -> Dict[str, Any]:
+        """Unban a team within an event."""
+        event = await self.events.find_one({"_id": ObjectId(event_id)}, {"banned_team_ids": 1})
+        if not event:
+            raise ValueError("Event not found")
+        await self.events.update_one(
+            {"_id": ObjectId(event_id)},
+            {"$pull": {"banned_team_ids": str(team_id)}, "$set": {"updated_at": datetime.utcnow()}}
+        )
+        return {"event_id": event_id, "team_id": str(team_id), "banned": False}
+
+    async def get_event_banned_teams(self, event_id: str) -> List[str]:
+        event = await self.events.find_one({"_id": ObjectId(event_id)}, {"banned_team_ids": 1})
+        if not event:
+            raise ValueError("Event not found")
+        return [str(t) for t in (event.get("banned_team_ids") or [])]
+
+    async def list_event_teams(self, event_id: str) -> List[Dict[str, Any]]:
+        """List teams participating in an event and whether they are banned (team-based events)."""
+        event = await self.events.find_one({"_id": ObjectId(event_id)}, {"banned_team_ids": 1, "participation_type": 1})
+        if not event:
+            raise ValueError("Event not found")
+
+        banned = set(str(t) for t in (event.get("banned_team_ids") or []))
+        participants = await self.event_participants.find({"event_id": event_id, "team_id": {"$ne": None}}).to_list(length=2000)
+        teams_map: Dict[str, Dict[str, Any]] = {}
+        for p in participants:
+            tid = p.get("team_id")
+            if not tid:
+                continue
+            tid = str(tid)
+            teams_map[tid] = {
+                "team_id": tid,
+                "team_name": p.get("team_name"),
+                "banned": tid in banned,
+            }
+        return sorted(list(teams_map.values()), key=lambda x: (x.get("team_name") or "", x.get("team_id")))
     
     # =========================================================================
     # Challenge Visibility
@@ -696,6 +842,10 @@ class EventService:
         event = await self.events.find_one({"_id": ObjectId(event_id)})
         if not event:
             raise ValueError("Event not found")
+
+        # If team-based and team is banned for this event, block registration
+        if team_id and str(team_id) in set(str(t) for t in (event.get("banned_team_ids") or [])):
+            raise PermissionError("Your team is banned for this event")
         
         # Check if event accepts registrations
         if event["status"] not in [
@@ -716,13 +866,21 @@ class EventService:
                 raise ValueError("Event is full")
         
         # Check if already registered
-        participant_query = {"event_id": event_id, "user_id": user_id}
+        # Team-based events should treat registration as team-level (any member counts).
         if team_id:
-            participant_query["team_id"] = team_id
-        
+            participant_query = {"event_id": event_id, "team_id": team_id}
+        else:
+            participant_query = {"event_id": event_id, "user_id": user_id}
+
         existing = await self.event_participants.find_one(participant_query)
         if existing:
-            raise ValueError("Already registered for this event")
+            # Idempotent join so frontend can safely retry without surfacing a hard error.
+            return {
+                "success": True,
+                "message": "Already registered for this event",
+                "participant_id": team_id or user_id,
+                "registered_at": existing.get("registered_at") or datetime.utcnow(),
+            }
         
         # Register
         now = datetime.utcnow()
@@ -757,23 +915,61 @@ class EventService:
     
     async def is_user_registered(self, event_id: str, user_id: str, team_id: Optional[str] = None) -> bool:
         """Check if user/team is registered for an event"""
-        query = {"event_id": event_id, "user_id": user_id}
+        # Treat event-banned teams as "not registered" for access purposes
         if team_id:
-            query["team_id"] = team_id
-        
-        participant = await self.event_participants.find_one(query)
+            try:
+                event = await self.events.find_one({"_id": ObjectId(event_id)}, {"banned_team_ids": 1})
+                if event and str(team_id) in set(str(t) for t in (event.get("banned_team_ids") or [])):
+                    return False
+            except Exception:
+                pass
+        # Team-based events: registration is team-level (any member sees challenges once the team joins).
+        if team_id:
+            participant = await self.event_participants.find_one({"event_id": event_id, "team_id": team_id})
+            return participant is not None
+
+        participant = await self.event_participants.find_one({"event_id": event_id, "user_id": user_id})
         return participant is not None
     
     async def get_user_registered_events(self, user_id: str, team_id: Optional[str] = None) -> List[str]:
         """Get list of event IDs that the user/team is registered for"""
-        query = {"user_id": user_id}
         if team_id:
-            query["team_id"] = team_id
-        
-        participants = await self.event_participants.find(query).to_list(length=1000)
-        return [str(p["event_id"]) for p in participants]
+            # Team-level registration: return events joined by this team (supports legacy docs missing user_id).
+            participants = await self.event_participants.find({"team_id": team_id}, {"event_id": 1}).to_list(length=1000)
+            return [str(p.get("event_id")) for p in participants if p.get("event_id")]
+
+        participants = await self.event_participants.find({"user_id": user_id}, {"event_id": 1}).to_list(length=1000)
+        return [str(p.get("event_id")) for p in participants if p.get("event_id")]
+
+    async def cleanup_event_challenge_instances(self, event_id: str) -> None:
+        """
+        Stop/delete deployed challenge instances for teams registered to this event.
+        Prevents stale challenge IPs from persisting into future events.
+        """
+        event = await self.events.find_one({"_id": ObjectId(event_id)}, {"challenges": 1})
+        if not event:
+            return
+
+        challenge_ids = [c.get("challenge_id") for c in (event.get("challenges") or []) if c.get("challenge_id")]
+        if not challenge_ids:
+            return
+
+        participants = await self.event_participants.find({"event_id": event_id}, {"team_id": 1}).to_list(length=5000)
+        team_ids = sorted({p.get("team_id") for p in participants if p.get("team_id")})
+        if not team_ids:
+            return
+
+        from app.services.challenge_service import challenge_service
+        for challenge_id in challenge_ids:
+            for team_id in team_ids:
+                try:
+                    await challenge_service.stop_challenge_for_team(challenge_id, team_id)
+                except Exception as e:
+                    logger.warning(
+                        f"Cleanup failed for event={event_id} challenge={challenge_id} team={team_id}: {e}"
+                    )
     
-    async def get_challenges_from_events(self, event_ids: List[str], user_zone: str) -> List[str]:
+    async def get_challenges_from_events(self, event_ids: List[str], user_zone: str, team_id: Optional[str] = None) -> List[str]:
         """Get list of challenge IDs from events user is registered for, filtered by zone and only active events"""
         if not event_ids:
             return []
@@ -788,6 +984,9 @@ class EventService:
         # Extract challenge IDs from these events
         challenge_ids = []
         for event in events:
+            # Skip events where this team is banned
+            if team_id and str(team_id) in set(str(t) for t in (event.get("banned_team_ids") or [])):
+                continue
             for challenge_config in event.get("challenges", []):
                 challenge_id = challenge_config.get("challenge_id")
                 if challenge_id:
@@ -816,17 +1015,21 @@ class EventService:
         event = await self.events.find_one({"_id": ObjectId(event_id)})
         if not event:
             raise ValueError("Event not found")
+
+        # If team is banned for this event, block submissions
+        if team_id and str(team_id) in set(str(t) for t in (event.get("banned_team_ids") or [])):
+            raise PermissionError("Your team is banned for this event")
         
         # Check event is running
         if event["status"] != EventStatus.RUNNING.value:
             raise ValueError("Event is not currently running")
         
         # Check if user/team is registered for the event
-        participant_query = {"event_id": event_id, "user_id": user_id}
         if team_id:
-            participant_query["team_id"] = team_id
-        
-        participant = await self.event_participants.find_one(participant_query)
+            participant = await self.event_participants.find_one({"event_id": event_id, "team_id": team_id})
+        else:
+            participant = await self.event_participants.find_one({"event_id": event_id, "user_id": user_id})
+
         if not participant:
             raise ValueError("You must register for this event before submitting flags")
         
@@ -863,17 +1066,17 @@ class EventService:
                 raise ValueError("You must solve the prerequisite challenge first")
         
         # Check max attempts
+        attempt_query = {"event_id": event_id, "challenge_id": challenge_id}
+        if event["participation_type"] == EventParticipationType.TEAM_BASED.value and team_id:
+            attempt_query["team_id"] = team_id
+        else:
+            attempt_query["user_id"] = user_id
+
+        # Count attempts before inserting this one (so we can return attempt_number)
+        attempt_count = await self.event_submissions.count_documents(attempt_query)
+        attempt_number = attempt_count + 1
+
         if event_challenge.get("max_attempts"):
-            attempt_query = {
-                "event_id": event_id,
-                "challenge_id": challenge_id
-            }
-            if event["participation_type"] == EventParticipationType.TEAM_BASED.value and team_id:
-                attempt_query["team_id"] = team_id
-            else:
-                attempt_query["user_id"] = user_id
-            
-            attempt_count = await self.event_submissions.count_documents(attempt_query)
             if attempt_count >= event_challenge["max_attempts"]:
                 return SubmissionResponse(
                     status="max_attempts_reached",
@@ -907,11 +1110,24 @@ class EventService:
             raise ValueError("Master challenge not found")
         
         correct_flag = master_challenge.get("flag", "")
-        is_correct = submitted_flag.strip() == correct_flag.strip()
+        # Normalize flags: strip whitespace from both ends
+        # CTF flags are typically case-sensitive, so we keep case sensitivity
+        submitted_normalized = submitted_flag.strip()
+        correct_normalized = correct_flag.strip()
+        # Compare with case sensitivity (CTF flags are usually case-sensitive)
+        is_correct = submitted_normalized == correct_normalized
         points_awarded = event_challenge["points"] if is_correct else 0
         
         # Record submission
         now = datetime.utcnow()
+        # Prefer skill_category stored on event challenge, fallback to master challenge config type
+        skill_category = event_challenge.get("skill_category")
+        if not skill_category:
+            try:
+                skill_category = master_challenge.get("skill_category") or master_challenge.get("config", {}).get("challenge_type")
+            except Exception:
+                skill_category = None
+        skill_category = skill_category or "web"
         submission_doc = {
             "event_id": event_id,
             "challenge_id": challenge_id,
@@ -925,6 +1141,8 @@ class EventService:
             "points_awarded": points_awarded,
             "ip_address": ip_address,
             "user_agent": user_agent,
+            "attempt_number": attempt_number,
+            "skill_category": skill_category,
             "submitted_at": now
         }
         
@@ -1141,10 +1359,23 @@ class EventService:
         
         most_solved = None
         least_solved = None
-        challenges_by_category = {}
+        challenges_by_category: Dict[str, int] = {}
+
+        # Precompute attempt counts per challenge in this event
+        attempt_by_challenge: Dict[str, int] = {}
+        try:
+            attempt_pipeline = [
+                {"$match": {"event_id": event_id}},
+                {"$group": {"_id": "$challenge_id", "attempts": {"$sum": 1}}},
+            ]
+            attempt_rows = await self.event_submissions.aggregate(attempt_pipeline).to_list(10000)
+            attempt_by_challenge = {str(r["_id"]): int(r.get("attempts", 0)) for r in attempt_rows}
+        except Exception:
+            attempt_by_challenge = {}
         
         for c in challenges:
-            category = c.get("challenge_category", "unknown")
+            # Use skill_category for analytics (fallback to legacy challenge_category)
+            category = c.get("skill_category") or c.get("challenge_category", "unknown")
             challenges_by_category[category] = challenges_by_category.get(category, 0) + 1
             
             challenge_stat = ChallengeStatsDetail(
@@ -1153,7 +1384,7 @@ class EventService:
                 category=category,
                 points=c["points"],
                 solve_count=c.get("solve_count", 0),
-                attempt_count=0,  # Would need to count from submissions
+                attempt_count=attempt_by_challenge.get(str(c["challenge_id"]), 0),
                 first_blood_user=c.get("first_blood"),
                 first_blood_time=c.get("first_blood_time")
             )
@@ -1449,7 +1680,7 @@ class EventService:
         """
         Get active challenges for event creation, filtered by zone.
         
-        - If zone is provided, only return challenges for that zone
+        - If zone is provided, only return challenges for that zone (or challenges without zone field)
         - Master Admin can see all challenges
         - Zone Admin can only see challenges in their zone
         """
@@ -1458,10 +1689,21 @@ class EventService:
         # Zone filtering
         if zone:
             # Filter by specific zone when creating event
-            query["zone"] = zone
+            # Include challenges that match the zone OR challenges without a zone field (legacy support)
+            query["$or"] = [
+                {"zone": zone},
+                {"zone": {"$exists": False}},  # Legacy challenges without zone field
+                {"zone": None},  # Challenges with null zone
+                {"zone": ""}  # Challenges with empty zone
+            ]
         elif user_role == "Admin" and user_zone:
-            # Zone Admin can only see challenges in their zone
-            query["zone"] = user_zone
+            # Zone Admin can only see challenges in their zone (or without zone)
+            query["$or"] = [
+                {"zone": user_zone},
+                {"zone": {"$exists": False}},
+                {"zone": None},
+                {"zone": ""}
+            ]
         # Master Admin sees all challenges (no zone filter)
         
         cursor = self.challenges.find(query)
@@ -1473,10 +1715,11 @@ class EventService:
                 "name": c["name"],
                 "description": c["description"],
                 "category": c.get("challenge_category", "containerized"),
+                "skill_category": c.get("skill_category") or c.get("config", {}).get("challenge_type", "web") or "web",
                 "challenge_type": c.get("config", {}).get("challenge_type", "web"),
                 "points": c.get("points", 100),
                 "is_active": c.get("is_active", True),
-                "zone": c.get("zone", "unknown"),
+                "zone": c.get("zone", "zone1"),  # Default to zone1 for challenges without zone
                 "created_by": str(c.get("created_by", ""))
             }
             for c in challenges
@@ -1531,6 +1774,15 @@ class EventService:
     
     def _event_to_response(self, event: Dict) -> EventResponse:
         """Convert event document to response schema"""
+        def _as_utc(dt: Any) -> Any:
+            """Ensure datetimes are timezone-aware UTC so frontend parsing doesn't drift."""
+            if isinstance(dt, datetime):
+                # Mongo often stores naive datetimes; treat them as UTC
+                if dt.tzinfo is None:
+                    return dt.replace(tzinfo=timezone.utc)
+                return dt.astimezone(timezone.utc)
+            return dt
+
         challenges = []
         for c in event.get("challenges", []):
             hints = []
@@ -1549,6 +1801,7 @@ class EventService:
                 challenge_id=c["challenge_id"],
                 challenge_name=c["challenge_name"],
                 challenge_category=c.get("challenge_category", "containerized"),
+                skill_category=c.get("skill_category") or c.get("challenge_category") or "web",
                 description=c["description"],
                 visibility=ChallengeVisibility(c.get("visibility", "visible")),
                 points=c["points"],
@@ -1568,8 +1821,8 @@ class EventService:
             event_type=EventType(event["event_type"]),
             participation_type=EventParticipationType(event["participation_type"]),
             zone=event["zone"],
-            start_time=event["start_time"],
-            end_time=event["end_time"],
+            start_time=_as_utc(event["start_time"]),
+            end_time=_as_utc(event["end_time"]),
             max_participants=event.get("max_participants"),
             is_public=event.get("is_public", False),
             status=EventStatus(event["status"]),
@@ -1578,12 +1831,15 @@ class EventService:
             created_by_username=event.get("created_by_username", "unknown"),
             approved_by=event.get("approved_by"),
             approval_comments=event.get("approval_comments"),
-            approved_at=event.get("approved_at"),
-            paused_at=event.get("paused_at"),
+            approved_at=_as_utc(event.get("approved_at")),
+            paused_at=_as_utc(event.get("paused_at")),
             pause_reason=event.get("pause_reason"),
             participant_count=event.get("participant_count", 0),
-            created_at=event["created_at"],
-            updated_at=event["updated_at"]
+            event_admin_user_id=event.get("event_admin_user_id"),
+            event_admin_username=event.get("event_admin_username"),
+            banned_team_ids=[str(t) for t in (event.get("banned_team_ids") or [])],
+            created_at=_as_utc(event["created_at"]),
+            updated_at=_as_utc(event["updated_at"])
         )
     
     async def _get_top_users(self, event_id: str, limit: int = 10) -> List[UserStats]:
@@ -1707,9 +1963,18 @@ class EventService:
         if not event:
             return {}
         
-        category_stats = {}
-        for c in event.get("challenges", []):
-            category = c.get("challenge_category", "unknown")
+        category_stats: Dict[str, Dict[str, Any]] = {}
+        challenges = event.get("challenges", []) or []
+
+        # Build lookup: challenge_id -> category (skill_category preferred)
+        cid_to_cat: Dict[str, str] = {}
+        for c in challenges:
+            cat = c.get("skill_category") or c.get("challenge_category") or "unknown"
+            cid_to_cat[str(c.get("challenge_id"))] = cat
+
+        # Initialize totals from event definition (points, solves)
+        for c in challenges:
+            category = c.get("skill_category") or c.get("challenge_category", "unknown")
             if category not in category_stats:
                 category_stats[category] = {
                     "total_challenges": 0,
@@ -1723,6 +1988,28 @@ class EventService:
             category_stats[category]["total_solves"] += c.get("solve_count", 0)
             category_stats[category]["total_points_available"] += c["points"]
             category_stats[category]["total_points_earned"] += c["points"] * c.get("solve_count", 0)
+
+        # Count attempts per category from submissions (challenge_id -> category)
+        try:
+            attempt_rows = await self.event_submissions.aggregate([
+                {"$match": {"event_id": event_id}},
+                {"$group": {"_id": "$challenge_id", "attempts": {"$sum": 1}}},
+            ]).to_list(10000)
+
+            for r in attempt_rows:
+                cid = str(r.get("_id"))
+                cat = cid_to_cat.get(cid, "unknown")
+                if cat not in category_stats:
+                    category_stats[cat] = {
+                        "total_challenges": 0,
+                        "total_solves": 0,
+                        "total_attempts": 0,
+                        "total_points_available": 0,
+                        "total_points_earned": 0
+                    }
+                category_stats[cat]["total_attempts"] += int(r.get("attempts", 0))
+        except Exception:
+            pass
         
         return category_stats
     
@@ -1755,7 +2042,7 @@ class EventService:
         
         category_stats = {}
         for c in event.get("challenges", []):
-            category = c.get("challenge_category", "unknown")
+            category = c.get("skill_category") or c.get("challenge_category", "unknown")
             if category not in category_stats:
                 category_stats[category] = {
                     "solved": 0,
@@ -1804,7 +2091,7 @@ class EventService:
         
         category_stats = {}
         for c in event.get("challenges", []):
-            category = c.get("challenge_category", "unknown")
+            category = c.get("skill_category") or c.get("challenge_category", "unknown")
             if category not in category_stats:
                 category_stats[category] = {
                     "solved": 0,

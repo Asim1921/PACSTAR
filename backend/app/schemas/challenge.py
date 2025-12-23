@@ -95,6 +95,13 @@ class ChallengeBase(BaseModel):
     description: str = Field(..., min_length=10, max_length=500, description="Challenge description")
     config: ChallengeConfig
     zone: str = Field(default="zone1", min_length=2, max_length=50, description="Zone where this challenge is available (e.g., zone1, zone2, zone3)")
+    # Skill/category for analytics (CTF-style category)
+    skill_category: str = Field(
+        default="web",
+        min_length=2,
+        max_length=50,
+        description="Challenge skill category for analytics (e.g., web, reverse, pwn, crypto, forensics, misc)"
+    )
     # Scoring
     flag: Optional[str] = Field(None, description="Exact flag string teams must submit to solve the challenge (single-flag mode)")
     flags: Optional[List[FlagItem]] = Field(
@@ -211,8 +218,10 @@ class ChallengeResetRequest(BaseModel):
 class ScoreEntry(BaseModel):
     team_id: str
     team_name: Optional[str] = None
+    team_code: Optional[str] = None
     points: int
     solves: int
+    rank: Optional[int] = None
 
 
 class ScoreboardResponse(BaseModel):

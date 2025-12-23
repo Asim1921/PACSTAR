@@ -50,6 +50,7 @@ async def create_team(
             "$set": {
                 "team_id": created_team["id"],
                 "team_code": created_team["team_code"],
+                "team_name": created_team.get("name"),
                 "zone": team_zone
             }
         }
@@ -92,6 +93,7 @@ async def join_team(
             "$set": {
                 "team_id": team["id"],
                 "team_code": team["team_code"],
+                "team_name": team.get("name"),
                 "zone": team_zone
             }
         }
@@ -140,12 +142,21 @@ async def get_my_team(
 async def list_teams(
     skip: int = 0,
     limit: int = 100,
+    include_inactive: bool = False,
     current_user: UserResponse = Depends(get_current_user)
 ):
-    """List all active teams"""
+    """List teams (Master can optionally include inactive teams)."""
     from app.services.team_service import team_service
-    
-    teams = await team_service.list_teams(skip=skip, limit=limit)
+
+    # Only Master can include inactive teams
+    if include_inactive and current_user.role != "Master":
+        raise HTTPException(status_code=status.HTTP_403_FORBIDDEN, detail="Only Master can include inactive teams")
+
+    zone_filter = None
+    if current_user.role == "Admin":
+        zone_filter = current_user.zone
+
+    teams = await team_service.list_teams(skip=skip, limit=limit, include_inactive=include_inactive, zone=zone_filter)
     team_responses = [TeamResponse(**team) for team in teams]
     
     return TeamListResponse(teams=team_responses, total=len(team_responses))
@@ -167,4 +178,30 @@ async def get_team(
         )
     
     return TeamResponse(**team)
+
+
+@router.patch("/{team_id}/active", response_model=TeamResponse)
+async def set_team_active(
+    team_id: str,
+    is_active: bool,
+    current_user: UserResponse = Depends(get_current_user),
+):
+    """
+    Ban/Unban a team by toggling `is_active`.
+    - Master: can ban/unban any team
+    - Admin: can ban/unban teams in their own zone
+    """
+    if current_user.role not in ["Master", "Admin"]:
+        raise HTTPException(status_code=status.HTTP_403_FORBIDDEN, detail="Not authorized")
+
+    # Zone admins can only manage teams in their zone
+    if current_user.role == "Admin":
+        team = await team_service.get_team_by_id(team_id)
+        if not team:
+            raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Team not found")
+        if team.get("zone") != current_user.zone:
+            raise HTTPException(status_code=status.HTTP_403_FORBIDDEN, detail="Admins can only manage teams in their own zone")
+
+    updated = await team_service.set_team_active(team_id, is_active)
+    return TeamResponse(**updated)
 

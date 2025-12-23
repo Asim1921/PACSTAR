@@ -1,5 +1,6 @@
 from starlette.middleware.base import BaseHTTPMiddleware
 from fastapi import Request, HTTPException, status
+from fastapi.responses import JSONResponse
 from jose import jwt, JWTError
 from bson import ObjectId
 
@@ -7,6 +8,9 @@ from app.core.config import settings
 from app.db.models.user import UserInDB
 from app.core.logging import audit_logger
 import motor.motor_asyncio
+import logging
+
+logger = logging.getLogger(__name__)
 
 
 class RBACMiddleware(BaseHTTPMiddleware):
@@ -62,9 +66,11 @@ class RBACMiddleware(BaseHTTPMiddleware):
         # --- Auth required ---
         auth_header = request.headers.get("Authorization")
         if not auth_header or not auth_header.startswith("Bearer "):
-            raise HTTPException(
+            # NOTE: Raising HTTPException inside BaseHTTPMiddleware often bypasses FastAPI's exception handlers
+            # and becomes a 500. Return a response directly instead.
+            return JSONResponse(
                 status_code=status.HTTP_401_UNAUTHORIZED,
-                detail="Missing or invalid Authorization header",
+                content={"detail": "Missing or invalid Authorization header"},
             )
 
         token = auth_header.split(" ")[1]
@@ -73,20 +79,56 @@ class RBACMiddleware(BaseHTTPMiddleware):
             payload = jwt.decode(token, settings.JWT_SECRET_KEY, algorithms=["HS256"])
             user_id = payload.get("sub")
             if not user_id:
-                raise HTTPException(status_code=401, detail="Invalid token: missing subject")
+                return JSONResponse(status_code=401, content={"detail": "Invalid token: missing subject"})
         except JWTError:
-            raise HTTPException(status_code=401, detail="Token verification failed")
+            return JSONResponse(status_code=401, content={"detail": "Token verification failed"})
 
         # --- Fetch user ---
-        user_doc = await self.db["users"].find_one({"_id": ObjectId(user_id)})
+        try:
+            oid = ObjectId(user_id)
+        except Exception:
+            return JSONResponse(status_code=401, content={"detail": "Invalid token subject"})
+
+        user_doc = await self.db["users"].find_one({"_id": oid})
         if not user_doc:
-            raise HTTPException(status_code=401, detail="User not found")
+            return JSONResponse(status_code=401, content={"detail": "User not found"})
 
         user_doc["_id"] = str(user_doc["_id"])
         if "last_login" in user_doc and user_doc["last_login"] is not None:
             user_doc["last_login"] = str(user_doc["last_login"])
 
         request.state.user = UserInDB.model_validate(user_doc)
+
+        # --- Team ban enforcement (Users only) ---
+        # If a user's team is banned (teams.is_active == False), they should NOT be able to access
+        # events/challenges/etc. Only auth endpoints should work (login is already public).
+        try:
+            if request.state.user.role == "User":
+                user_team_id = getattr(request.state.user, "team_id", None)
+                if user_team_id:
+                    team_oid = None
+                    if isinstance(user_team_id, ObjectId):
+                        team_oid = user_team_id
+                    elif isinstance(user_team_id, str) and ObjectId.is_valid(user_team_id):
+                        team_oid = ObjectId(user_team_id)
+
+                    if team_oid:
+                        team_doc = await self.db["teams"].find_one({"_id": team_oid})
+                        if team_doc and team_doc.get("is_active") is False:
+                            # Allow only auth refresh/logout/me so user can still login and see status.
+                            allowed_when_banned = [
+                                f"{settings.API_V1_PREFIX}/auth/me",
+                                f"{settings.API_V1_PREFIX}/auth/refresh",
+                                f"{settings.API_V1_PREFIX}/auth/logout",
+                            ]
+                            if request.url.path not in allowed_when_banned:
+                                return JSONResponse(
+                                    status_code=status.HTTP_403_FORBIDDEN,
+                                    content={"detail": "Team is banned. Access to events/challenges is disabled."},
+                                )
+        except Exception as e:
+            # Never break auth if team lookup fails
+            logger.warning(f"Team ban check failed: {e}")
 
         audit_logger.info(
             f"RBAC check passed for user={request.state.user.username}, "

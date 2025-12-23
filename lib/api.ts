@@ -211,9 +211,17 @@ export const userAPI = {
   updateUser: async (userId: string, data: {
     zone?: string;
     is_active?: boolean;
+    password?: string;
   }) => {
     const path = USE_PROXY ? `/users/${userId}` : `/users/${userId}`;
     const response = await apiClient.put(path, data);
+    return response.data;
+  },
+
+  // Reset password (Master/Admin only)
+  resetPassword: async (userId: string, newPassword: string) => {
+    const path = USE_PROXY ? `/users/${userId}/reset-password` : `/users/${userId}/reset-password`;
+    const response = await apiClient.post(path, { new_password: newPassword });
     return response.data;
   },
 };
@@ -251,10 +259,19 @@ export const teamAPI = {
     return response.data;
   },
 
-  listTeams: async (skip = 0, limit = 100) => {
+  listTeams: async (skip = 0, limit = 100, includeInactive: boolean = false) => {
     const path = USE_PROXY ? '/teams/' : '/teams/';
     const response = await apiClient.get(path, {
-      params: { skip, limit },
+      params: { skip, limit, include_inactive: includeInactive },
+    });
+    return response.data;
+  },
+
+  // Ban/Unban team
+  setTeamActive: async (teamId: string, isActive: boolean) => {
+    const path = USE_PROXY ? `/teams/${teamId}/active` : `/teams/${teamId}/active`;
+    const response = await apiClient.patch(path, null, {
+      params: { is_active: isActive },
     });
     return response.data;
   },
@@ -802,6 +819,40 @@ export const eventAPI = {
   endEvent: async (eventId: string) => {
     const path = USE_PROXY ? `/events/${eventId}/end` : `/events/${eventId}/end`;
     const response = await apiClient.post(path);
+    return response.data;
+  },
+
+  // Event Admin (Master assigns)
+  getEventAdminCandidates: async (eventId: string) => {
+    const path = USE_PROXY ? `/events/${eventId}/admin-candidates` : `/events/${eventId}/admin-candidates`;
+    const response = await apiClient.get(path);
+    return response.data;
+  },
+
+  setEventAdmin: async (eventId: string, userId?: string | null) => {
+    const path = USE_PROXY ? `/events/${eventId}/admin` : `/events/${eventId}/admin`;
+    const response = await apiClient.put(path, null, {
+      params: { user_id: userId || null },
+    });
+    return response.data;
+  },
+
+  // Event-scoped team bans
+  listEventTeams: async (eventId: string) => {
+    const path = USE_PROXY ? `/events/${eventId}/teams` : `/events/${eventId}/teams`;
+    const response = await apiClient.get(path);
+    return response.data;
+  },
+
+  banTeamForEvent: async (eventId: string, teamId: string) => {
+    const path = USE_PROXY ? `/events/${eventId}/teams/${teamId}/ban` : `/events/${eventId}/teams/${teamId}/ban`;
+    const response = await apiClient.post(path);
+    return response.data;
+  },
+
+  unbanTeamForEvent: async (eventId: string, teamId: string) => {
+    const path = USE_PROXY ? `/events/${eventId}/teams/${teamId}/ban` : `/events/${eventId}/teams/${teamId}/ban`;
+    const response = await apiClient.delete(path);
     return response.data;
   },
 

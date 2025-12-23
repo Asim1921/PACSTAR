@@ -32,6 +32,7 @@ export const Challenges: React.FC = () => {
     challengeName: '',
     description: '',
     zone: 'zone1', // Zone field for challenge segregation
+    skillCategory: 'web', // Skill category for analytics (web/rev/pwn/etc)
     challengeType: 'web',
     flagFormat: 'CTF{}',
     challengeMode: 'dynamic', // static | dynamic | multi_flag
@@ -169,6 +170,7 @@ export const Challenges: React.FC = () => {
         challengeName: challenge.name || '',
         description: challenge.description || '',
         zone: challenge.zone || 'zone1', // Load zone from challenge
+        skillCategory: (challenge.skill_category || challenge.config?.challenge_type || 'web') as any,
         challengeType: challenge.config?.challenge_type || 'web',
         flagFormat: 'CTF{}', // Default, not in API response
         challengeMode: challenge.config?.mode || (challenge.challenge_category === 'static' ? 'static' : 'dynamic'),
@@ -291,6 +293,7 @@ export const Challenges: React.FC = () => {
           name: formData.challengeName,
           description: formData.description,
           zone: formData.zone, // Zone for challenge segregation
+          skill_category: formData.skillCategory,
           challenge_category: derivedCategory,
           config: {
             challenge_type: formData.challengeType,
@@ -352,6 +355,7 @@ export const Challenges: React.FC = () => {
           name: formData.challengeName,
           description: formData.description,
           zone: formData.zone, // Zone for challenge segregation
+          skill_category: formData.skillCategory,
           challenge_category: derivedCategory,
           config: {
             challenge_type: formData.staticChallengeType,
@@ -375,7 +379,8 @@ export const Challenges: React.FC = () => {
             },
           },
           flag: formData.flag,
-          flags: formData.challengeMode === 'multi_flag' ? formData.flags : undefined,
+          // Static challenges are single-flag in current UI flow; multi_flag is handled in non-static path.
+          flags: undefined,
           points: formData.points,
           total_teams: formData.maxTeams,
           is_active: formData.isActive,
@@ -416,6 +421,7 @@ export const Challenges: React.FC = () => {
         challengeName: '',
         description: '',
         zone: 'zone1', // Reset zone to default
+        skillCategory: 'web',
         challengeType: 'web',
         flagFormat: 'CTF{}',
         challengeMode: 'dynamic',
@@ -655,6 +661,23 @@ export const Challenges: React.FC = () => {
                         Select the zone where this challenge will be available.
                       </p>
                     </div>
+
+                    <Select
+                      label="Challenge Skill Category *"
+                      value={formData.skillCategory}
+                      onChange={(e) => handleInputChange('skillCategory', e.target.value)}
+                      options={[
+                        { value: 'web', label: 'Web Exploitation' },
+                        { value: 'reverse', label: 'Reverse Engineering' },
+                        { value: 'pwn', label: 'Pwn / Binary Exploitation' },
+                        { value: 'crypto', label: 'Cryptography' },
+                        { value: 'forensics', label: 'Forensics' },
+                        { value: 'misc', label: 'Misc' },
+                      ]}
+                    />
+                    <p className="text-xs text-white/50 -mt-2">
+                      Used for analytics (category proficiency, most-solved categories, etc).
+                    </p>
 
                     <Input
                       label="Flag Format"

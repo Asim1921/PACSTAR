@@ -66,9 +66,10 @@ interface Challenge {
 
 interface UserChallengesProps {
   teamId?: string | null;
+  refreshKey?: number;
 }
 
-export const UserChallenges: React.FC<UserChallengesProps> = ({ teamId: propTeamId }) => {
+export const UserChallenges: React.FC<UserChallengesProps> = ({ teamId: propTeamId, refreshKey }) => {
   const { showToast } = useToast();
   const [challenges, setChallenges] = useState<Challenge[]>([]);
   const [isLoading, setIsLoading] = useState(true);
@@ -123,41 +124,40 @@ export const UserChallenges: React.FC<UserChallengesProps> = ({ teamId: propTeam
               const deployedCount = stats.running_instances || 0;
               
               // Find the team's instance in the challenge instances array
-              // Try multiple team_id patterns: direct match, team code, or just search all instances
+              // Match using team_code hash (team-XXXXXXXX format)
               let teamInstance = null;
               if (challenge.instances && challenge.instances.length > 0) {
-                // First try direct team_id match
-                if (currentTeamId) {
-                  teamInstance = challenge.instances.find(inst => inst.team_id === currentTeamId);
+                // Get team code from localStorage
+                const teamData = localStorage.getItem('team_info');
+                let teamCode = null;
+                if (teamData) {
+                  try {
+                    const parsed = JSON.parse(teamData);
+                    teamCode = parsed.team_code;
+                  } catch (e) {
+                    console.error('Error parsing team data:', e);
+                  }
                 }
                 
-                // If no match, try to find instance by checking if team_id contains our team info
-                if (!teamInstance && currentTeamId) {
-                  // Get team code if available
-                  const teamData = localStorage.getItem('team_info');
-                  let teamCode = null;
-                  if (teamData) {
-                    try {
-                      const parsed = JSON.parse(teamData);
-                      teamCode = parsed.team_code;
-                    } catch (e) {
-                      // ignore
-                    }
-                  }
+                if (teamCode) {
+                  // Calculate expected team ID hash (first 8 chars of MD5 hash)
+                  // Backend uses: hashlib.md5(team_code.encode()).hexdigest()[:8]
+                  // For matching, we check if instance team_id contains the team_code
+                  // or matches the pattern team-XXXXXXXX where X is the hash
+                  teamInstance = challenge.instances.find(inst => {
+                    // Check if team_id contains the team code
+                    if (inst.team_id?.includes(teamCode)) return true;
+                    // Check if team_id matches case-insensitive
+                    if (inst.team_id?.toLowerCase().includes(teamCode.toLowerCase())) return true;
+                    return false;
+                  });
                   
-                  // Try to match by team code or other patterns
-                  if (teamCode) {
-                    teamInstance = challenge.instances.find(inst => 
-                      inst.team_id?.includes(teamCode) || 
-                      inst.team_id?.toLowerCase().includes(teamCode.toLowerCase())
-                    );
+                  if (!teamInstance) {
+                    console.log(`No matching instance found for team code ${teamCode} in challenge ${challenge.id}`);
+                    console.log(`Available instances:`, challenge.instances.map(i => i.team_id));
                   }
-                }
-                
-                // If still no match and we have instances, just take the first one (might be the user's)
-                // This is a fallback - ideally we should always have the correct team_id
-                if (!teamInstance && challenge.instances.length === 1) {
-                  teamInstance = challenge.instances[0];
+                } else {
+                  console.warn(`No team_code available for user to match instances`);
                 }
               }
               
@@ -322,6 +322,13 @@ export const UserChallenges: React.FC<UserChallengesProps> = ({ teamId: propTeam
     fetchChallenges();
   }, [propTeamId]);
 
+  // Refresh challenges when refreshKey changes
+  useEffect(() => {
+    if (refreshKey !== undefined && refreshKey > 0) {
+      fetchChallenges();
+    }
+  }, [refreshKey]);
+
 
   const handleSubmitFlag = async (challengeId: string) => {
     const flag = flagInputs[challengeId]?.trim();
@@ -333,14 +340,21 @@ export const UserChallenges: React.FC<UserChallengesProps> = ({ teamId: propTeam
     setSubmittingFlagFor(challengeId);
     try {
       const result = await challengeAPI.submitFlag(challengeId, flag);
-      if (result.success) {
+      const status = result?.status;
+      const success = result?.success === true || status === 'correct';
+
+      if (success) {
         showToast(result.message || `Flag is correct! You earned ${result.points || 0} points.`, 'success');
         setFlagInputs((prev) => ({ ...prev, [challengeId]: '' }));
         setShowFlagInput((prev) => ({ ...prev, [challengeId]: false }));
         // Refresh challenges to update solved status
         fetchChallenges();
       } else {
-        showToast(result.message || 'Incorrect flag', 'error');
+        if (status === 'already_solved') {
+          showToast(result.message || 'Already solved by your team.', 'info');
+        } else {
+          showToast(result.message || 'Incorrect flag', 'error');
+        }
       }
     } catch (error: any) {
       const errorMessage = error.response?.data?.detail || error.response?.data?.message || error.message || 'Failed to submit flag';
@@ -518,28 +532,33 @@ export const UserChallenges: React.FC<UserChallengesProps> = ({ teamId: propTeam
         <div className="space-y-6">
           {challenges.map((challenge) => {
             // Check for access info in multiple places
-            const accessInfo: Record<string, unknown> = challenge.access_info || challenge.instances?.[0] || {};
-            const hasAccessInfo = accessInfo && (
-              accessInfo.access_url || 
-              accessInfo.url || 
-              accessInfo.instance_url ||
-              accessInfo.public_ip || 
-              accessInfo.ip || 
-              accessInfo.instance_ip
-            );
-            const instanceStatus = String(accessInfo.status || challenge.access_info?.status || 'running');
+            // IMPORTANT: Never fall back to `challenge.instances[0]` because that can be another team's instance.
+            // `challenge.access_info` is the only safe per-team access object.
+            const accessInfo: Record<string, unknown> = (challenge.access_info as any) || {};
+            const hasAccessInfo =
+              !!accessInfo &&
+              !!(
+                (accessInfo as any).access_url ||
+                (accessInfo as any).url ||
+                (accessInfo as any).instance_url ||
+                (accessInfo as any).public_ip ||
+                (accessInfo as any).ip ||
+                (accessInfo as any).instance_ip
+              );
+            const instanceStatus = String((accessInfo as any).status || (challenge.access_info as any)?.status || 'running');
             const deployedCount = challenge.deployed_count || 0;
-            // Show RUNNING if deployed, otherwise show ACTIVE
-            const challengeStatus = deployedCount > 0 ? 'RUNNING' : 'ACTIVE';
+            // Show RUNNING only if THIS user/team has an instance; deployedCount is global (all teams).
+            const challengeStatus = (hasAccessInfo ? 'RUNNING' : 'ACTIVE');
             const isRefreshing = refreshingChallenge === challenge.id;
             const isStarting = startingChallenge === challenge.id;
             const isResetting = resettingChallenge === challenge.id;
-            // If deployedCount > 0, it means instance is deployed - show instance info, not Start button
-            // OR if we have access info (IP/URL), show instance info
+            // IMPORTANT: Only show as deployed if THIS TEAM has access info
+            // deployedCount shows total instances (for stats) but doesn't mean THIS team has deployed
             // For OpenStack, check if we have instance data (stack_id, server_id, etc.)
             const hasOpenStackInstance = challenge.challenge_category === 'openstack' && 
               (challenge.access_info?.stack_id || challenge.access_info?.server_id || challenge.access_info?.public_ip);
-            const isInstanceDeployed = deployedCount > 0 || hasAccessInfo || hasOpenStackInstance;
+            // Only use hasAccessInfo or hasOpenStackInstance - NOT deployedCount!
+            const isInstanceDeployed = hasAccessInfo || hasOpenStackInstance;
             
             // Debug logging to help troubleshoot button visibility
             console.log(`Challenge "${challenge.name}" (${challenge.id}):`, {

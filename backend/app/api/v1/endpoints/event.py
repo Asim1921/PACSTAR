@@ -538,17 +538,23 @@ async def pause_event(
     current_user: UserResponse = Depends(get_current_user)
 ):
     """Pause or resume an event"""
+    # Allow Master/Admin OR event-scoped event admin
+    effective_role = current_user.role
     if current_user.role not in ["Master", "Admin"]:
-        raise HTTPException(
-            status_code=status.HTTP_403_FORBIDDEN,
-            detail="Only Master or Admin can pause/resume events"
-        )
+        is_event_admin = await event_service.is_event_admin(event_id, str(current_user.id))
+        if not is_event_admin:
+            raise HTTPException(
+                status_code=status.HTTP_403_FORBIDDEN,
+                detail="Only Master/Admin or assigned Event Admin can pause/resume events"
+            )
+        # Treat event admin as Master for service-layer checks (service only restricts zone admins)
+        effective_role = "Master"
     
     try:
         event = await event_service.pause_event(
             event_id=event_id,
             pause_request=pause_request,
-            user_role=current_user.role,
+            user_role=effective_role,
             user_zone=current_user.zone
         )
         return event
@@ -575,16 +581,21 @@ async def end_event(
     current_user: UserResponse = Depends(get_current_user)
 ):
     """End an event"""
+    # Allow Master/Admin OR event-scoped event admin
+    effective_role = current_user.role
     if current_user.role not in ["Master", "Admin"]:
-        raise HTTPException(
-            status_code=status.HTTP_403_FORBIDDEN,
-            detail="Only Master or Admin can end events"
-        )
+        is_event_admin = await event_service.is_event_admin(event_id, str(current_user.id))
+        if not is_event_admin:
+            raise HTTPException(
+                status_code=status.HTTP_403_FORBIDDEN,
+                detail="Only Master/Admin or assigned Event Admin can end events"
+            )
+        effective_role = "Master"
     
     try:
         event = await event_service.end_event(
             event_id=event_id,
-            user_role=current_user.role,
+            user_role=effective_role,
             user_zone=current_user.zone
         )
         return event
@@ -647,6 +658,122 @@ async def update_challenge_visibility(
 # =============================================================================
 # Registration Endpoints
 # =============================================================================
+
+@router.get(
+    "/{event_id}/admin-candidates",
+    summary="List event admin candidates",
+    description="Master can choose an Event Admin from registered participants."
+)
+async def list_event_admin_candidates(
+    event_id: str,
+    current_user: UserResponse = Depends(get_current_user)
+):
+    if current_user.role != "Master":
+        raise HTTPException(status_code=status.HTTP_403_FORBIDDEN, detail="Only Master can assign Event Admin")
+    try:
+        return {"candidates": await event_service.list_event_admin_candidates(event_id)}
+    except ValueError as e:
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail=str(e))
+    except Exception as e:
+        logger.error(f"Failed to list event admin candidates: {e}")
+        raise HTTPException(status_code=status.HTTP_500_INTERNAL_SERVER_ERROR, detail=f"Failed: {str(e)}")
+
+
+@router.put(
+    "/{event_id}/admin",
+    summary="Assign event admin",
+    description="Assign (or clear) a single Event Admin for this event. Master only."
+)
+async def set_event_admin(
+    event_id: str,
+    user_id: Optional[str] = Query(None, description="User ID to assign. Omit/empty to clear."),
+    current_user: UserResponse = Depends(get_current_user)
+):
+    if current_user.role != "Master":
+        raise HTTPException(status_code=status.HTTP_403_FORBIDDEN, detail="Only Master can assign Event Admin")
+    try:
+        return await event_service.set_event_admin(event_id, user_id)
+    except ValueError as e:
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail=str(e))
+    except Exception as e:
+        logger.error(f"Failed to set event admin: {e}")
+        raise HTTPException(status_code=status.HTTP_500_INTERNAL_SERVER_ERROR, detail=f"Failed: {str(e)}")
+
+
+@router.get(
+    "/{event_id}/teams",
+    summary="List teams in event",
+    description="List teams participating in this event and whether they are banned. Master/Admin/Event Admin."
+)
+async def list_event_teams(
+    event_id: str,
+    current_user: UserResponse = Depends(get_current_user)
+):
+    try:
+        if current_user.role not in ["Master", "Admin"]:
+            is_event_admin = await event_service.is_event_admin(event_id, str(current_user.id))
+            if not is_event_admin:
+                raise HTTPException(status_code=status.HTTP_403_FORBIDDEN, detail="Not authorized")
+        teams = await event_service.list_event_teams(event_id)
+        return {"teams": teams}
+    except HTTPException:
+        raise
+    except ValueError as e:
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail=str(e))
+    except Exception as e:
+        logger.error(f"Failed to list event teams: {e}")
+        raise HTTPException(status_code=status.HTTP_500_INTERNAL_SERVER_ERROR, detail=f"Failed: {str(e)}")
+
+
+@router.post(
+    "/{event_id}/teams/{team_id}/ban",
+    summary="Ban team for event",
+    description="Ban a team (team_id) within this event. Master/Admin/Event Admin."
+)
+async def ban_team_for_event(
+    event_id: str,
+    team_id: str,
+    current_user: UserResponse = Depends(get_current_user)
+):
+    try:
+        if current_user.role not in ["Master", "Admin"]:
+            is_event_admin = await event_service.is_event_admin(event_id, str(current_user.id))
+            if not is_event_admin:
+                raise HTTPException(status_code=status.HTTP_403_FORBIDDEN, detail="Not authorized")
+        return await event_service.ban_team_for_event(event_id, team_id)
+    except HTTPException:
+        raise
+    except ValueError as e:
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail=str(e))
+    except Exception as e:
+        logger.error(f"Failed to ban team: {e}")
+        raise HTTPException(status_code=status.HTTP_500_INTERNAL_SERVER_ERROR, detail=f"Failed: {str(e)}")
+
+
+@router.delete(
+    "/{event_id}/teams/{team_id}/ban",
+    summary="Unban team for event",
+    description="Unban a team within this event. Master/Admin/Event Admin."
+)
+async def unban_team_for_event(
+    event_id: str,
+    team_id: str,
+    current_user: UserResponse = Depends(get_current_user)
+):
+    try:
+        if current_user.role not in ["Master", "Admin"]:
+            is_event_admin = await event_service.is_event_admin(event_id, str(current_user.id))
+            if not is_event_admin:
+                raise HTTPException(status_code=status.HTTP_403_FORBIDDEN, detail="Not authorized")
+        return await event_service.unban_team_for_event(event_id, team_id)
+    except HTTPException:
+        raise
+    except ValueError as e:
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail=str(e))
+    except Exception as e:
+        logger.error(f"Failed to unban team: {e}")
+        raise HTTPException(status_code=status.HTTP_500_INTERNAL_SERVER_ERROR, detail=f"Failed: {str(e)}")
+
 
 @router.post(
     "/{event_id}/register",
@@ -760,9 +887,15 @@ async def submit_flag(
             team_name=team_name
         )
         return result
+    except PermissionError as e:
+        raise HTTPException(status_code=status.HTTP_403_FORBIDDEN, detail=str(e))
     except ValueError as e:
         raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail=str(e))
     except Exception as e:
+        # Defensive: in some environments PermissionError can get wrapped/normalized unexpectedly.
+        # If this is effectively a permission issue, return 403 instead of 500.
+        if isinstance(e, PermissionError) or "banned for this event" in str(e).lower():
+            raise HTTPException(status_code=status.HTTP_403_FORBIDDEN, detail=str(e))
         logger.error(f"Failed to submit flag: {e}")
         raise HTTPException(
             status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,

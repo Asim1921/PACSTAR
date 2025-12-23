@@ -149,7 +149,11 @@ async def list_challenges(
             registered_event_ids = await event_service.get_user_registered_events(user_id, team_id)
             
             # Get challenge IDs from those events (filtered by zone)
-            allowed_challenge_ids = await event_service.get_challenges_from_events(registered_event_ids, user_zone)
+            allowed_challenge_ids = await event_service.get_challenges_from_events(
+                registered_event_ids,
+                user_zone,
+                team_id=team_id
+            )
             
             # Filter challenges to only those from registered events
             filtered_challenges = []
@@ -196,8 +200,18 @@ async def get_scores(
     """Get overall team scoreboard (Master/Admin sees all; Users also allowed to view)."""
     try:
         rows = await challenge_service.get_scoreboard()
-        # Map to response entries
-        entries: List[ScoreEntry] = [ScoreEntry(team_id=r["team_id"], points=r["points"], solves=r["solves"]) for r in rows]
+        # Map to response entries (support optional enrichment fields)
+        entries: List[ScoreEntry] = [
+            ScoreEntry(
+                team_id=r.get("team_id"),
+                team_name=r.get("team_name"),
+                team_code=r.get("team_code"),
+                points=r.get("points", 0),
+                solves=r.get("solves", 0),
+                rank=r.get("rank"),
+            )
+            for r in rows
+        ]
         return ScoreboardResponse(scoreboard=entries)
     except Exception as e:
         raise HTTPException(status_code=status.HTTP_500_INTERNAL_SERVER_ERROR, detail=f"Failed to get scores: {str(e)}")
@@ -417,7 +431,19 @@ async def get_team_access_info(
     **All authenticated users can access this endpoint.**
     """
     try:
-        access_info = await challenge_service.get_team_access_info(challenge_id, team_id)
+        # SECURITY: Regular users must only be able to fetch access info for THEIR OWN team.
+        # Do NOT trust `team_id` from the URL, because stale localStorage or a crafted request
+        # could leak another team's IP.
+        effective_team_id = team_id
+        if current_user.role not in ["Master", "Admin"]:
+            effective_team_id = _get_user_team_id(current_user)
+            if team_id != effective_team_id:
+                logger.warning(
+                    f"User {current_user.username} requested access for team_id={team_id} "
+                    f"but will be served effective_team_id={effective_team_id}"
+                )
+
+        access_info = await challenge_service.get_team_access_info(challenge_id, effective_team_id)
         if not access_info:
             raise HTTPException(
                 status_code=status.HTTP_404_NOT_FOUND,
@@ -453,6 +479,10 @@ async def start_challenge_instance(
     
     # Get user's team_id
     team_id = _get_user_team_id(current_user)
+    
+    # Log team information for debugging
+    user_dict = current_user.dict() if hasattr(current_user, 'dict') else dict(current_user)
+    logger.info(f"Starting challenge {challenge_id} for user {current_user.username} with team_id={team_id}, team_code={user_dict.get('team_code')}, actual_team_id={user_dict.get('team_id')}")
     
     try:
         challenge = await challenge_service.deploy_challenge_for_team(

@@ -5,7 +5,7 @@ import { useRouter } from 'next/navigation';
 import { Shield, LogOut, User, Target, RefreshCw, ChevronDown, ChevronUp, Mail, Users, Crown, FileText, BookOpen, CheckCircle, Settings, Trophy, FileCode, BarChart3, Search, Cloud, Menu, X, Calendar } from 'lucide-react';
 import { Button } from '@/components/ui/Button';
 import { Select } from '@/components/ui/Select';
-import { authAPI, userAPI, teamAPI } from '@/lib/api';
+import { authAPI, userAPI, teamAPI, challengeAPI, eventAPI } from '@/lib/api';
 import { useToast } from '@/components/ui/ToastProvider';
 import { Challenges } from '@/components/admin/Challenges';
 import { DockerfileToK8s } from '@/components/admin/DockerfileToK8s';
@@ -59,6 +59,9 @@ interface AllUser {
   role: string;
   zone: string;
   is_active: boolean;
+  team_id?: string | null;
+  team_code?: string | null;
+  team_name?: string | null;
 }
 
 export default function Dashboard() {
@@ -80,9 +83,19 @@ export default function Dashboard() {
   const [allUsers, setAllUsers] = useState<AllUser[]>([]);
   const [isLoadingUsers, setIsLoadingUsers] = useState(false);
   const [userSearchTerm, setUserSearchTerm] = useState('');
+  const [adminScoreboard, setAdminScoreboard] = useState<any[]>([]);
+  const [isLoadingScoreboard, setIsLoadingScoreboard] = useState(false);
+  const [statsEvents, setStatsEvents] = useState<any[]>([]);
+  const [selectedStatsEventId, setSelectedStatsEventId] = useState<string>('');
+  const [eventLiveStats, setEventLiveStats] = useState<any | null>(null);
+  const [isLoadingLiveStats, setIsLoadingLiveStats] = useState(false);
+  const [adminTeamsById, setAdminTeamsById] = useState<Record<string, Team>>({});
+  const [challengesRefreshKey, setChallengesRefreshKey] = useState(0);
   
   // Check if user is Master role
   const isMaster = userProfile.role?.toLowerCase() === 'master';
+  const isZoneAdmin = userProfile.role?.toLowerCase() === 'admin';
+  const isAdminRole = isMaster || isZoneAdmin;
 
   // Fetch user profile and team data
   useEffect(() => {
@@ -300,7 +313,7 @@ export default function Dashboard() {
   };
 
   const fetchAllUsers = async () => {
-    if (!isMaster) return;
+    if (!isAdminRole) return;
     
     setIsLoadingUsers(true);
     try {
@@ -319,19 +332,101 @@ export default function Dashboard() {
     }
   };
 
+  const fetchAdminScoreboard = async () => {
+    if (!isAdminRole) return;
+    setIsLoadingScoreboard(true);
+    try {
+      const res = await challengeAPI.getScoreboard();
+      const rows = res?.scoreboard || [];
+      setAdminScoreboard(Array.isArray(rows) ? rows : []);
+    } catch (error: any) {
+      console.error('Failed to fetch scoreboard:', error);
+      // Keep this silent-ish; admins can still manage users even if scoreboard fails.
+    } finally {
+      setIsLoadingScoreboard(false);
+    }
+  };
+
+  const fetchStatsEvents = async () => {
+    if (!isAdminRole) return;
+    try {
+      const res = await eventAPI.listEvents();
+      const events = (res as any)?.events || res || [];
+      setStatsEvents(Array.isArray(events) ? events : []);
+    } catch (error) {
+      // Keep stats fetching silent (avoid noisy toasts)
+    }
+  };
+
+  const fetchEventLiveStats = async (eventId: string) => {
+    if (!isAdminRole || !eventId) return;
+    try {
+      setIsLoadingLiveStats(true);
+      const res = await eventAPI.getLiveStats(eventId);
+      setEventLiveStats(res);
+    } catch (error) {
+      setEventLiveStats(null);
+    } finally {
+      setIsLoadingLiveStats(false);
+    }
+  };
+
+  const fetchAdminTeams = async () => {
+    if (!isMaster) return;
+    try {
+      const res = await teamAPI.listTeams(0, 1000, true);
+      const teams: Team[] = res?.teams || [];
+      const map: Record<string, Team> = {};
+      (Array.isArray(teams) ? teams : []).forEach((t) => {
+        if (t?.id) map[t.id] = t;
+      });
+      setAdminTeamsById(map);
+    } catch (error: any) {
+      console.error('Failed to fetch teams for admin:', error);
+    }
+  };
+
   const handleAdminRefresh = async () => {
     if (activeAdminTab === 'users') {
       await fetchAllUsers();
+      await fetchAdminScoreboard();
+      await fetchAdminTeams();
+    } else if (activeAdminTab === 'stats') {
+      await fetchAdminScoreboard();
+      await fetchStatsEvents();
     } else {
       showToast('Refresh functionality for this tab coming soon', 'info');
     }
   };
 
   useEffect(() => {
-    if (viewMode === 'admin' && activeAdminTab === 'users' && isMaster && allUsers.length === 0) {
+    if (viewMode === 'admin' && activeAdminTab === 'users' && isAdminRole && allUsers.length === 0) {
       fetchAllUsers();
+      fetchAdminScoreboard();
+      fetchAdminTeams();
     }
   }, [viewMode, activeAdminTab]);
+
+  useEffect(() => {
+    if (viewMode === 'admin' && activeAdminTab === 'stats' && isAdminRole && statsEvents.length === 0) {
+      fetchAdminScoreboard();
+      fetchStatsEvents();
+    }
+  }, [viewMode, activeAdminTab]);
+
+  const handleSetTeamActive = async (teamId: string, nextActive: boolean) => {
+    try {
+      // eslint-disable-next-line no-restricted-globals
+      if (!confirm(`Are you sure you want to ${nextActive ? 'UNBAN (activate)' : 'BAN (disable)'} this team?`)) return;
+      await teamAPI.setTeamActive(teamId, nextActive);
+      showToast(`Team ${nextActive ? 'unbanned' : 'banned'} successfully`, 'success');
+      await fetchAdminTeams();
+      await fetchAllUsers();
+      await fetchAdminScoreboard();
+    } catch (error: any) {
+      showToast(error.response?.data?.detail || 'Failed to update team status', 'error');
+    }
+  };
 
   const filteredUsers = allUsers.filter((user) => {
     const searchLower = userSearchTerm.toLowerCase();
@@ -399,7 +494,7 @@ export default function Dashboard() {
               <Notifications 
                 onJoinEvent={(eventId) => {
                   // Refresh challenges when user joins an event
-                  window.location.reload();
+                  setChallengesRefreshKey(prev => prev + 1);
                 }}
               />
             )}
@@ -692,11 +787,14 @@ export default function Dashboard() {
 
                 {/* Events Section */}
                 <div className="mt-6">
-                  <UserEvents />
+                  <UserEvents 
+                    onJoinEvent={() => setChallengesRefreshKey(prev => prev + 1)} 
+                    isAdmin={isMaster}
+                  />
                 </div>
 
                 {/* Challenges Section */}
-                <UserChallenges teamId={team?.id} />
+                <UserChallenges teamId={team?.id} refreshKey={challengesRefreshKey} />
 
                 {/* Scoreboard Section */}
                 <div className="mt-6">
@@ -706,7 +804,7 @@ export default function Dashboard() {
             )}
 
             {/* Admin Panel View */}
-            {viewMode === 'admin' && isMaster && (
+            {viewMode === 'admin' && isAdminRole && (
               <div className="space-y-6">
                 <div>
                   <h2 className="text-3xl font-bold text-white gradient-text">Admin Panel</h2>
@@ -716,14 +814,21 @@ export default function Dashboard() {
                 {/* Admin Tabs */}
                 <div className="bg-cyber-900/80 backdrop-blur-xl rounded-2xl shadow-lg border border-neon-green/20 p-2 terminal-border">
                   <div className="flex flex-wrap gap-2">
-                    {[
-                      { id: 'users', label: 'Users', icon: User },
-                      { id: 'challenges', label: 'Challenges', icon: Trophy },
-                      { id: 'events', label: 'Events', icon: Calendar },
-                      { id: 'dockerfile', label: 'Dockerfile', icon: FileCode },
-                      { id: 'openstack', label: 'OpenStack', icon: Cloud },
-                      { id: 'stats', label: 'Stats', icon: BarChart3 },
-                    ].map((tab) => {
+                    {(isMaster
+                      ? [
+                          { id: 'users', label: 'Users', icon: User },
+                          { id: 'challenges', label: 'Challenges', icon: Trophy },
+                          { id: 'events', label: 'Events', icon: Calendar },
+                          { id: 'dockerfile', label: 'Dockerfile', icon: FileCode },
+                          { id: 'openstack', label: 'OpenStack', icon: Cloud },
+                          { id: 'stats', label: 'Stats', icon: BarChart3 },
+                        ]
+                      : [
+                          { id: 'users', label: 'Users', icon: User },
+                          { id: 'events', label: 'Events', icon: Calendar },
+                          { id: 'stats', label: 'Stats', icon: BarChart3 },
+                        ]
+                    ).map((tab) => {
                       const Icon = tab.icon;
                       return (
                         <button
@@ -789,19 +894,22 @@ export default function Dashboard() {
                               <th className="px-4 py-3 text-left text-sm font-semibold text-white">Email</th>
                               <th className="px-4 py-3 text-left text-sm font-semibold text-white">Role</th>
                               <th className="px-4 py-3 text-left text-sm font-semibold text-white">Zone</th>
+                              <th className="px-4 py-3 text-left text-sm font-semibold text-white">Team</th>
+                              <th className="px-4 py-3 text-left text-sm font-semibold text-white">Team Status</th>
+                              <th className="px-4 py-3 text-left text-sm font-semibold text-white">Actions</th>
                               <th className="px-4 py-3 text-left text-sm font-semibold text-white">Active</th>
                             </tr>
                           </thead>
                           <tbody>
                             {isLoadingUsers ? (
                               <tr>
-                                <td colSpan={5} className="px-4 py-8 text-center text-white/60">
+                                <td colSpan={8} className="px-4 py-8 text-center text-white/60">
                                   Loading users...
                                 </td>
                               </tr>
                             ) : filteredUsers.length === 0 ? (
                               <tr>
-                                <td colSpan={5} className="px-4 py-8 text-center text-white/60">
+                                <td colSpan={8} className="px-4 py-8 text-center text-white/60">
                                   {userSearchTerm ? 'No users found matching your search.' : 'No users available.'}
                                 </td>
                               </tr>
@@ -822,6 +930,80 @@ export default function Dashboard() {
                                   </td>
                                   <td className="px-4 py-3 text-white/80">{user.role}</td>
                                   <td className="px-4 py-3 text-white/80">{user.zone || 'N/A'}</td>
+                                  <td className="px-4 py-3 text-white/80">
+                                    {user.team_name ? (
+                                      <div>
+                                        <div className="font-medium text-white">{user.team_name}</div>
+                                        <div className="text-xs text-white/50">{user.team_code || '—'}</div>
+                                      </div>
+                                    ) : (
+                                      <span className="text-white/40">—</span>
+                                    )}
+                                  </td>
+                                  <td className="px-4 py-3 text-white/80">
+                                    {user.team_id && adminTeamsById[user.team_id] ? (
+                                      adminTeamsById[user.team_id].is_active ? (
+                                        <span className="inline-flex items-center px-2 py-1 rounded-full text-xs font-semibold bg-neon-green/10 text-neon-green border border-neon-green/30">
+                                          Active
+                                        </span>
+                                      ) : (
+                                        <span className="inline-flex items-center px-2 py-1 rounded-full text-xs font-semibold bg-neon-orange/10 text-neon-orange border border-neon-orange/30">
+                                          Banned
+                                        </span>
+                                      )
+                                    ) : (
+                                      <span className="text-white/40">—</span>
+                                    )}
+                                  </td>
+                                  <td className="px-4 py-3">
+                                    <div className="flex flex-wrap gap-2">
+                                      {isMaster && user.team_id && adminTeamsById[user.team_id] ? (
+                                        <Button
+                                          size="sm"
+                                          variant="outline"
+                                          onClick={() =>
+                                            handleSetTeamActive(
+                                              user.team_id as string,
+                                              !adminTeamsById[user.team_id as string].is_active
+                                            )
+                                          }
+                                          className={`border-2 ${
+                                            adminTeamsById[user.team_id as string].is_active
+                                              ? 'border-neon-orange/40 hover:bg-neon-orange/10 text-neon-orange'
+                                              : 'border-neon-green/40 hover:bg-neon-green/10 text-neon-green'
+                                          }`}
+                                        >
+                                          {adminTeamsById[user.team_id as string].is_active ? 'Ban Team' : 'Unban Team'}
+                                        </Button>
+                                      ) : null}
+
+                                      <Button
+                                        size="sm"
+                                        variant="outline"
+                                        onClick={async () => {
+                                          const newPw = window.prompt(`Set a new password for ${user.username} (min 8 chars):`);
+                                          if (!newPw) return;
+                                          if (newPw.length < 8) {
+                                            showToast('Password must be at least 8 characters', 'error');
+                                            return;
+                                          }
+                                          try {
+                                            await userAPI.resetPassword(user.id, newPw);
+                                            showToast(`Password reset for ${user.username}`, 'success');
+                                          } catch (err: any) {
+                                            showToast(err?.response?.data?.detail || 'Failed to reset password', 'error');
+                                          }
+                                        }}
+                                        className="border-2 border-neon-purple/40 hover:bg-neon-purple/10 text-neon-purple"
+                                      >
+                                        Reset Password
+                                      </Button>
+
+                                      {!isMaster && !isZoneAdmin && (
+                                        <span className="text-white/40">—</span>
+                                      )}
+                                    </div>
+                                  </td>
                                   <td className="px-4 py-3">
                                     {user.is_active ? (
                                       <CheckCircle className="text-neon-green" size={20} />
@@ -861,13 +1043,178 @@ export default function Dashboard() {
 
                 {/* Stats Tab Content */}
                 {activeAdminTab === 'stats' && (
-                  <div className="bg-cyber-900/80 backdrop-blur-xl rounded-2xl shadow-lg border border-neon-green/20 terminal-border p-12">
-                    <div className="text-center">
-                      <div className="w-20 h-20 bg-neon-green/20 backdrop-blur-sm rounded-2xl flex items-center justify-center mx-auto mb-4 border border-neon-green/40 glow-accent">
-                        <BarChart3 className="text-neon-green" size={40} />
+                  <div className="space-y-6">
+                    <div className="bg-cyber-900/80 backdrop-blur-xl rounded-2xl shadow-lg border border-neon-green/20 terminal-border p-6">
+                      <div className="flex flex-col md:flex-row md:items-center gap-3 md:justify-between mb-4">
+                        <div>
+                          <h3 className="text-xl font-bold text-white mb-1 gradient-text">Statistics Dashboard</h3>
+                          <p className="text-white/60 text-sm">Scores + event analytics (attempts, solves, categories)</p>
+                        </div>
+                        <div className="flex gap-2">
+                          <Button
+                            variant="outline"
+                            size="sm"
+                            onClick={fetchAdminScoreboard}
+                            disabled={isLoadingScoreboard}
+                            className="border-neon-green/30 hover:bg-neon-green/10 text-white"
+                          >
+                            <RefreshCw size={14} className={`mr-2 ${isLoadingScoreboard ? 'animate-spin' : ''}`} />
+                            Refresh Scores
+                          </Button>
+                          <Button
+                            variant="outline"
+                            size="sm"
+                            onClick={fetchStatsEvents}
+                            className="border-neon-green/30 hover:bg-neon-green/10 text-white"
+                          >
+                            <RefreshCw size={14} className="mr-2" />
+                            Refresh Events
+                          </Button>
+                        </div>
                       </div>
-                      <h3 className="text-xl font-bold text-white mb-2 gradient-text">Statistics Dashboard</h3>
-                      <p className="text-white/60">Coming soon...</p>
+
+                      {/* Scoring Overview (moved from Users tab) */}
+                      <div className="bg-cyber-800/30 border border-neon-green/20 rounded-2xl p-4">
+                        <div className="mb-3">
+                          <h4 className="text-lg font-bold text-white">Scoring Overview</h4>
+                          <p className="text-white/60 text-sm">Top teams by points (live from submissions)</p>
+                        </div>
+
+                        {isLoadingScoreboard ? (
+                          <div className="text-white/60 text-sm py-4">Loading scoreboard...</div>
+                        ) : adminScoreboard.length === 0 ? (
+                          <div className="text-white/60 text-sm py-4">No scores yet.</div>
+                        ) : (
+                          <div className="grid grid-cols-1 lg:grid-cols-2 gap-4">
+                            <div className="bg-cyber-900/30 border border-neon-green/10 rounded-xl p-4">
+                              <h5 className="text-white font-semibold mb-3">Points Chart</h5>
+                              {(() => {
+                                const top = adminScoreboard.slice(0, 10);
+                                const maxPoints = Math.max(...top.map((r: any) => Number(r.points || 0)), 1);
+                                return (
+                                  <div className="space-y-2">
+                                    {top.map((row: any) => {
+                                      const pct = Math.round((Number(row.points || 0) / maxPoints) * 100);
+                                      return (
+                                        <div key={row.team_id} className="flex items-center gap-3">
+                                          <div className="w-40 truncate text-xs text-white/70">
+                                            {row.team_name || row.team_code || row.team_id}
+                                          </div>
+                                          <div className="flex-1 bg-cyber-800/60 rounded-full h-2 overflow-hidden border border-neon-green/10">
+                                            <div className="h-2 bg-neon-green/60" style={{ width: `${pct}%` }} />
+                                          </div>
+                                          <div className="w-16 text-right text-xs text-white font-semibold">
+                                            {row.points || 0}
+                                          </div>
+                                        </div>
+                                      );
+                                    })}
+                                  </div>
+                                );
+                              })()}
+                            </div>
+
+                            <div className="bg-cyber-900/30 border border-neon-green/10 rounded-xl p-4 overflow-x-auto">
+                              <h5 className="text-white font-semibold mb-3">Leaderboard</h5>
+                              <table className="w-full text-sm">
+                                <thead className="text-white/70">
+                                  <tr>
+                                    <th className="text-left py-2 pr-2">Rank</th>
+                                    <th className="text-left py-2 pr-2">Team</th>
+                                    <th className="text-right py-2 pr-2">Solves</th>
+                                    <th className="text-right py-2">Points</th>
+                                  </tr>
+                                </thead>
+                                <tbody>
+                                  {adminScoreboard.slice(0, 10).map((row: any) => (
+                                    <tr key={row.team_id} className="border-t border-neon-green/10">
+                                      <td className="py-2 pr-2 text-white font-semibold">{row.rank ?? '—'}</td>
+                                      <td className="py-2 pr-2 text-white/90">
+                                        <div className="font-medium">{row.team_name || '—'}</div>
+                                        <div className="text-xs text-white/50">{row.team_code || row.team_id}</div>
+                                      </td>
+                                      <td className="py-2 pr-2 text-right text-white/80">{row.solves || 0}</td>
+                                      <td className="py-2 text-right text-neon-green font-bold">{row.points || 0}</td>
+                                    </tr>
+                                  ))}
+                                </tbody>
+                              </table>
+                            </div>
+                          </div>
+                        )}
+                      </div>
+                    </div>
+
+                    <div className="bg-cyber-900/80 backdrop-blur-xl rounded-2xl shadow-lg border border-neon-green/20 terminal-border p-6">
+                      <div className="flex flex-col md:flex-row md:items-center md:justify-between gap-3 mb-4">
+                        <div>
+                          <h4 className="text-lg font-bold text-white">Event Analytics</h4>
+                          <p className="text-white/60 text-sm">Attempts + category proficiency per event</p>
+                        </div>
+                        <div className="flex gap-2 items-center">
+                          <select
+                            value={selectedStatsEventId}
+                            onChange={(e) => {
+                              const id = e.target.value;
+                              setSelectedStatsEventId(id);
+                              fetchEventLiveStats(id);
+                            }}
+                            className="px-4 py-2 bg-cyber-800/50 border-2 border-neon-green/20 rounded-xl text-white focus:outline-none focus:border-neon-green"
+                          >
+                            <option value="">Select event…</option>
+                            {statsEvents.map((ev: any) => (
+                              <option key={ev.id} value={ev.id}>
+                                {ev.name} ({ev.status})
+                              </option>
+                            ))}
+                          </select>
+                          <Button
+                            size="sm"
+                            variant="outline"
+                            onClick={() => selectedStatsEventId && fetchEventLiveStats(selectedStatsEventId)}
+                            disabled={!selectedStatsEventId || isLoadingLiveStats}
+                            className="border-neon-green/30 hover:bg-neon-green/10 text-white"
+                          >
+                            <RefreshCw size={14} className={`mr-2 ${isLoadingLiveStats ? 'animate-spin' : ''}`} />
+                            Refresh
+                          </Button>
+                        </div>
+                      </div>
+
+                      {isLoadingLiveStats ? (
+                        <div className="text-white/60 text-sm py-6">Loading event stats…</div>
+                      ) : !eventLiveStats ? (
+                        <div className="text-white/60 text-sm py-6">Select an event to view stats.</div>
+                      ) : (
+                        <div className="grid grid-cols-1 lg:grid-cols-2 gap-4">
+                          <div className="bg-cyber-900/30 border border-neon-green/10 rounded-xl p-4">
+                            <h5 className="text-white font-semibold mb-3">Summary</h5>
+                            <div className="text-sm text-white/80 space-y-1">
+                              <div>Participants: <span className="text-white font-semibold">{eventLiveStats.total_participants}</span></div>
+                              <div>Total submissions: <span className="text-white font-semibold">{eventLiveStats.total_submissions}</span></div>
+                              <div>Correct: <span className="text-neon-green font-semibold">{eventLiveStats.correct_submissions}</span></div>
+                              <div>Incorrect: <span className="text-neon-orange font-semibold">{eventLiveStats.incorrect_submissions}</span></div>
+                            </div>
+                          </div>
+
+                          <div className="bg-cyber-900/30 border border-neon-green/10 rounded-xl p-4">
+                            <h5 className="text-white font-semibold mb-3">Category proficiency (event-wide)</h5>
+                            <div className="space-y-2">
+                              {Object.entries(eventLiveStats.category_proficiency_distribution || {}).map(([cat, v]: any) => (
+                                <div key={cat} className="flex items-center justify-between text-sm">
+                                  <div className="text-white/80">{cat}</div>
+                                  <div className="text-white/60">
+                                    solves {v.total_solves || 0} · attempts {v.total_attempts || 0}
+                                  </div>
+                                </div>
+                              ))}
+                              {Object.keys(eventLiveStats.category_proficiency_distribution || {}).length === 0 && (
+                                <div className="text-white/50 text-sm">No category data yet.</div>
+                              )}
+                            </div>
+                          </div>
+                        </div>
+                      )}
                     </div>
                   </div>
                 )}

@@ -125,7 +125,26 @@ class UserService:
             )
 
         users = []
+        teams = self.db["teams"]
         async for doc in cursor:
+            # Enrich with team name if possible (helps admin UI)
+            try:
+                team_id = doc.get("team_id")
+                team_oid: ObjectId | None = None
+                if isinstance(team_id, ObjectId):
+                    team_oid = team_id
+                    doc["team_id"] = str(team_id)
+                elif isinstance(team_id, str) and ObjectId.is_valid(team_id):
+                    team_oid = ObjectId(team_id)
+
+                if team_oid and not doc.get("team_name"):
+                    team_doc = await teams.find_one({"_id": team_oid})
+                    if team_doc:
+                        doc["team_name"] = team_doc.get("name")
+                        if not doc.get("team_code"):
+                            doc["team_code"] = team_doc.get("team_code")
+            except Exception:
+                pass
             doc["_id"] = str(doc["_id"])   # ✅ normalize each user
             users.append(UserInDB.model_validate(doc))
         return users

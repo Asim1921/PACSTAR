@@ -22,6 +22,11 @@ class UserUpdate(BaseModel):
     zone: Optional[str] = Field(None, min_length=2, max_length=50)
 
 
+class PasswordResetRequest(BaseModel):
+    """Request body for admin-driven password resets."""
+    new_password: str = Field(..., min_length=8, description="New plaintext password (will be hashed)")
+
+
 class UserResponse(UserBase):
     id: str = Field(..., description="User ID as string")
     team_code: Optional[str] = Field(None, description="Team code if user belongs to a team")
