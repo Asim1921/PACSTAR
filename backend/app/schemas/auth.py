@@ -29,6 +29,7 @@ class RegisterResponse(BaseModel):
     email: EmailStr
     role: str = "User"
     is_active: bool = True
+    is_verified: bool = True
     zone: str
     team_code: Optional[str] = None
     team_id: Optional[str] = None

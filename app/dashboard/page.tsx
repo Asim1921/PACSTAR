@@ -25,6 +25,9 @@ interface UserProfile {
   role?: string;
   zone?: string;
   is_active?: boolean;
+  is_verified?: boolean;
+  team_id?: string | null;
+  team_code?: string | null;
 }
 
 interface TeamMember {
@@ -60,6 +63,7 @@ interface AllUser {
   role: string;
   zone: string;
   is_active: boolean;
+  is_verified?: boolean;
   team_id?: string | null;
   team_code?: string | null;
   team_name?: string | null;
@@ -70,6 +74,9 @@ export default function Dashboard() {
   const { showToast } = useToast();
   const [userProfile, setUserProfile] = useState<UserProfile>({});
   const [team, setTeam] = useState<Team | null>(null);
+  const [showTeamGate, setShowTeamGate] = useState(false);
+  const [joinTeamCode, setJoinTeamCode] = useState('');
+  const [isJoiningTeam, setIsJoiningTeam] = useState(false);
   const [isProfileOpen, setIsProfileOpen] = useState(true);
   const [isTeamOpen, setIsTeamOpen] = useState(true);
   const [isTeamMembersOpen, setIsTeamMembersOpen] = useState(true);
@@ -84,6 +91,7 @@ export default function Dashboard() {
   const [allUsers, setAllUsers] = useState<AllUser[]>([]);
   const [isLoadingUsers, setIsLoadingUsers] = useState(false);
   const [userSearchTerm, setUserSearchTerm] = useState('');
+  const [showUnverifiedOnly, setShowUnverifiedOnly] = useState(false);
   const [adminScoreboard, setAdminScoreboard] = useState<any[]>([]);
   const [isLoadingScoreboard, setIsLoadingScoreboard] = useState(false);
   const [statsEvents, setStatsEvents] = useState<any[]>([]);
@@ -109,6 +117,13 @@ export default function Dashboard() {
   const isMaster = userProfile.role?.toLowerCase() === 'master';
   const isZoneAdmin = userProfile.role?.toLowerCase() === 'admin';
   const isAdminRole = isMaster || isZoneAdmin;
+  const needsTeam =
+    !isAdminRole &&
+    !(userProfile.team_id || userProfile.team_code) &&
+    !team;
+  const needsVerification =
+    !isAdminRole &&
+    userProfile.is_verified === false;
 
   // Fetch user profile and team data
   useEffect(() => {
@@ -279,6 +294,44 @@ export default function Dashboard() {
 
     fetchData();
   }, []);
+
+  // If a user is blocked (no team or not verified), show gating modal.
+  useEffect(() => {
+    if (typeof window === 'undefined') return;
+    setShowTeamGate(needsTeam || needsVerification);
+  }, [needsTeam, needsVerification]);
+
+  const handleJoinTeamFromGate = async () => {
+    const code = joinTeamCode.trim();
+    if (!code) {
+      showToast('Please enter a team code', 'error');
+      return;
+    }
+    setIsJoiningTeam(true);
+    try {
+      const joined = await teamAPI.joinTeam(code);
+      sessionStorage.setItem('team_info', JSON.stringify(joined));
+      setTeam(joined);
+
+      // Refresh profile so team_id/team_code also populate (from /auth/me)
+      try {
+        const me = await authAPI.me();
+        setUserProfile(me);
+        sessionStorage.setItem('user_info', JSON.stringify(me));
+        if (me?.id) sessionStorage.setItem('user_id', me.id);
+      } catch {
+        // ignore
+      }
+
+      showToast('Joined team successfully', 'success');
+      setJoinTeamCode('');
+      setShowTeamGate(false);
+    } catch (err: any) {
+      showToast(err?.response?.data?.detail || 'Failed to join team', 'error');
+    } finally {
+      setIsJoiningTeam(false);
+    }
+  };
 
   const handleLogout = () => {
     authAPI.logout();
@@ -495,8 +548,21 @@ export default function Dashboard() {
     }
   };
 
+  const handleToggleUserVerification = async (userId: string, nextVerified: boolean) => {
+    try {
+      // eslint-disable-next-line no-restricted-globals
+      if (!confirm(`Are you sure you want to mark this user as ${nextVerified ? 'VERIFIED' : 'NOT VERIFIED'}?`)) return;
+      await userAPI.setUserVerified(userId, nextVerified);
+      showToast(`User ${nextVerified ? 'verified' : 'unverified'} successfully`, 'success');
+      await fetchAllUsers();
+    } catch (error: any) {
+      showToast(error.response?.data?.detail || 'Failed to update verification status', 'error');
+    }
+  };
+
   const filteredUsers = allUsers.filter((user) => {
     const searchLower = userSearchTerm.toLowerCase();
+    if (showUnverifiedOnly && user.is_verified !== false) return false;
     return (
       user.username.toLowerCase().includes(searchLower) ||
       user.email.toLowerCase().includes(searchLower) ||
@@ -533,6 +599,77 @@ export default function Dashboard() {
         <div className="absolute bottom-0 left-0 w-[600px] h-[600px] bg-neon-cyan/5 rounded-full blur-3xl animate-pulse" style={{ animationDelay: '1s' }} />
       </div>
       <ParticleBackground />
+
+      {/* Team gate for individually registered users */}
+      {showTeamGate && (
+        <div className="fixed inset-0 z-[100] flex items-center justify-center p-4">
+          <div className="absolute inset-0 bg-black/70 backdrop-blur-sm" />
+          <div className="relative w-full max-w-xl bg-cyber-900/95 border border-neon-green/30 rounded-2xl shadow-2xl terminal-border p-6">
+            <div className="flex items-start gap-4">
+              <div className="w-12 h-12 bg-neon-orange/15 rounded-xl flex items-center justify-center border border-neon-orange/40">
+                <Users className="text-neon-orange" size={22} />
+              </div>
+              <div className="flex-1">
+                <h3 className="text-xl font-bold text-white">
+                  {needsTeam ? 'Join a team to continue' : 'Account not verified'}
+                </h3>
+                <p className="text-white/60 mt-1 text-sm">
+                  {needsTeam
+                    ? 'Your account is registered individually. You won’t be able to view events or challenges until you join a team.'
+                    : 'Your account is not verified yet. Please contact your Zone Admin or Master Admin for verification.'}
+                </p>
+              </div>
+            </div>
+
+            <div className="mt-5 grid grid-cols-1 gap-3">
+              {needsTeam && (
+                <div>
+                  <label className="text-sm font-semibold text-white/70">Team Code</label>
+                  <div className="mt-2 flex gap-2">
+                    <input
+                      value={joinTeamCode}
+                      onChange={(e) => setJoinTeamCode(e.target.value)}
+                      placeholder="Enter team code (e.g., ABC123)"
+                      className="flex-1 px-4 py-3 bg-cyber-800/60 border-2 border-neon-green/20 rounded-xl focus:outline-none focus:border-neon-green focus:ring-4 focus:ring-neon-green/20 text-white placeholder:text-white/30"
+                      onKeyDown={(e) => {
+                        if (e.key === 'Enter') handleJoinTeamFromGate();
+                      }}
+                    />
+                    <Button
+                      onClick={handleJoinTeamFromGate}
+                      disabled={isJoiningTeam}
+                      className="px-6"
+                    >
+                      {isJoiningTeam ? 'Joining...' : 'Join'}
+                    </Button>
+                  </div>
+                </div>
+              )}
+
+              <div className="mt-2 text-xs text-white/50">
+                {needsTeam
+                  ? 'If you don’t have a team code, contact your Zone Admin or Master to be added to a team.'
+                  : 'Only Master Admin and Zone Admin can change verification status.'}
+              </div>
+
+              <div className="mt-3 flex items-center justify-between gap-3">
+                <Button
+                  variant="outline"
+                  onClick={handleLogout}
+                  className="border-2 border-neon-orange/40 hover:bg-neon-orange/10 text-neon-orange"
+                >
+                  Logout
+                </Button>
+                <div className="text-xs text-white/40">
+                  {needsTeam
+                    ? 'You must join a team to access events and challenges.'
+                    : 'Verification is required to join events and access challenges.'}
+                </div>
+              </div>
+            </div>
+          </div>
+        </div>
+      )}
 
       {/* Top Navigation Bar */}
       <div className="bg-cyber-900/90 backdrop-blur-xl border-b border-neon-green/20 shadow-lg sticky top-0 z-50 relative">
@@ -771,6 +908,20 @@ export default function Dashboard() {
                               </div>
                             </>
                           )}
+                          <div>
+                            <label className="text-sm font-semibold text-white/60">Verification</label>
+                            <div className="mt-1">
+                              {userProfile.is_verified === false ? (
+                                <span className="inline-flex items-center px-2 py-1 rounded-full text-xs font-semibold bg-neon-orange/10 text-neon-orange border border-neon-orange/30">
+                                  Not Verified
+                                </span>
+                              ) : (
+                                <span className="inline-flex items-center px-2 py-1 rounded-full text-xs font-semibold bg-neon-green/10 text-neon-green border border-neon-green/30">
+                                  Verified
+                                </span>
+                              )}
+                            </div>
+                          </div>
                         </div>
                       </div>
                     </div>
@@ -852,6 +1003,9 @@ export default function Dashboard() {
                   </div>
                 )}
 
+                {/* Events + Challenges are gated for individually registered users OR unverified users */}
+                {!(needsTeam || needsVerification) ? (
+                  <>
                 {/* Events Section */}
                 <div className="mt-6">
                   <UserEvents 
@@ -862,6 +1016,26 @@ export default function Dashboard() {
 
                 {/* Challenges Section */}
                 <UserChallenges teamId={team?.id} refreshKey={challengesRefreshKey} />
+                  </>
+                ) : (
+                  <div className="mt-6 bg-cyber-900/80 backdrop-blur-xl rounded-2xl shadow-lg border border-neon-orange/20 terminal-border p-6">
+                    <div className="flex items-start gap-4">
+                      <div className="w-10 h-10 bg-neon-orange/10 rounded-xl flex items-center justify-center border border-neon-orange/30">
+                        <Users className="text-neon-orange" size={18} />
+                      </div>
+                      <div>
+                        <h3 className="text-lg font-bold text-white">
+                          {needsTeam ? 'Team required' : 'Verification required'}
+                        </h3>
+                        <p className="text-white/60 text-sm mt-1">
+                          {needsTeam
+                            ? 'Join a team using a team code to access Events and Challenges.'
+                            : 'Your account must be verified by Master/Zone Admin to join events and access challenges.'}
+                        </p>
+                      </div>
+                    </div>
+                  </div>
+                )}
 
                 {/* Scoreboard Section */}
                 <div className="mt-6">
@@ -938,6 +1112,18 @@ export default function Dashboard() {
                         <Button
                           variant="outline"
                           size="md"
+                          onClick={() => setShowUnverifiedOnly((v) => !v)}
+                          className={`border-2 ${
+                            showUnverifiedOnly
+                              ? 'border-neon-orange/50 text-neon-orange hover:bg-neon-orange/10'
+                              : 'border-neon-cyan/30 text-white hover:bg-neon-cyan/10'
+                          }`}
+                        >
+                          {showUnverifiedOnly ? 'Showing Unverified' : 'Show Unverified'}
+                        </Button>
+                        <Button
+                          variant="outline"
+                          size="md"
                           onClick={handleAdminRefresh}
                           disabled={isLoadingUsers}
                           className="border-neon-green/30 hover:bg-neon-green/10 text-white"
@@ -960,6 +1146,7 @@ export default function Dashboard() {
                               <th className="px-4 py-3 text-left text-sm font-semibold text-white">Username</th>
                               <th className="px-4 py-3 text-left text-sm font-semibold text-white">Email</th>
                               <th className="px-4 py-3 text-left text-sm font-semibold text-white">Role</th>
+                              <th className="px-4 py-3 text-left text-sm font-semibold text-white">Verified</th>
                               <th className="px-4 py-3 text-left text-sm font-semibold text-white">Zone</th>
                               <th className="px-4 py-3 text-left text-sm font-semibold text-white">Team</th>
                               <th className="px-4 py-3 text-left text-sm font-semibold text-white">Team Status</th>
@@ -970,13 +1157,13 @@ export default function Dashboard() {
                           <tbody>
                             {isLoadingUsers ? (
                               <tr>
-                                <td colSpan={8} className="px-4 py-8 text-center text-white/60">
+                                <td colSpan={9} className="px-4 py-8 text-center text-white/60">
                                   Loading users...
                                 </td>
                               </tr>
                             ) : filteredUsers.length === 0 ? (
                               <tr>
-                                <td colSpan={8} className="px-4 py-8 text-center text-white/60">
+                                <td colSpan={9} className="px-4 py-8 text-center text-white/60">
                                   {userSearchTerm ? 'No users found matching your search.' : 'No users available.'}
                                 </td>
                               </tr>
@@ -996,6 +1183,17 @@ export default function Dashboard() {
                                     </a>
                                   </td>
                                   <td className="px-4 py-3 text-white/80">{user.role}</td>
+                                  <td className="px-4 py-3">
+                                    {user.is_verified === false ? (
+                                      <span className="inline-flex items-center px-2 py-1 rounded-full text-xs font-semibold bg-neon-orange/10 text-neon-orange border border-neon-orange/30">
+                                        No
+                                      </span>
+                                    ) : (
+                                      <span className="inline-flex items-center px-2 py-1 rounded-full text-xs font-semibold bg-neon-green/10 text-neon-green border border-neon-green/30">
+                                        Yes
+                                      </span>
+                                    )}
+                                  </td>
                                   <td className="px-4 py-3 text-white/80">{user.zone || 'N/A'}</td>
                                   <td className="px-4 py-3 text-white/80">
                                     {user.team_name ? (
@@ -1024,6 +1222,21 @@ export default function Dashboard() {
                                   </td>
                                   <td className="px-4 py-3">
                                     <div className="flex flex-wrap gap-2">
+                                      {(isMaster || isZoneAdmin) && user.role === 'User' ? (
+                                        <Button
+                                          size="sm"
+                                          variant="outline"
+                                          onClick={() => handleToggleUserVerification(user.id, user.is_verified === false)}
+                                          className={`border-2 ${
+                                            user.is_verified === false
+                                              ? 'border-neon-green/40 hover:bg-neon-green/10 text-neon-green'
+                                              : 'border-neon-orange/40 hover:bg-neon-orange/10 text-neon-orange'
+                                          }`}
+                                        >
+                                          {user.is_verified === false ? 'Verify User' : 'Unverify User'}
+                                        </Button>
+                                      ) : null}
+
                                       {isMaster && user.team_id && adminTeamsById[user.team_id] ? (
                                         <Button
                                           size="sm"
@@ -1113,13 +1326,13 @@ export default function Dashboard() {
                   <div className="space-y-6">
                     {/* Master Notification Center */}
                     {isMaster && (
-                      <div className="bg-cyber-900/80 backdrop-blur-xl rounded-2xl shadow-lg border border-neon-green/20 terminal-border p-6">
+                    <div className="bg-cyber-900/80 backdrop-blur-xl rounded-2xl shadow-lg border border-neon-green/20 terminal-border p-6">
                         <div className="flex items-center justify-between gap-3 flex-wrap mb-4">
                           <div className="flex items-center gap-3">
                             <div className="w-10 h-10 bg-neon-green/20 rounded-xl flex items-center justify-center border border-neon-green/40">
                               <Bell className="text-neon-green" size={20} />
                             </div>
-                            <div>
+                        <div>
                               <h3 className="text-xl font-bold text-white gradient-text">Send a Notification</h3>
                               <p className="text-white/60 text-sm">Broadcast to all users/teams (optionally filter by zone)</p>
                             </div>
@@ -1283,7 +1496,7 @@ export default function Dashboard() {
                           </div>
                           <div>
                             <h3 className="text-2xl font-bold text-white mb-1 gradient-text">Statistics Dashboard</h3>
-                            <p className="text-white/60 text-sm">Scores + event analytics (attempts, solves, categories)</p>
+                          <p className="text-white/60 text-sm">Scores + event analytics (attempts, solves, categories)</p>
                           </div>
                         </div>
                         <div className="flex gap-2">
@@ -1317,7 +1530,7 @@ export default function Dashboard() {
                           </div>
                           <div>
                             <h4 className="text-xl font-bold text-white">Scoring Overview</h4>
-                            <p className="text-white/60 text-sm">Top teams by points (live from submissions)</p>
+                          <p className="text-white/60 text-sm">Top teams by points (live from submissions)</p>
                           </div>
                         </div>
 
@@ -1403,7 +1616,7 @@ export default function Dashboard() {
                                         borderRadius: '8px',
                                         color: '#fff'
                                       }}
-                                      formatter={(value: any, name: string) => {
+                                      formatter={(value: any, name?: string) => {
                                         if (name === 'points') return [`${value} points`, 'Points'];
                                         if (name === 'solves') return [`${value} solves`, 'Solves'];
                                         return value;
@@ -1427,7 +1640,7 @@ export default function Dashboard() {
                                   {adminScoreboard.slice(0, 10).map((row: any, idx: number) => {
                                     const maxPoints = Math.max(...adminScoreboard.slice(0, 10).map((r: any) => Number(r.points || 0)), 1);
                                     const pointsPercent = ((Number(row.points || 0)) / maxPoints) * 100;
-                                    return (
+                                return (
                                       <div 
                                         key={row.team_id} 
                                         className="p-4 bg-cyber-800/50 border border-neon-cyan/10 rounded-lg hover:border-neon-cyan/30 transition-all"
@@ -1452,7 +1665,7 @@ export default function Dashboard() {
                                             <div className="text-white/60 text-xs">points</div>
                                           </div>
                                         </div>
-                                        <div className="space-y-2">
+                                  <div className="space-y-2">
                                           <div className="flex items-center justify-between text-xs text-white/60">
                                             <span>Solves: {row.solves || 0}</span>
                                             <span>Rank: #{row.rank ?? idx + 1}</span>
@@ -1463,11 +1676,11 @@ export default function Dashboard() {
                                               style={{ width: `${Math.min(pointsPercent, 100)}%` }}
                                             />
                                           </div>
+                                          </div>
                                         </div>
-                                      </div>
-                                    );
-                                  })}
-                                </div>
+                                      );
+                                    })}
+                                  </div>
                               </div>
                             </div>
 

@@ -12,7 +12,7 @@ Tests all EventService endpoints including:
 - Statistics and scoreboard
 
 Usage:
-    python test_event_service.py [--base-url http://localhost:8001]
+    python test_event_service.py [--base-url http://localhost:8000]
 """
 
 import requests
@@ -23,7 +23,7 @@ from datetime import datetime, timedelta
 from typing import Optional, Dict, Any
 
 # Configuration
-BASE_URL = "http://localhost:8001"
+BASE_URL = "http://localhost:8000"
 API_PREFIX = "/api/v1"
 
 # Test credentials - Use the hardcoded master password from auth_service.py

@@ -123,6 +123,14 @@ async def list_challenges(
       - Restricted to teams that include their team
     """
     try:
+        # PACSTAR policy: individual (non-team) users must join a team before they can see challenges.
+        user_dict = current_user.dict() if hasattr(current_user, 'dict') else dict(current_user)
+        if current_user.role == "User" and not (user_dict.get("team_id") or user_dict.get("team_code")):
+            return ChallengeListResponse(challenges=[], total=0)
+        # PACSTAR policy: only verified users can access challenges.
+        if current_user.role == "User" and not user_dict.get("is_verified", True):
+            return ChallengeListResponse(challenges=[], total=0)
+
         challenges = await challenge_service.list_challenges(skip=skip, limit=limit)
         
         # Filter challenges based on user role, zone, and team restrictions
@@ -476,6 +484,14 @@ async def start_challenge_instance(
             status_code=status.HTTP_400_BAD_REQUEST,
             detail="Master users should use /deploy endpoint instead"
         )
+
+    # PACSTAR policy: individual (non-team) users cannot start challenges.
+    user_dict = current_user.dict() if hasattr(current_user, 'dict') else dict(current_user)
+    if not (user_dict.get("team_id") or user_dict.get("team_code")):
+        raise HTTPException(status_code=status.HTTP_403_FORBIDDEN, detail="Join a team to start challenges")
+    # PACSTAR policy: only verified users can start challenges.
+    if not user_dict.get("is_verified", True):
+        raise HTTPException(status_code=status.HTTP_403_FORBIDDEN, detail="Account not verified. Contact your Admin/Master.")
     
     # Get user's team_id
     team_id = _get_user_team_id(current_user)
@@ -522,6 +538,14 @@ async def reset_challenge_instance(
             status_code=status.HTTP_400_BAD_REQUEST,
             detail="Master users should manage instances from admin panel"
         )
+
+    # PACSTAR policy: individual (non-team) users cannot reset challenges.
+    user_dict = current_user.dict() if hasattr(current_user, 'dict') else dict(current_user)
+    if not (user_dict.get("team_id") or user_dict.get("team_code")):
+        raise HTTPException(status_code=status.HTTP_403_FORBIDDEN, detail="Join a team to reset challenges")
+    # PACSTAR policy: only verified users can reset challenges.
+    if not user_dict.get("is_verified", True):
+        raise HTTPException(status_code=status.HTTP_403_FORBIDDEN, detail="Account not verified. Contact your Admin/Master.")
     
     # Get user's team_id
     team_id = _get_user_team_id(current_user)
@@ -604,6 +628,13 @@ async def submit_flag(
     """
     Submit a flag for a challenge. Awards points if correct and not previously solved by the team.
     """
+    # PACSTAR policy: individual (non-team) users cannot submit flags.
+    user_dict = current_user.dict() if hasattr(current_user, 'dict') else dict(current_user)
+    if current_user.role == "User" and not (user_dict.get("team_id") or user_dict.get("team_code")):
+        raise HTTPException(status_code=status.HTTP_403_FORBIDDEN, detail="Join a team to submit flags")
+    # PACSTAR policy: only verified users can submit flags.
+    if current_user.role == "User" and not user_dict.get("is_verified", True):
+        raise HTTPException(status_code=status.HTTP_403_FORBIDDEN, detail="Account not verified. Contact your Admin/Master.")
     # Determine team id of current user
     team_id = _get_user_team_id(current_user)
     try:

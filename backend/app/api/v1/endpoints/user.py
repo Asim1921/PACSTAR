@@ -1,11 +1,21 @@
 from fastapi import APIRouter, Depends, Request, HTTPException, status
 from app.services.user_service import UserService
 from app.db.models.user import UserInDB, UserPublic
-from app.schemas.user import UserUpdate, PasswordResetRequest
+from app.schemas.user import UserUpdate, PasswordResetRequest, UserVerificationUpdate, UserResponse
 
 
 router = APIRouter(prefix="/users", tags=["users"])
 user_service = UserService()
+
+def _to_user_response(user: UserInDB) -> UserResponse:
+    """Normalize DB user model to API response with `id` string (not `_id`)."""
+    data = user.dict(by_alias=True) if hasattr(user, "dict") else dict(user)
+    if "_id" in data:
+        data["id"] = str(data.pop("_id"))
+    # Ensure team_id is string if present
+    if data.get("team_id") is not None:
+        data["team_id"] = str(data["team_id"])
+    return UserResponse(**data)
 
 
 # Dependency to get current user from RBAC middleware
@@ -19,25 +29,25 @@ async def get_current_user(request: Request) -> UserInDB:
     return user
 
 
-@router.get("/", response_model=list[UserPublic])
+@router.get("/", response_model=list[UserResponse])
 async def list_users(current_user: UserInDB = Depends(get_current_user)):
     """
     List all users (Master/Admin only).
     Zone-restricted for Admins.
     """
     users = await user_service.list_users(current_user)
-    return [UserPublic.model_validate(u.dict(by_alias=True)) for u in users]
+    return [_to_user_response(u) for u in users]
 
 
-@router.get("/me", response_model=UserPublic)
+@router.get("/me", response_model=UserResponse)
 async def get_me(current_user: UserInDB = Depends(get_current_user)):
     """
     Get your own profile.
     """
-    return UserPublic.model_validate(current_user.dict(by_alias=True))
+    return _to_user_response(current_user)
 
 
-@router.get("/{user_id}", response_model=UserPublic)
+@router.get("/{user_id}", response_model=UserResponse)
 async def get_user(user_id: str, current_user: UserInDB = Depends(get_current_user)):
     """
     Get a single user profile.
@@ -61,10 +71,10 @@ async def get_user(user_id: str, current_user: UserInDB = Depends(get_current_us
             detail="Admins can only view users in their own zone",
         )
 
-    return UserPublic.model_validate(user.dict(by_alias=True))
+    return _to_user_response(user)
 
 
-@router.put("/{user_id}", response_model=UserPublic)
+@router.put("/{user_id}", response_model=UserResponse)
 async def update_user(
     user_id: str,
     update: UserUpdate,
@@ -74,7 +84,7 @@ async def update_user(
     Update user details (role + zone restrictions applied).
     """
     updated = await user_service.update_user(current_user, user_id, update)
-    return UserPublic.model_validate(updated.dict(by_alias=True))
+    return _to_user_response(updated)
 
 
 @router.post("/{user_id}/reset-password", response_model=dict)
@@ -95,3 +105,18 @@ async def reset_user_password(
     update = UserUpdate(password=body.new_password)
     updated = await user_service.update_user(current_user, user_id, update)
     return {"success": True, "user_id": str(updated.id)}
+
+
+@router.patch("/{user_id}/verify", response_model=UserResponse)
+async def set_user_verification(
+    user_id: str,
+    body: UserVerificationUpdate,
+    current_user: UserInDB = Depends(get_current_user),
+):
+    """
+    Set a user's verification status (Master/Admin only).
+    - Master: can verify/unverify any User in any zone
+    - Admin: can verify/unverify Users in their own zone only; cannot verify Admin/Master
+    """
+    updated = await user_service.set_user_verification(current_user, user_id, body.is_verified)
+    return _to_user_response(updated)

@@ -148,3 +148,51 @@ class UserService:
             doc["_id"] = str(doc["_id"])   # ✅ normalize each user
             users.append(UserInDB.model_validate(doc))
         return users
+
+    async def set_user_verification(
+        self,
+        current_user: UserInDB,
+        target_user_id: str,
+        is_verified: bool,
+    ) -> UserInDB:
+        """Set user verification status (Master/Admin only; zone-restricted for Admin)."""
+        if current_user.role not in ["Master", "Admin"]:
+            raise HTTPException(status_code=status.HTTP_403_FORBIDDEN, detail="Not authorized")
+
+        if not ObjectId.is_valid(target_user_id):
+            raise HTTPException(status_code=400, detail="Invalid target user ID")
+
+        target_user = await self.users.find_one({"_id": ObjectId(target_user_id)})
+        if not target_user:
+            raise HTTPException(status_code=404, detail="Target user not found")
+
+        # Zone admin restrictions
+        if current_user.role == "Admin":
+            if target_user.get("zone") != current_user.zone:
+                raise HTTPException(
+                    status_code=status.HTTP_403_FORBIDDEN,
+                    detail="Admins can only manage users in their own zone",
+                )
+            if target_user.get("role") in ["Admin", "Master"]:
+                raise HTTPException(
+                    status_code=status.HTTP_403_FORBIDDEN,
+                    detail="Admins cannot modify Admin or Master accounts",
+                )
+
+        # Only allow verifying regular users
+        if target_user.get("role") != "User":
+            raise HTTPException(
+                status_code=status.HTTP_400_BAD_REQUEST,
+                detail="Only User accounts have verification status",
+            )
+
+        await self.users.update_one(
+            {"_id": ObjectId(target_user_id)},
+            {"$set": {"is_verified": bool(is_verified)}},
+        )
+
+        updated = await self.users.find_one({"_id": ObjectId(target_user_id)})
+        if not updated:
+            raise HTTPException(status_code=404, detail="Updated user not found")
+        updated["_id"] = str(updated["_id"])
+        return UserInDB.model_validate(updated)

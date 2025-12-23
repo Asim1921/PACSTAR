@@ -31,7 +31,7 @@ import json
 # Configuration
 # =============================================================================
 
-BASE_URL = "http://localhost:8001"
+BASE_URL = "http://localhost:8000"
 API_PREFIX = "/api/v1"
 
 # Test credentials - Master user should be pre-created in DB

@@ -125,6 +125,10 @@ async def list_events(
 ):
     """List events with filtering"""
     try:
+        # PACSTAR policy: individual (non-team) users must join a team before they can see events.
+        if current_user.role == "User" and not getattr(current_user, "team_id", None):
+            return EventListResponse(events=[], total=0)
+
         events = await event_service.list_events(
             user_role=current_user.role,
             user_zone=current_user.zone,
@@ -442,6 +446,10 @@ async def get_event(
 ):
     """Get event by ID"""
     try:
+        # PACSTAR policy: individual (non-team) users must join a team before they can view event details.
+        if current_user.role == "User" and not getattr(current_user, "team_id", None):
+            raise HTTPException(status_code=status.HTTP_403_FORBIDDEN, detail="Join a team to access events")
+
         event = await event_service.get_event(
             event_id=event_id,
             user_role=current_user.role,
@@ -1059,6 +1067,14 @@ async def register_for_event(
 ):
     """Register for an event"""
     try:
+        # PACSTAR policy: users must be part of a team to register for events.
+        if current_user.role == "User" and not getattr(current_user, "team_id", None):
+            raise HTTPException(status_code=status.HTTP_403_FORBIDDEN, detail="Join a team to register for events")
+
+        # PACSTAR policy: users must be verified to register for events.
+        if current_user.role == "User" and not getattr(current_user, "is_verified", True):
+            raise HTTPException(status_code=status.HTTP_403_FORBIDDEN, detail="Account not verified. Contact your Admin/Master.")
+
         # Get team info if available
         team_id = getattr(current_user, 'team_id', None)
         team_name = None
@@ -1100,6 +1116,10 @@ async def check_registration_status(
 ):
     """Check if user is registered for an event"""
     try:
+        # PACSTAR policy: users must be part of a team to access event registration info.
+        if current_user.role == "User" and not getattr(current_user, "team_id", None):
+            return {"is_registered": False, "event_id": event_id}
+
         user_dict = current_user.dict() if hasattr(current_user, 'dict') else dict(current_user)
         team_id = user_dict.get('team_id')
         

@@ -29,7 +29,7 @@ from enum import Enum
 # Configuration
 # =============================================================================
 
-DEFAULT_BASE_URL = "http://localhost:8001"
+DEFAULT_BASE_URL = "http://localhost:8000"
 API_PREFIX = "/api/v1"
 
 # Test credentials - login uses username field (not email)

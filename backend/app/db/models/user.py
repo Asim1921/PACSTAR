@@ -29,6 +29,10 @@ class UserBase(BaseModel):
     role: str = Field(default="User")  # Master, Admin, User
     zone: str = Field(..., min_length=2, max_length=50)  # ✅ Zone assignment
     is_active: bool = True
+    # User verification gate:
+    # - New users should typically start unverified (set during registration)
+    # - Existing DB docs may not have this field; default True keeps backward compatibility
+    is_verified: bool = True
 
 
 class UserCreate(UserBase):

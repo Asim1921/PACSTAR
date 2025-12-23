@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server';
 
-const API_BASE_URL = 'http://192.168.15.248:8000/api/v1';
+// Backend now served over HTTPS on port 8000
+const API_BASE_URL = 'https://192.168.15.248:8000/api/v1';
 
 export async function GET(
   request: NextRequest,

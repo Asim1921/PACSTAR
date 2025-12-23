@@ -7,6 +7,8 @@ class UserBase(BaseModel):
     email: EmailStr
     role: str = Field(default="User", description="User role: Master, Admin, or User")
     is_active: bool = Field(default=True, description="Whether the account is active")
+    # Verification status for gating access to events/challenges
+    is_verified: bool = Field(default=True, description="Whether the user has been verified by Master/Admin")
     zone: str = Field(..., min_length=2, max_length=50, description="Zone assigned to the user")  # ✅ new field
 
 
@@ -31,6 +33,11 @@ class UserResponse(UserBase):
     id: str = Field(..., description="User ID as string")
     team_code: Optional[str] = Field(None, description="Team code if user belongs to a team")
     team_id: Optional[str] = Field(None, description="Team ID if user belongs to a team")
+
+
+class UserVerificationUpdate(BaseModel):
+    """Body for toggling user verification (Master/Admin only)."""
+    is_verified: bool = Field(..., description="Set user verification status")
 
 
 class UserListResponse(BaseModel):

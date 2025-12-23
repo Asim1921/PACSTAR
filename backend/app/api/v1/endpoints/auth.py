@@ -33,6 +33,7 @@ async def register_user(request: RegisterRequest):
         "role": user.role,
         "zone": user.zone,      
         "is_active": user.is_active,
+        "is_verified": getattr(user, "is_verified", True),
     }
     # Add team info if available (check user document for team fields)
     user_doc = await auth_service.users.find_one({"_id": user.id})
@@ -100,5 +101,8 @@ async def get_me(request: Request):
                 user_dict["team_id"] = str(user_doc["team_id"])
             if user_doc.get("team_code"):
                 user_dict["team_code"] = user_doc["team_code"]
+            # Ensure verification status is always present (backward compatible for older docs)
+            if "is_verified" not in user_dict:
+                user_dict["is_verified"] = user_doc.get("is_verified", True)
 
     return UserResponse(**user_dict)

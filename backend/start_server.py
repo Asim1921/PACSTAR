@@ -28,12 +28,48 @@ if __name__ == "__main__":
     
     print("🚀 Starting PACSTAR Challenge Management Server")
     print("📋 Environment: Development")
-    print("🌐 Server will be available at: http://localhost:8000")
-    print("📚 API Documentation: http://localhost:8000/api/v1/docs")
-    print("=" * 60)
+
+    # Load SSL config from either:
+    # - real environment variables (exported)
+    # - backend/.env via app.core.config.settings
+    # - fallback default certs in ~/certs
+    #
+    # Note: Frontend uses SSL_CRT_FILE sometimes; accept that alias too.
+    try:
+        from app.core.config import settings  # reads backend/.env
+    except Exception:
+        settings = None
     
-    ssl_certfile = os.environ.get("SSL_CERT_FILE") or None
-    ssl_keyfile = os.environ.get("SSL_KEY_FILE") or None
+    default_cert = Path.home() / "certs" / "192.168.15.248+2.pem"
+    default_key = Path.home() / "certs" / "192.168.15.248+2-key.pem"
+
+    env_cert = os.environ.get("SSL_CERT_FILE") or os.environ.get("SSL_CRT_FILE")
+    env_key = os.environ.get("SSL_KEY_FILE")
+
+    cfg_cert = getattr(settings, "SSL_CERT_FILE", None) if settings else None
+    cfg_key = getattr(settings, "SSL_KEY_FILE", None) if settings else None
+
+    ssl_certfile = env_cert or cfg_cert or (str(default_cert) if default_cert.exists() else None)
+    ssl_keyfile = env_key or cfg_key or (str(default_key) if default_key.exists() else None)
+
+    # Validate paths; if only one exists, disable SSL and print guidance.
+    cert_ok = bool(ssl_certfile and Path(ssl_certfile).exists())
+    key_ok = bool(ssl_keyfile and Path(ssl_keyfile).exists())
+
+    if not (cert_ok and key_ok):
+        if ssl_certfile or ssl_keyfile:
+            print("⚠️  SSL configured but cert/key files were not found:")
+            print(f"   SSL_CERT_FILE={ssl_certfile} (exists={cert_ok})")
+            print(f"   SSL_KEY_FILE={ssl_keyfile} (exists={key_ok})")
+        else:
+            print("ℹ️  SSL not configured (no cert/key found). Starting in HTTP mode.")
+        ssl_certfile = None
+        ssl_keyfile = None
+
+    scheme = "https" if (ssl_certfile and ssl_keyfile) else "http"
+    print(f"🌐 Server will be available at: {scheme}://localhost:8000")
+    print(f"📚 API Documentation: {scheme}://localhost:8000/api/v1/docs")
+    print("=" * 60)
 
     uvicorn.run(
         "app.main:app",

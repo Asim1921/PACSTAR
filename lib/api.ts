@@ -5,7 +5,7 @@ import axios from 'axios';
 const USE_PROXY = true; // Set to false to call backend directly (requires CORS fix on backend)
 const API_BASE_URL = USE_PROXY 
   ? '/api/proxy'  // Next.js API route proxy
-  : 'http://localhost:8001/api/v1';  // Direct backend URL
+  : 'https://192.168.15.248:8000/api/v1';  // Direct backend URL (HTTPS on 8000)
 
 /**
  * IMPORTANT: We use sessionStorage for auth/user state to prevent cross-tab session bleed.
@@ -265,6 +265,13 @@ export const userAPI = {
   resetPassword: async (userId: string, newPassword: string) => {
     const path = USE_PROXY ? `/users/${userId}/reset-password` : `/users/${userId}/reset-password`;
     const response = await apiClient.post(path, { new_password: newPassword });
+    return response.data;
+  },
+
+  // Verify/Unverify user (Master/Admin only)
+  setUserVerified: async (userId: string, isVerified: boolean) => {
+    const path = USE_PROXY ? `/users/${userId}/verify` : `/users/${userId}/verify`;
+    const response = await apiClient.patch(path, { is_verified: isVerified });
     return response.data;
   },
 };

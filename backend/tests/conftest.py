@@ -32,7 +32,7 @@ def pytest_collection_modifyitems(config, items):
 @pytest.fixture(scope="session")
 def base_url():
     """Get base URL from environment or use default"""
-    return os.environ.get("TEST_BASE_URL", "http://localhost:8001")
+    return os.environ.get("TEST_BASE_URL", "http://localhost:8000")
 
 
 @pytest.fixture(scope="session")

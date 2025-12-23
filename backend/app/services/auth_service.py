@@ -115,6 +115,8 @@ class AuthService:
             "hashed_password": hash_password(request.password),
             "role": "User",
             "is_active": True,
+            # New registrations start unverified by default (Master/Admin can verify later).
+            "is_verified": False,
             "zone": zone,
             "created_at": datetime.utcnow(),
             "last_login": None,

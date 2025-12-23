@@ -3,7 +3,7 @@
   "version": "1.0.0",
   "private": true,
   "scripts": {
-    "dev": "next dev",
+    "dev": "SSL_CRT_FILE=/home/pacstar/certs/192.168.15.248+2.pem SSL_KEY_FILE=/home/pacstar/certs/192.168.15.248+2-key.pem next dev --hostname 0.0.0.0 --port 3000 --experimental-https",
     "build": "next build",
     "start": "next start",
     "lint": "next lint"

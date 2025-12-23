@@ -4,7 +4,7 @@ EventService API Test Suite
 Comprehensive tests for all EventService endpoints.
 Uses requests library with proper session management.
 
-Run with: python3 tests/test_event_api.py --base-url http://localhost:8001
+Run with: python3 tests/test_event_api.py --base-url http://localhost:8000
 """
 
 import argparse
@@ -20,7 +20,7 @@ from typing import Dict, Any, Optional, List
 # Configuration
 # =============================================================================
 
-DEFAULT_BASE_URL = "http://localhost:8001"
+DEFAULT_BASE_URL = "http://localhost:8000"
 API_PREFIX = "/api/v1"
 
 MASTER_CREDENTIALS = {
