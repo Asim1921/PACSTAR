@@ -56,3 +56,9 @@ class TeamListResponse(BaseModel):
 class JoinTeamRequest(BaseModel):
     team_code: str = Field(..., min_length=3, max_length=20, description="Team code to join")
 
+
+class MoveUserToTeamRequest(BaseModel):
+    """Master-only: move any (non-leader) user into a team by team code."""
+    user_id: str = Field(..., description="User ID to move")
+    team_code: str = Field(..., min_length=3, max_length=20, description="Destination team code")
+

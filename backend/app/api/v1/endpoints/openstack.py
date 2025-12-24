@@ -189,6 +189,7 @@ async def deploy_heat_template(
             parameters=request.parameters,
             timeout_minutes=request.timeout_minutes,
             rollback_on_failure=request.rollback_on_failure,
+            reuse_if_exists=True,
         )
     except ValueError as exc:
         raise HTTPException(

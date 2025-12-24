@@ -14,6 +14,7 @@ from app.api.v1.endpoints import builder
 from app.api.v1.endpoints import openstack as openstack_routes
 from app.api.v1.endpoints import event as event_routes
 from app.api.v1.endpoints import flag_server as flag_server_routes
+from app.api.v1.endpoints import maintenance as maintenance_routes
 from app.db.models.challenge import initialize_challenge_models
 from app.services.event_service import EventService
 from app.schemas.event import EventStatus
@@ -77,6 +78,7 @@ app.include_router(builder.router, prefix=f"{settings.API_V1_PREFIX}/builder")
 app.include_router(openstack_routes.router, prefix=settings.API_V1_PREFIX)
 app.include_router(event_routes.router, prefix=settings.API_V1_PREFIX)
 app.include_router(flag_server_routes.router, prefix=settings.API_V1_PREFIX)
+app.include_router(maintenance_routes.router, prefix=settings.API_V1_PREFIX)
 
 
 @app.on_event("startup")

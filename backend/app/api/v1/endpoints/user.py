@@ -2,6 +2,8 @@ from fastapi import APIRouter, Depends, Request, HTTPException, status
 from app.services.user_service import UserService
 from app.db.models.user import UserInDB, UserPublic
 from app.schemas.user import UserUpdate, PasswordResetRequest, UserVerificationUpdate, UserResponse
+from pydantic import BaseModel, Field, EmailStr
+from typing import Optional
 
 
 router = APIRouter(prefix="/users", tags=["users"])
@@ -120,3 +122,38 @@ async def set_user_verification(
     """
     updated = await user_service.set_user_verification(current_user, user_id, body.is_verified)
     return _to_user_response(updated)
+
+
+@router.delete("/{user_id}", response_model=dict)
+async def delete_user(
+    user_id: str,
+    current_user: UserInDB = Depends(get_current_user),
+):
+    """
+    Delete a user (Master/Admin).
+    - Prevents deleting Master accounts
+    - Prevents deleting team leaders unless team is deleted first
+    """
+    return await user_service.delete_user(current_user, user_id)
+
+
+class AdminCreateRequest(BaseModel):
+    username: str = Field(..., min_length=3, max_length=50)
+    email: EmailStr
+    password: str = Field(..., min_length=8)
+    zone: str = Field(..., min_length=2, max_length=50)
+    # If provided, create a team for this Admin so others can join via team_code.
+    team_name: Optional[str] = Field(None, min_length=2, max_length=80)
+
+
+@router.post("/create-admin", response_model=UserResponse)
+async def create_admin_user(
+    body: AdminCreateRequest,
+    current_user: UserInDB = Depends(get_current_user),
+):
+    """
+    Create an Admin user (Master only).
+    Master can create zone admins directly by providing username/email/password/zone.
+    """
+    created = await user_service.create_admin_user(current_user=current_user, body=body)
+    return _to_user_response(created)

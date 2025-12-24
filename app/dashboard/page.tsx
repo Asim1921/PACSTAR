@@ -5,6 +5,7 @@ import { useRouter } from 'next/navigation';
 import { Shield, LogOut, User, Target, RefreshCw, ChevronDown, ChevronUp, Mail, Users, Crown, FileText, BookOpen, CheckCircle, Settings, Trophy, FileCode, BarChart3, Search, Cloud, Menu, X, Calendar, TrendingUp, Award, Activity, Bell, Send } from 'lucide-react';
 import { BarChart, Bar, LineChart, Line, PieChart, Pie, Cell, XAxis, YAxis, CartesianGrid, Tooltip, Legend, ResponsiveContainer, AreaChart, Area, RadarChart, PolarGrid, PolarAngleAxis, PolarRadiusAxis, Radar } from 'recharts';
 import { Button } from '@/components/ui/Button';
+import { Input } from '@/components/ui/Input';
 import { Select } from '@/components/ui/Select';
 import { authAPI, userAPI, teamAPI, challengeAPI, eventAPI } from '@/lib/api';
 import { useToast } from '@/components/ui/ToastProvider';
@@ -92,12 +93,20 @@ export default function Dashboard() {
   const [isLoadingUsers, setIsLoadingUsers] = useState(false);
   const [userSearchTerm, setUserSearchTerm] = useState('');
   const [showUnverifiedOnly, setShowUnverifiedOnly] = useState(false);
-  const [adminScoreboard, setAdminScoreboard] = useState<any[]>([]);
-  const [isLoadingScoreboard, setIsLoadingScoreboard] = useState(false);
+  const [showCreateAdminModal, setShowCreateAdminModal] = useState(false);
+  const [createAdminForm, setCreateAdminForm] = useState({
+    username: '',
+    email: '',
+    password: '',
+    zone: 'zone1',
+    team_name: '',
+  });
+  const [isCreatingAdmin, setIsCreatingAdmin] = useState(false);
   const [statsEvents, setStatsEvents] = useState<any[]>([]);
   const [selectedStatsEventId, setSelectedStatsEventId] = useState<string>('');
   const [eventLiveStats, setEventLiveStats] = useState<any | null>(null);
   const [isLoadingLiveStats, setIsLoadingLiveStats] = useState(false);
+  const statsPollRef = useRef<any>(null);
   const [adminTeamsById, setAdminTeamsById] = useState<Record<string, Team>>({});
   const [challengesRefreshKey, setChallengesRefreshKey] = useState(0);
 
@@ -301,6 +310,13 @@ export default function Dashboard() {
     setShowTeamGate(needsTeam || needsVerification);
   }, [needsTeam, needsVerification]);
 
+  // Default Zone Admins to Admin Panel view on login
+  useEffect(() => {
+    if (isZoneAdmin && viewMode === 'user' && userProfile.role) {
+      setViewMode('admin');
+    }
+  }, [isZoneAdmin, userProfile.role]);
+
   const handleJoinTeamFromGate = async () => {
     const code = joinTeamCode.trim();
     if (!code) {
@@ -398,20 +414,6 @@ export default function Dashboard() {
     }
   };
 
-  const fetchAdminScoreboard = async () => {
-    if (!isAdminRole) return;
-    setIsLoadingScoreboard(true);
-    try {
-      const res = await challengeAPI.getScoreboard();
-      const rows = res?.scoreboard || [];
-      setAdminScoreboard(Array.isArray(rows) ? rows : []);
-    } catch (error: any) {
-      console.error('Failed to fetch scoreboard:', error);
-      // Keep this silent-ish; admins can still manage users even if scoreboard fails.
-    } finally {
-      setIsLoadingScoreboard(false);
-    }
-  };
 
   const fetchStatsEvents = async () => {
     if (!isAdminRole) return;
@@ -430,12 +432,49 @@ export default function Dashboard() {
       setIsLoadingLiveStats(true);
       const res = await eventAPI.getLiveStats(eventId);
       setEventLiveStats(res);
-    } catch (error) {
+    } catch (error: any) {
       setEventLiveStats(null);
+      // Surface the error so admins know why analytics is empty (403/404/500, etc.)
+      showToast(error?.response?.data?.detail || 'Failed to load event analytics', 'error');
     } finally {
       setIsLoadingLiveStats(false);
     }
   };
+
+  // Live polling for Event Analytics while Stats tab is open.
+  useEffect(() => {
+    const shouldPoll =
+      viewMode === 'admin' &&
+      activeAdminTab === 'stats' &&
+      isAdminRole &&
+      !!selectedStatsEventId;
+
+    if (!shouldPoll) {
+      if (statsPollRef.current) {
+        clearInterval(statsPollRef.current);
+        statsPollRef.current = null;
+      }
+      return;
+    }
+
+    // Kick once immediately
+    fetchEventLiveStats(selectedStatsEventId);
+
+    // Poll every 10s
+    if (!statsPollRef.current) {
+      statsPollRef.current = setInterval(() => {
+        fetchEventLiveStats(selectedStatsEventId);
+      }, 10_000);
+    }
+
+    return () => {
+      if (statsPollRef.current) {
+        clearInterval(statsPollRef.current);
+        statsPollRef.current = null;
+      }
+    };
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [viewMode, activeAdminTab, selectedStatsEventId, isAdminRole]);
 
   const fetchBroadcastFeed = async () => {
     if (!isMaster) return;
@@ -509,10 +548,8 @@ export default function Dashboard() {
   const handleAdminRefresh = async () => {
     if (activeAdminTab === 'users') {
       await fetchAllUsers();
-      await fetchAdminScoreboard();
       await fetchAdminTeams();
     } else if (activeAdminTab === 'stats') {
-      await fetchAdminScoreboard();
       await fetchStatsEvents();
     } else {
       showToast('Refresh functionality for this tab coming soon', 'info');
@@ -522,14 +559,12 @@ export default function Dashboard() {
   useEffect(() => {
     if (viewMode === 'admin' && activeAdminTab === 'users' && isAdminRole && allUsers.length === 0) {
       fetchAllUsers();
-      fetchAdminScoreboard();
       fetchAdminTeams();
     }
   }, [viewMode, activeAdminTab]);
 
   useEffect(() => {
     if (viewMode === 'admin' && activeAdminTab === 'stats' && isAdminRole && statsEvents.length === 0) {
-      fetchAdminScoreboard();
       fetchStatsEvents();
     }
   }, [viewMode, activeAdminTab]);
@@ -542,7 +577,6 @@ export default function Dashboard() {
       showToast(`Team ${nextActive ? 'unbanned' : 'banned'} successfully`, 'success');
       await fetchAdminTeams();
       await fetchAllUsers();
-      await fetchAdminScoreboard();
     } catch (error: any) {
       showToast(error.response?.data?.detail || 'Failed to update team status', 'error');
     }
@@ -557,6 +591,90 @@ export default function Dashboard() {
       await fetchAllUsers();
     } catch (error: any) {
       showToast(error.response?.data?.detail || 'Failed to update verification status', 'error');
+    }
+  };
+
+  const handleDeleteUser = async (userId: string, username?: string) => {
+    try {
+      // eslint-disable-next-line no-restricted-globals
+      if (!confirm(`Delete user ${username || userId}? This cannot be undone.`)) return;
+      await userAPI.deleteUser(userId);
+      showToast(`Deleted user ${username || ''}`.trim(), 'success');
+      await fetchAllUsers();
+    } catch (error: any) {
+      showToast(error.response?.data?.detail || 'Failed to delete user', 'error');
+    }
+  };
+
+  const handleDeleteTeam = async (teamId: string, teamLabel?: string) => {
+    try {
+      // eslint-disable-next-line no-restricted-globals
+      if (!confirm(`Delete team ${teamLabel || teamId}? All members will be removed from the team.`)) return;
+      await teamAPI.deleteTeam(teamId);
+      showToast(`Deleted team ${teamLabel || ''}`.trim(), 'success');
+      await fetchAdminTeams();
+      await fetchAllUsers();
+    } catch (error: any) {
+      showToast(error.response?.data?.detail || 'Failed to delete team', 'error');
+    }
+  };
+
+  const handlePromoteToZoneAdmin = async (userId: string, username?: string, currentZone?: string) => {
+    try {
+      if (!isMaster) return;
+      const defaultZone = (currentZone || '').trim() || 'zone1';
+      const zone = window.prompt(
+        `Enter zone for new Admin (e.g. zone1/zone2/zone3/zone4/zone5/main)\nUser: ${username || userId}`,
+        defaultZone
+      );
+      if (!zone) return;
+      const trimmed = zone.trim();
+      if (!trimmed) return;
+      // eslint-disable-next-line no-restricted-globals
+      if (!confirm(`Promote ${username || userId} to Admin for zone "${trimmed}"?`)) return;
+      await userAPI.updateUser(userId, { role: 'Admin', zone: trimmed });
+      showToast(`User promoted to Admin (${trimmed})`, 'success');
+      await fetchAllUsers();
+    } catch (error: any) {
+      showToast(error.response?.data?.detail || 'Failed to promote user', 'error');
+    }
+  };
+
+  const handleCreateAdminUser = async () => {
+    try {
+      if (!isMaster) return;
+      const username = createAdminForm.username.trim();
+      const email = createAdminForm.email.trim();
+      const password = createAdminForm.password;
+      const zone = createAdminForm.zone.trim();
+      const team_name = createAdminForm.team_name.trim();
+      if (!username || !email || !password || !zone) {
+        showToast('Please fill in username, email, password and zone', 'error');
+        return;
+      }
+      setIsCreatingAdmin(true);
+      await userAPI.createAdminUser({ username, email, password, zone, team_name: team_name || undefined });
+      showToast(`Admin user "${username}" created`, 'success');
+      setShowCreateAdminModal(false);
+      setCreateAdminForm({ username: '', email: '', password: '', zone: 'zone1', team_name: '' });
+      await fetchAllUsers();
+    } catch (error: any) {
+      showToast(error.response?.data?.detail || 'Failed to create admin user', 'error');
+    } finally {
+      setIsCreatingAdmin(false);
+    }
+  };
+
+  const handleMoveUserToTeam = async (userId: string, username?: string) => {
+    try {
+      const teamCode = window.prompt(`Move ${username || userId} to which Team Code? (e.g., ABC123)`);
+      if (!teamCode) return;
+      await teamAPI.moveUserToTeam(userId, teamCode.trim());
+      showToast(`Moved ${username || 'user'} to team ${teamCode.trim().toUpperCase()}`, 'success');
+      await fetchAdminTeams();
+      await fetchAllUsers();
+    } catch (error: any) {
+      showToast(error.response?.data?.detail || 'Failed to move user to team', 'error');
     }
   };
 
@@ -759,8 +877,8 @@ export default function Dashboard() {
               </div>
             </div>
 
-            {/* Navigation for Master Users */}
-            {isMaster && (
+            {/* Navigation for Master and Zone Admin Users */}
+            {isAdminRole && (
               <div className="space-y-4">
                 <div className="space-y-2">
                   <label className="block text-sm font-semibold text-white/90 mb-2">View Mode</label>
@@ -1010,12 +1128,29 @@ export default function Dashboard() {
                 <div className="mt-6">
                   <UserEvents 
                     onJoinEvent={() => setChallengesRefreshKey(prev => prev + 1)} 
-                    isAdmin={isMaster}
+                    isAdmin={isAdminRole}
                   />
                 </div>
 
                 {/* Challenges Section */}
+                {isZoneAdmin ? (
+                  <div className="mt-6 bg-cyber-900/80 backdrop-blur-xl rounded-2xl shadow-lg border border-neon-purple/20 terminal-border p-6">
+                    <div className="flex items-start gap-4">
+                      <div className="w-10 h-10 bg-neon-purple/10 rounded-xl flex items-center justify-center border border-neon-purple/30">
+                        <Trophy className="text-neon-purple" size={18} />
+                      </div>
+                      <div>
+                        <h3 className="text-lg font-bold text-white">Challenges are event-only for Zone Admin</h3>
+                        <p className="text-white/60 text-sm mt-1">
+                          Create an event (Admin Panel → Events), add challenges, submit for approval, and wait for Master approval.
+                          After approval, register/join the event in Events to access its challenges.
+                        </p>
+                      </div>
+                    </div>
+                  </div>
+                ) : (
                 <UserChallenges teamId={team?.id} refreshKey={challengesRefreshKey} />
+                )}
                   </>
                 ) : (
                   <div className="mt-6 bg-cyber-900/80 backdrop-blur-xl rounded-2xl shadow-lg border border-neon-orange/20 terminal-border p-6">
@@ -1038,9 +1173,11 @@ export default function Dashboard() {
                 )}
 
                 {/* Scoreboard Section */}
+                {!isZoneAdmin ? (
                 <div className="mt-6">
                   <Scoreboard />
                 </div>
+                ) : null}
               </div>
             )}
 
@@ -1121,6 +1258,16 @@ export default function Dashboard() {
                         >
                           {showUnverifiedOnly ? 'Showing Unverified' : 'Show Unverified'}
                         </Button>
+                        {isMaster ? (
+                          <Button
+                            variant="outline"
+                            size="md"
+                            onClick={() => setShowCreateAdminModal(true)}
+                            className="border-2 border-neon-purple/40 hover:bg-neon-purple/10 text-neon-purple"
+                          >
+                            Create Admin
+                          </Button>
+                        ) : null}
                         <Button
                           variant="outline"
                           size="md"
@@ -1147,6 +1294,7 @@ export default function Dashboard() {
                               <th className="px-4 py-3 text-left text-sm font-semibold text-white">Email</th>
                               <th className="px-4 py-3 text-left text-sm font-semibold text-white">Role</th>
                               <th className="px-4 py-3 text-left text-sm font-semibold text-white">Verified</th>
+                              <th className="px-4 py-3 text-left text-sm font-semibold text-white">Leader</th>
                               <th className="px-4 py-3 text-left text-sm font-semibold text-white">Zone</th>
                               <th className="px-4 py-3 text-left text-sm font-semibold text-white">Team</th>
                               <th className="px-4 py-3 text-left text-sm font-semibold text-white">Team Status</th>
@@ -1157,13 +1305,13 @@ export default function Dashboard() {
                           <tbody>
                             {isLoadingUsers ? (
                               <tr>
-                                <td colSpan={9} className="px-4 py-8 text-center text-white/60">
+                                <td colSpan={10} className="px-4 py-8 text-center text-white/60">
                                   Loading users...
                                 </td>
                               </tr>
                             ) : filteredUsers.length === 0 ? (
                               <tr>
-                                <td colSpan={9} className="px-4 py-8 text-center text-white/60">
+                                <td colSpan={10} className="px-4 py-8 text-center text-white/60">
                                   {userSearchTerm ? 'No users found matching your search.' : 'No users available.'}
                                 </td>
                               </tr>
@@ -1194,12 +1342,29 @@ export default function Dashboard() {
                                       </span>
                                     )}
                                   </td>
+                                  <td className="px-4 py-3">
+                                    {user.team_id && adminTeamsById[user.team_id] ? (
+                                      adminTeamsById[user.team_id].leader_id === user.id ? (
+                                        <span className="inline-flex items-center px-2 py-1 rounded-full text-xs font-semibold bg-neon-purple/10 text-neon-purple border border-neon-purple/30">
+                                          Leader
+                                        </span>
+                                      ) : (
+                                        <span className="text-white/40">—</span>
+                                      )
+                                    ) : (
+                                      <span className="text-white/40">—</span>
+                                    )}
+                                  </td>
                                   <td className="px-4 py-3 text-white/80">{user.zone || 'N/A'}</td>
                                   <td className="px-4 py-3 text-white/80">
-                                    {user.team_name ? (
+                                    {user.team_name || (user.team_id && adminTeamsById[user.team_id]?.name) ? (
                                       <div>
-                                        <div className="font-medium text-white">{user.team_name}</div>
-                                        <div className="text-xs text-white/50">{user.team_code || '—'}</div>
+                                        <div className="font-medium text-white">
+                                          {user.team_name || (user.team_id ? adminTeamsById[user.team_id]?.name : '')}
+                                        </div>
+                                        <div className="text-xs text-white/50">
+                                          {user.team_code || (user.team_id ? adminTeamsById[user.team_id]?.team_code : '') || '—'}
+                                        </div>
                                       </div>
                                     ) : (
                                       <span className="text-white/40">—</span>
@@ -1234,6 +1399,57 @@ export default function Dashboard() {
                                           }`}
                                         >
                                           {user.is_verified === false ? 'Verify User' : 'Unverify User'}
+                                        </Button>
+                                      ) : null}
+
+                                      {isMaster && user.role !== 'Master' && user.id !== userProfile.id ? (
+                                        <Button
+                                          size="sm"
+                                          variant="outline"
+                                          onClick={() => handleDeleteUser(user.id, user.username)}
+                                          className="border-2 border-red-500/40 hover:bg-red-500/10 text-red-300"
+                                        >
+                                          Delete User
+                                        </Button>
+                                      ) : null}
+
+                                      {isMaster && user.role === 'User' ? (
+                                        <Button
+                                          size="sm"
+                                          variant="outline"
+                                          onClick={() => handleMoveUserToTeam(user.id, user.username)}
+                                          className="border-2 border-neon-cyan/40 hover:bg-neon-cyan/10 text-neon-cyan"
+                                        >
+                                          Move to Team
+                                        </Button>
+                                      ) : null}
+
+                                      {isMaster && user.role === 'User' ? (
+                                        <Button
+                                          size="sm"
+                                          variant="outline"
+                                          onClick={() => handlePromoteToZoneAdmin(user.id, user.username, user.zone)}
+                                          className="border-2 border-neon-purple/40 hover:bg-neon-purple/10 text-neon-purple"
+                                        >
+                                          Make Zone Admin
+                                        </Button>
+                                      ) : null}
+
+                                      {isMaster && user.team_id && adminTeamsById[user.team_id] ? (
+                                        <Button
+                                          size="sm"
+                                          variant="outline"
+                                          onClick={() =>
+                                            handleDeleteTeam(
+                                              user.team_id as string,
+                                              adminTeamsById[user.team_id as string]?.team_code ||
+                                                adminTeamsById[user.team_id as string]?.name ||
+                                                (user.team_id as string)
+                                            )
+                                          }
+                                          className="border-2 border-red-500/40 hover:bg-red-500/10 text-red-300"
+                                        >
+                                          Delete Team
                                         </Button>
                                       ) : null}
 
@@ -1298,6 +1514,110 @@ export default function Dashboard() {
                         </table>
                       </div>
                     </div>
+
+                    {showCreateAdminModal && isMaster ? (
+                      <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/70 p-4">
+                        <div className="w-full max-w-lg bg-cyber-900/95 border border-neon-green/20 rounded-2xl shadow-2xl p-6">
+                          <div className="flex items-start justify-between gap-3 mb-4">
+                            <div>
+                              <div className="text-xl font-bold text-white">Create Zone Admin</div>
+                              <div className="text-sm text-white/60">Creates an Admin account for a specific zone</div>
+                            </div>
+                            <button
+                              onClick={() => !isCreatingAdmin && setShowCreateAdminModal(false)}
+                              className="text-white/70 hover:text-white"
+                            >
+                              ✕
+                            </button>
+                          </div>
+
+                          <div className="space-y-4">
+                            <div>
+                              <label className="block text-sm font-semibold text-white/90 mb-2">Username</label>
+                              <Input
+                                value={createAdminForm.username}
+                                onChange={(e: React.ChangeEvent<HTMLInputElement>) =>
+                                  setCreateAdminForm((p) => ({ ...p, username: e.target.value }))
+                                }
+                                placeholder="zoneadmin1"
+                                className="bg-cyber-800/50 border-neon-green/20 text-white"
+                              />
+                            </div>
+                            <div>
+                              <label className="block text-sm font-semibold text-white/90 mb-2">Email</label>
+                              <Input
+                                value={createAdminForm.email}
+                                onChange={(e: React.ChangeEvent<HTMLInputElement>) =>
+                                  setCreateAdminForm((p) => ({ ...p, email: e.target.value }))
+                                }
+                                placeholder="admin@zone.com"
+                                className="bg-cyber-800/50 border-neon-green/20 text-white"
+                              />
+                            </div>
+                            <div>
+                              <label className="block text-sm font-semibold text-white/90 mb-2">Password</label>
+                              <Input
+                                type="password"
+                                value={createAdminForm.password}
+                                onChange={(e: React.ChangeEvent<HTMLInputElement>) =>
+                                  setCreateAdminForm((p) => ({ ...p, password: e.target.value }))
+                                }
+                                placeholder="Strong password (min 8 chars)"
+                                className="bg-cyber-800/50 border-neon-green/20 text-white"
+                              />
+                              <div className="text-xs text-white/50 mt-1">Must include uppercase, lowercase, number, and special (@$!%*?&#).</div>
+                            </div>
+                            <div>
+                              <label className="block text-sm font-semibold text-white/90 mb-2">Zone</label>
+                              <select
+                                value={createAdminForm.zone}
+                                onChange={(e) => setCreateAdminForm((p) => ({ ...p, zone: e.target.value }))}
+                                className="w-full px-4 py-3 bg-cyber-800/50 border-2 border-neon-green/20 rounded-xl text-white focus:outline-none focus:border-neon-green"
+                              >
+                                <option value="zone1">zone1</option>
+                                <option value="zone2">zone2</option>
+                                <option value="zone3">zone3</option>
+                                <option value="zone4">zone4</option>
+                                <option value="zone5">zone5</option>
+                                <option value="main">main</option>
+                              </select>
+                            </div>
+                            <div>
+                              <label className="block text-sm font-semibold text-white/90 mb-2">Team Name (optional)</label>
+                              <Input
+                                value={createAdminForm.team_name}
+                                onChange={(e: React.ChangeEvent<HTMLInputElement>) =>
+                                  setCreateAdminForm((p) => ({ ...p, team_name: e.target.value }))
+                                }
+                                placeholder="Zone Admin Team"
+                                className="bg-cyber-800/50 border-neon-green/20 text-white"
+                              />
+                              <div className="text-xs text-white/50 mt-1">
+                                If provided, a team will be created and this Admin will be the leader; other users can join via team code.
+                              </div>
+                            </div>
+
+                            <div className="flex gap-2 pt-2">
+                              <Button
+                                variant="outline"
+                                className="border-white/20 text-white hover:bg-white/10"
+                                onClick={() => setShowCreateAdminModal(false)}
+                                disabled={isCreatingAdmin}
+                              >
+                                Cancel
+                              </Button>
+                              <Button
+                                className="bg-neon-purple/20 border border-neon-purple/40 text-neon-purple hover:bg-neon-purple/30"
+                                onClick={handleCreateAdminUser}
+                                disabled={isCreatingAdmin}
+                              >
+                                {isCreatingAdmin ? 'Creating…' : 'Create Admin'}
+                              </Button>
+                            </div>
+                          </div>
+                        </div>
+                      </div>
+                    ) : null}
                   </div>
                 )}
 
@@ -1336,18 +1656,18 @@ export default function Dashboard() {
                               <h3 className="text-xl font-bold text-white gradient-text">Send a Notification</h3>
                               <p className="text-white/60 text-sm">Broadcast to all users/teams (optionally filter by zone)</p>
                             </div>
-                          </div>
-                          <div className="flex gap-2">
-                            <Button
-                              variant="outline"
-                              size="sm"
+                        </div>
+                        <div className="flex gap-2">
+                          <Button
+                            variant="outline"
+                            size="sm"
                               onClick={fetchBroadcastFeed}
                               disabled={isLoadingBroadcastFeed}
-                              className="border-neon-green/30 hover:bg-neon-green/10 text-white"
-                            >
+                            className="border-neon-green/30 hover:bg-neon-green/10 text-white"
+                          >
                               <RefreshCw size={14} className={`mr-2 ${isLoadingBroadcastFeed ? 'animate-spin' : ''}`} />
                               Refresh Feed
-                            </Button>
+                          </Button>
                           </div>
                         </div>
 
@@ -1445,23 +1765,23 @@ export default function Dashboard() {
                               </div>
                             </div>
 
-                            <Button
+                          <Button
                               onClick={handleSendBroadcast}
                               disabled={isSendingNotif}
                               className="w-full bg-gradient-to-r from-neon-green/20 to-neon-cyan/20 border-2 border-neon-green/60 hover:border-neon-green/80 text-white"
-                              variant="outline"
-                            >
+                            variant="outline"
+                          >
                               <Send size={16} className={`mr-2 ${isSendingNotif ? 'animate-pulse' : ''}`} />
                               {isSendingNotif ? 'Sending…' : 'Send Notification'}
-                            </Button>
-                          </div>
+                          </Button>
+                      </div>
 
                           {/* Feed */}
-                          <div className="bg-cyber-800/30 border border-neon-green/20 rounded-2xl p-4">
+                      <div className="bg-cyber-800/30 border border-neon-green/20 rounded-2xl p-4">
                             <div className="flex items-center justify-between mb-3">
                               <h4 className="text-lg font-bold text-white">Notification Feed</h4>
                               <div className="text-xs text-white/50">Latest 50</div>
-                            </div>
+                        </div>
                             {isLoadingBroadcastFeed ? (
                               <div className="text-white/60 text-sm py-4">Loading…</div>
                             ) : (broadcastFeed.length === 0 ? (
@@ -1476,255 +1796,17 @@ export default function Dashboard() {
                                         <div className="text-white/70 text-sm whitespace-pre-wrap break-words">{b.message}</div>
                                         <div className="text-xs text-white/50 mt-2">
                                           {b.created_at ? new Date(b.created_at).toLocaleString() : '—'} · {b.ui_type} · targets {b.targets_count ?? 0}{b.zone ? ` · ${b.zone}` : ''}{b.play_sound ? ' · 🔊' : ''}
+                                          </div>
+                                          </div>
+                                          </div>
                                         </div>
-                                      </div>
-                                    </div>
-                                  </div>
                                 ))}
-                              </div>
+                                  </div>
                             ))}
+                            </div>
                           </div>
-                        </div>
                       </div>
                     )}
-
-                    <div className="bg-cyber-900/80 backdrop-blur-xl rounded-2xl shadow-lg border border-neon-green/20 terminal-border p-6">
-                      <div className="flex flex-col md:flex-row md:items-center gap-4 md:justify-between mb-6">
-                        <div className="flex items-center gap-3">
-                          <div className="p-3 bg-gradient-to-br from-neon-green/20 to-neon-cyan/20 rounded-xl border border-neon-green/30">
-                            <Trophy className="text-neon-green" size={24} />
-                          </div>
-                          <div>
-                            <h3 className="text-2xl font-bold text-white mb-1 gradient-text">Statistics Dashboard</h3>
-                          <p className="text-white/60 text-sm">Scores + event analytics (attempts, solves, categories)</p>
-                          </div>
-                        </div>
-                        <div className="flex gap-2">
-                          <Button
-                            variant="outline"
-                            size="sm"
-                            onClick={fetchAdminScoreboard}
-                            disabled={isLoadingScoreboard}
-                            className="border-neon-green/30 hover:bg-neon-green/10 text-white hover:border-neon-green/50 transition-all"
-                          >
-                            <RefreshCw size={16} className={`mr-2 ${isLoadingScoreboard ? 'animate-spin' : ''}`} />
-                            Refresh Scores
-                          </Button>
-                          <Button
-                            variant="outline"
-                            size="sm"
-                            onClick={fetchStatsEvents}
-                            className="border-neon-green/30 hover:bg-neon-green/10 text-white hover:border-neon-green/50 transition-all"
-                          >
-                            <RefreshCw size={16} className="mr-2" />
-                            Refresh Events
-                          </Button>
-                        </div>
-                      </div>
-
-                      {/* Scoring Overview with Enhanced UI */}
-                      <div className="bg-gradient-to-br from-cyber-800/60 to-cyber-800/40 border-2 border-neon-green/30 rounded-2xl p-6 shadow-lg">
-                        <div className="flex items-center gap-2 mb-4">
-                          <div className="p-2 bg-neon-green/20 rounded-lg">
-                            <Trophy className="text-neon-green" size={20} />
-                          </div>
-                          <div>
-                            <h4 className="text-xl font-bold text-white">Scoring Overview</h4>
-                          <p className="text-white/60 text-sm">Top teams by points (live from submissions)</p>
-                          </div>
-                        </div>
-
-                        {isLoadingScoreboard ? (
-                          <div className="flex flex-col items-center justify-center py-12">
-                            <RefreshCw className="animate-spin text-neon-green mb-4" size={32} />
-                            <div className="text-white/60 text-sm">Loading scoreboard...</div>
-                          </div>
-                        ) : adminScoreboard.length === 0 ? (
-                          <div className="flex flex-col items-center justify-center py-12 bg-cyber-900/30 rounded-xl border border-neon-green/10">
-                            <Trophy className="text-neon-green/40 mb-4" size={48} />
-                            <div className="text-white/60 text-sm">No scores yet.</div>
-                          </div>
-                        ) : (
-                          <div className="space-y-6">
-                            {/* Summary Stats Cards */}
-                            <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
-                              <div className="bg-gradient-to-br from-cyber-900/60 to-cyber-900/40 border-2 border-neon-green/30 rounded-xl p-4 hover:border-neon-green/50 transition-all">
-                                <div className="flex items-center justify-between mb-2">
-                                  <div className="p-2 bg-neon-green/20 rounded-lg">
-                                    <Users className="text-neon-green" size={18} />
-                                  </div>
-                                  <TrendingUp className="text-neon-green/40" size={16} />
-                                </div>
-                                <div className="text-white/60 text-xs mb-1">Total Teams</div>
-                                <div className="text-neon-green font-bold text-2xl">{adminScoreboard.length}</div>
-                              </div>
-                              <div className="bg-gradient-to-br from-cyber-900/60 to-cyber-900/40 border-2 border-neon-cyan/30 rounded-xl p-4 hover:border-neon-cyan/50 transition-all">
-                                <div className="flex items-center justify-between mb-2">
-                                  <div className="p-2 bg-neon-cyan/20 rounded-lg">
-                                    <Target className="text-neon-cyan" size={18} />
-                                  </div>
-                                  <TrendingUp className="text-neon-cyan/40" size={16} />
-                                </div>
-                                <div className="text-white/60 text-xs mb-1">Total Solves</div>
-                                <div className="text-neon-cyan font-bold text-2xl">
-                                  {adminScoreboard.reduce((sum: number, row: any) => sum + (Number(row.solves || 0)), 0)}
-                                </div>
-                              </div>
-                              <div className="bg-gradient-to-br from-cyber-900/60 to-cyber-900/40 border-2 border-neon-purple/30 rounded-xl p-4 hover:border-neon-purple/50 transition-all">
-                                <div className="flex items-center justify-between mb-2">
-                                  <div className="p-2 bg-neon-purple/20 rounded-lg">
-                                    <Award className="text-neon-purple" size={18} />
-                                  </div>
-                                  <TrendingUp className="text-neon-purple/40" size={16} />
-                                </div>
-                                <div className="text-white/60 text-xs mb-1">Total Points</div>
-                                <div className="text-neon-purple font-bold text-2xl">
-                                  {adminScoreboard.reduce((sum: number, row: any) => sum + (Number(row.points || 0)), 0)}
-                                </div>
-                              </div>
-                            </div>
-
-                            <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
-                              {/* Points Chart with Bar Chart */}
-                              <div className="bg-gradient-to-br from-cyber-900/60 to-cyber-900/40 border-2 border-neon-green/30 rounded-xl p-6 shadow-lg">
-                                <div className="flex items-center gap-2 mb-4">
-                                  <BarChart3 className="text-neon-green" size={18} />
-                                  <h5 className="text-white font-bold text-lg">Points Distribution</h5>
-                                </div>
-                                <ResponsiveContainer width="100%" height={400}>
-                                  <BarChart 
-                                    data={adminScoreboard.slice(0, 10).map((row: any, idx: number) => ({
-                                      name: (row.team_name || row.team_code || row.team_id)?.substring(0, 15) || 'Team',
-                                      points: Number(row.points || 0),
-                                      solves: Number(row.solves || 0),
-                                      rank: idx + 1
-                                    }))}
-                                    layout="vertical"
-                                  >
-                                    <CartesianGrid strokeDasharray="3 3" stroke="rgba(0, 255, 136, 0.1)" />
-                                    <XAxis type="number" tick={{ fill: '#fff', fontSize: 12 }} />
-                                    <YAxis 
-                                      type="category" 
-                                      dataKey="name" 
-                                      tick={{ fill: '#fff', fontSize: 11 }}
-                                      width={120}
-                                    />
-                                    <Tooltip 
-                                      contentStyle={{ 
-                                        backgroundColor: 'rgba(0, 0, 0, 0.8)', 
-                                        border: '1px solid rgba(0, 255, 136, 0.3)',
-                                        borderRadius: '8px',
-                                        color: '#fff'
-                                      }}
-                                      formatter={(value: any, name?: string) => {
-                                        if (name === 'points') return [`${value} points`, 'Points'];
-                                        if (name === 'solves') return [`${value} solves`, 'Solves'];
-                                        return value;
-                                      }}
-                                    />
-                                    <Legend 
-                                      wrapperStyle={{ color: '#fff', paddingTop: '10px' }}
-                                    />
-                                    <Bar dataKey="points" fill="#00FF88" radius={[0, 8, 8, 0]} />
-                                  </BarChart>
-                                </ResponsiveContainer>
-                              </div>
-
-                              {/* Enhanced Leaderboard */}
-                              <div className="bg-gradient-to-br from-cyber-900/60 to-cyber-900/40 border-2 border-neon-cyan/30 rounded-xl p-6 shadow-lg">
-                                <div className="flex items-center gap-2 mb-4">
-                                  <Crown className="text-neon-cyan" size={18} />
-                                  <h5 className="text-white font-bold text-lg">Leaderboard</h5>
-                                </div>
-                                <div className="space-y-2 max-h-[400px] overflow-y-auto pr-2">
-                                  {adminScoreboard.slice(0, 10).map((row: any, idx: number) => {
-                                    const maxPoints = Math.max(...adminScoreboard.slice(0, 10).map((r: any) => Number(r.points || 0)), 1);
-                                    const pointsPercent = ((Number(row.points || 0)) / maxPoints) * 100;
-                                return (
-                                      <div 
-                                        key={row.team_id} 
-                                        className="p-4 bg-cyber-800/50 border border-neon-cyan/10 rounded-lg hover:border-neon-cyan/30 transition-all"
-                                      >
-                                        <div className="flex items-center justify-between mb-3">
-                                          <div className="flex items-center gap-3">
-                                            <div className={`w-10 h-10 rounded-full flex items-center justify-center text-sm font-bold ${
-                                              idx === 0 ? 'bg-yellow-500/20 text-yellow-400 border-2 border-yellow-500/30' :
-                                              idx === 1 ? 'bg-gray-400/20 text-gray-300 border-2 border-gray-400/30' :
-                                              idx === 2 ? 'bg-orange-500/20 text-orange-400 border-2 border-orange-500/30' :
-                                              'bg-neon-cyan/10 text-neon-cyan border border-neon-cyan/20'
-                                            }`}>
-                                              {idx + 1}
-                                            </div>
-                                            <div>
-                                              <div className="font-semibold text-white text-sm">{row.team_name || '—'}</div>
-                                              <div className="text-xs text-white/50">{row.team_code || row.team_id}</div>
-                                            </div>
-                                          </div>
-                                          <div className="text-right">
-                                            <div className="text-neon-cyan font-bold text-lg">{row.points || 0}</div>
-                                            <div className="text-white/60 text-xs">points</div>
-                                          </div>
-                                        </div>
-                                  <div className="space-y-2">
-                                          <div className="flex items-center justify-between text-xs text-white/60">
-                                            <span>Solves: {row.solves || 0}</span>
-                                            <span>Rank: #{row.rank ?? idx + 1}</span>
-                                          </div>
-                                          <div className="bg-cyber-800/50 rounded-full h-2 overflow-hidden">
-                                            <div 
-                                              className="h-full bg-gradient-to-r from-neon-cyan to-neon-green transition-all"
-                                              style={{ width: `${Math.min(pointsPercent, 100)}%` }}
-                                            />
-                                          </div>
-                                          </div>
-                                        </div>
-                                      );
-                                    })}
-                                  </div>
-                              </div>
-                            </div>
-
-                            {/* Solves vs Points Comparison Chart */}
-                            <div className="bg-gradient-to-br from-cyber-900/60 to-cyber-900/40 border-2 border-neon-purple/30 rounded-xl p-6 shadow-lg">
-                              <div className="flex items-center gap-2 mb-4">
-                                <Activity className="text-neon-purple" size={18} />
-                                <h5 className="text-white font-bold text-lg">Performance Analysis</h5>
-                              </div>
-                              <ResponsiveContainer width="100%" height={300}>
-                                <BarChart data={adminScoreboard.slice(0, 10).map((row: any) => ({
-                                  name: (row.team_name || row.team_code || row.team_id)?.substring(0, 12) || 'Team',
-                                  points: Number(row.points || 0),
-                                  solves: Number(row.solves || 0)
-                                }))}>
-                                  <CartesianGrid strokeDasharray="3 3" stroke="rgba(157, 78, 221, 0.1)" />
-                                  <XAxis 
-                                    dataKey="name" 
-                                    tick={{ fill: '#fff', fontSize: 11 }}
-                                    angle={-45}
-                                    textAnchor="end"
-                                    height={80}
-                                  />
-                                  <YAxis tick={{ fill: '#fff', fontSize: 12 }} />
-                                  <Tooltip 
-                                    contentStyle={{ 
-                                      backgroundColor: 'rgba(0, 0, 0, 0.8)', 
-                                      border: '1px solid rgba(157, 78, 221, 0.3)',
-                                      borderRadius: '8px',
-                                      color: '#fff'
-                                    }}
-                                  />
-                                  <Legend 
-                                    wrapperStyle={{ color: '#fff', paddingTop: '10px' }}
-                                  />
-                                  <Bar dataKey="points" fill="#9D4EDD" radius={[8, 8, 0, 0]} name="Points" />
-                                  <Bar dataKey="solves" fill="#00D9FF" radius={[8, 8, 0, 0]} name="Solves" />
-                                </BarChart>
-                              </ResponsiveContainer>
-                            </div>
-                          </div>
-                        )}
-                      </div>
-                    </div>
 
                     <div className="bg-cyber-900/80 backdrop-blur-xl rounded-2xl shadow-lg border border-neon-green/20 terminal-border p-6">
                       <div className="flex flex-col md:flex-row md:items-center md:justify-between gap-4 mb-6">
@@ -1757,6 +1839,15 @@ export default function Dashboard() {
                           <Button
                             size="sm"
                             variant="outline"
+                            onClick={fetchStatsEvents}
+                            className="border-neon-green/30 hover:bg-neon-green/10 text-white hover:border-neon-green/50 transition-all"
+                          >
+                            <RefreshCw size={16} className="mr-2" />
+                            Refresh Events
+                          </Button>
+                          <Button
+                            size="sm"
+                            variant="outline"
                             onClick={() => selectedStatsEventId && fetchEventLiveStats(selectedStatsEventId)}
                             disabled={!selectedStatsEventId || isLoadingLiveStats}
                             className="border-neon-green/30 hover:bg-neon-green/10 text-white hover:border-neon-green/50 transition-all"
@@ -1775,7 +1866,9 @@ export default function Dashboard() {
                       ) : !eventLiveStats ? (
                         <div className="flex flex-col items-center justify-center py-12 bg-cyber-800/30 rounded-xl border border-neon-green/10">
                           <BarChart3 className="text-neon-green/40 mb-4" size={48} />
-                          <div className="text-white/60 text-sm">Select an event to view analytics</div>
+                          <div className="text-white/60 text-sm">
+                            {selectedStatsEventId ? 'Failed to load analytics for the selected event' : 'Select an event to view analytics'}
+                          </div>
                         </div>
                       ) : (
                         <div className="space-y-6">
@@ -2080,7 +2173,9 @@ export default function Dashboard() {
                                   <BarChart data={(eventLiveStats.top_users || []).slice(0, 10).map((u: any) => ({
                                     name: u.username?.substring(0, 10) || 'User',
                                     points: u.total_points || 0,
-                                    solves: u.challenges_solved || 0
+                                    solves: u.challenges_solved || 0,
+                                    fullName: u.username,
+                                    userId: u.user_id
                                   }))}>
                                     <CartesianGrid strokeDasharray="3 3" stroke="rgba(0, 255, 136, 0.1)" />
                                     <XAxis 
@@ -2102,8 +2197,30 @@ export default function Dashboard() {
                                     <Legend 
                                       wrapperStyle={{ color: '#fff', paddingTop: '10px' }}
                                     />
-                                    <Bar dataKey="points" fill="#00FF88" radius={[8, 8, 0, 0]} />
-                                    <Bar dataKey="solves" fill="#00D9FF" radius={[8, 8, 0, 0]} />
+                                    <Bar 
+                                      dataKey="points" 
+                                      fill="#00FF88" 
+                                      radius={[8, 8, 0, 0]}
+                                      onClick={(data: any, index: number) => {
+                                        const userData = (eventLiveStats.top_users || []).slice(0, 10)[index];
+                                        if (userData) {
+                                          showToast(`User: ${userData.username} - ${userData.total_points} points, ${userData.challenges_solved} solves`, 'info');
+                                        }
+                                      }}
+                                      style={{ cursor: 'pointer' }}
+                                    />
+                                    <Bar 
+                                      dataKey="solves" 
+                                      fill="#00D9FF" 
+                                      radius={[8, 8, 0, 0]}
+                                      onClick={(data: any, index: number) => {
+                                        const userData = (eventLiveStats.top_users || []).slice(0, 10)[index];
+                                        if (userData) {
+                                          showToast(`User: ${userData.username} - ${userData.total_points} points, ${userData.challenges_solved} solves`, 'info');
+                                        }
+                                      }}
+                                      style={{ cursor: 'pointer' }}
+                                    />
                                   </BarChart>
                                 </ResponsiveContainer>
                               </div>
@@ -2177,11 +2294,17 @@ export default function Dashboard() {
                                           ? Number(eventLiveStats.total_teams || 0)
                                           : Number(eventLiveStats.total_users || 0)) || 0;
                                       const solves = Number(c.solve_count || 0);
+                                      const attempts = Number(c.attempt_count || 0);
                                       const solvePct = denom ? (solves / denom) * 100 : 0;
                                       return {
                                         name: c.challenge_name?.substring(0, 15) || 'Challenge',
                                         solves: solves,
-                                        solveRate: solvePct
+                                        solveRate: solvePct,
+                                        fullName: c.challenge_name,
+                                        challengeId: c.challenge_id,
+                                        attempts: attempts,
+                                        category: c.category,
+                                        points: c.points
                                       };
                                     })}>
                                       <CartesianGrid strokeDasharray="3 3" stroke="rgba(157, 78, 221, 0.1)" />
@@ -2204,7 +2327,25 @@ export default function Dashboard() {
                                       <Legend 
                                         wrapperStyle={{ color: '#fff', paddingTop: '10px' }}
                                       />
-                                      <Bar dataKey="solves" fill="#9D4EDD" radius={[8, 8, 0, 0]} />
+                                      <Bar 
+                                        dataKey="solves" 
+                                        fill="#9D4EDD" 
+                                        radius={[8, 8, 0, 0]}
+                                        onClick={(data: any, index: number) => {
+                                          const challengeData = (eventLiveStats.challenge_stats || [])[index];
+                                          if (challengeData) {
+                                            const solves = Number(challengeData.solve_count || 0);
+                                            const attempts = Number(challengeData.attempt_count || 0);
+                                            showToast(
+                                              `Challenge: ${challengeData.challenge_name}\n` +
+                                              `Solves: ${solves} | Attempts: ${attempts}\n` +
+                                              `Category: ${challengeData.category || 'N/A'} | Points: ${challengeData.points || 0}`,
+                                              'info'
+                                            );
+                                          }
+                                        }}
+                                        style={{ cursor: 'pointer' }}
+                                      />
                                     </BarChart>
                                   </ResponsiveContainer>
                                 </div>

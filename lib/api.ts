@@ -253,6 +253,7 @@ export const userAPI = {
   // Update user
   updateUser: async (userId: string, data: {
     zone?: string;
+    role?: string;
     is_active?: boolean;
     password?: string;
   }) => {
@@ -272,6 +273,27 @@ export const userAPI = {
   setUserVerified: async (userId: string, isVerified: boolean) => {
     const path = USE_PROXY ? `/users/${userId}/verify` : `/users/${userId}/verify`;
     const response = await apiClient.patch(path, { is_verified: isVerified });
+    return response.data;
+  },
+
+  // Delete user (Master only)
+  deleteUser: async (userId: string) => {
+    const path = USE_PROXY ? `/users/${userId}` : `/users/${userId}`;
+    const response = await apiClient.delete(path);
+    return response.data;
+  },
+
+  // Create Admin user (Master only)
+  createAdminUser: async (data: {
+    username: string;
+    email: string;
+    password: string;
+    zone: string;
+    team_name?: string;
+  }) => {
+    const path = USE_PROXY ? `/users/create-admin` : `/users/create-admin`;
+    // Backend expects UserCreate schema; role will be forced to Admin server-side
+    const response = await apiClient.post(path, { ...data, role: 'Admin' });
     return response.data;
   },
 };
@@ -323,6 +345,20 @@ export const teamAPI = {
     const response = await apiClient.patch(path, null, {
       params: { is_active: isActive },
     });
+    return response.data;
+  },
+
+  // Delete team (Master only)
+  deleteTeam: async (teamId: string) => {
+    const path = USE_PROXY ? `/teams/${teamId}` : `/teams/${teamId}`;
+    const response = await apiClient.delete(path);
+    return response.data;
+  },
+
+  // Master-only: move a user to a team by team code
+  moveUserToTeam: async (userId: string, teamCode: string) => {
+    const path = USE_PROXY ? '/teams/move-user' : '/teams/move-user';
+    const response = await apiClient.post(path, { user_id: userId, team_code: teamCode });
     return response.data;
   },
 };

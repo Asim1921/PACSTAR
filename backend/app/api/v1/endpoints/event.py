@@ -870,6 +870,15 @@ async def list_event_teams(
             is_event_admin = await event_service.is_event_admin(event_id, str(current_user.id))
             if not is_event_admin:
                 raise HTTPException(status_code=status.HTTP_403_FORBIDDEN, detail="Not authorized")
+        # Zone boundary for Admin
+        if current_user.role == "Admin":
+            if not ObjectId.is_valid(event_id):
+                raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail="Invalid event ID")
+            event = await event_service.events.find_one({"_id": ObjectId(event_id)}, {"zone": 1})
+            if not event:
+                raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Event not found")
+            if event.get("zone") != current_user.zone:
+                raise HTTPException(status_code=status.HTTP_403_FORBIDDEN, detail="Admin can only manage events in their zone")
         teams = await event_service.list_event_teams(event_id)
         return {"teams": teams}
     except HTTPException:
@@ -896,6 +905,15 @@ async def ban_team_for_event(
             is_event_admin = await event_service.is_event_admin(event_id, str(current_user.id))
             if not is_event_admin:
                 raise HTTPException(status_code=status.HTTP_403_FORBIDDEN, detail="Not authorized")
+        # Zone boundary for Admin
+        if current_user.role == "Admin":
+            if not ObjectId.is_valid(event_id):
+                raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail="Invalid event ID")
+            event = await event_service.events.find_one({"_id": ObjectId(event_id)}, {"zone": 1})
+            if not event:
+                raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Event not found")
+            if event.get("zone") != current_user.zone:
+                raise HTTPException(status_code=status.HTTP_403_FORBIDDEN, detail="Admin can only manage events in their zone")
         return await event_service.ban_team_for_event(event_id, team_id)
     except HTTPException:
         raise
@@ -1044,6 +1062,15 @@ async def unban_team_for_event(
             is_event_admin = await event_service.is_event_admin(event_id, str(current_user.id))
             if not is_event_admin:
                 raise HTTPException(status_code=status.HTTP_403_FORBIDDEN, detail="Not authorized")
+        # Zone boundary for Admin
+        if current_user.role == "Admin":
+            if not ObjectId.is_valid(event_id):
+                raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail="Invalid event ID")
+            event = await event_service.events.find_one({"_id": ObjectId(event_id)}, {"zone": 1})
+            if not event:
+                raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Event not found")
+            if event.get("zone") != current_user.zone:
+                raise HTTPException(status_code=status.HTTP_403_FORBIDDEN, detail="Admin can only manage events in their zone")
         return await event_service.unban_team_for_event(event_id, team_id)
     except HTTPException:
         raise

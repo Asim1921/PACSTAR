@@ -425,6 +425,7 @@ class OpenStackService:
         parameters: Optional[Dict[str, Any]],
         timeout_minutes: Optional[int],
         rollback_on_failure: bool,
+        reuse_if_exists: bool = True,
     ) -> Dict[str, Any]:
         self._ensure_enabled()
 
@@ -443,10 +444,41 @@ class OpenStackService:
             if timeout_minutes:
                 attrs["timeout_mins"] = timeout_minutes
 
-            stack = conn.orchestration.create_stack(**attrs)
-            stack = conn.orchestration.get_stack(stack.id)
-            logger.info("Triggered Heat stack %s (%s)", stack_name, stack.id)
-            return self._stack_payload(stack)
+            try:
+                stack = conn.orchestration.create_stack(**attrs)
+                stack = conn.orchestration.get_stack(stack.id)
+                logger.info("Triggered Heat stack %s (%s)", stack_name, stack.id)
+                return self._stack_payload(stack)
+            except os_exceptions.ConflictException:
+                # Idempotency: stack already exists (common if previous attempt created it but our DB
+                # didn't persist the instance record yet). Reuse existing stack instead of failing.
+                if not reuse_if_exists:
+                    raise
+                existing = conn.orchestration.find_stack(stack_name, ignore_missing=True)
+                if existing:
+                    stack = conn.orchestration.get_stack(existing.id)
+                    logger.warning(
+                        "Heat stack %s already exists; reusing existing stack (%s)",
+                        stack_name,
+                        stack.id,
+                    )
+                    return self._stack_payload(stack)
+                raise
+            except os_exceptions.HttpException as e:
+                # Some deployments raise generic HttpException for 409.
+                if getattr(e, "status_code", None) == 409:
+                    if not reuse_if_exists:
+                        raise
+                    existing = conn.orchestration.find_stack(stack_name, ignore_missing=True)
+                    if existing:
+                        stack = conn.orchestration.get_stack(existing.id)
+                        logger.warning(
+                            "Heat stack %s already exists (409); reusing existing stack (%s)",
+                            stack_name,
+                            stack.id,
+                        )
+                        return self._stack_payload(stack)
+                raise
 
         return await self._to_thread(_create_stack)
 

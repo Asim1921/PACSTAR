@@ -260,6 +260,126 @@ class TeamService:
             raise HTTPException(status_code=404, detail="Team not found")
         return updated
 
+    async def delete_team(self, team_id: str) -> dict:
+        """Delete a team and unset team fields for all users in that team."""
+        if not ObjectId.is_valid(team_id):
+            raise HTTPException(status_code=400, detail="Invalid team ID")
+
+        team = await self.teams.find_one({"_id": ObjectId(team_id)})
+        if not team:
+            raise HTTPException(status_code=404, detail="Team not found")
+
+        # Unset team fields for users that reference this team (support string or ObjectId storage)
+        team_oid = ObjectId(team_id)
+        await self.users.update_many(
+            {"$or": [{"team_id": team_id}, {"team_id": team_oid}]},
+            {"$unset": {"team_id": "", "team_code": "", "team_name": ""}},
+        )
+
+        # Delete the team
+        res = await self.teams.delete_one({"_id": ObjectId(team_id)})
+        if res.deleted_count != 1:
+            raise HTTPException(status_code=500, detail="Failed to delete team")
+
+        return {"success": True, "team_id": team_id}
+
+    async def move_user_to_team_by_code(
+        self,
+        user_id: str,
+        team_code: str,
+    ) -> dict:
+        """
+        Move a user into a team (Master-only endpoint will call this).
+        - Removes user from their current team membership (if any)
+        - Adds user to destination team (checks max_members + active)
+        - Updates user.team_id/team_code/team_name and zone to team's zone if present
+        - BLOCK: cannot move team leaders (leader_id of any team)
+        """
+        if not ObjectId.is_valid(user_id):
+            raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail="Invalid user ID")
+
+        # Destination team
+        dest = await self.get_team_by_code(team_code.upper())
+        if not dest:
+            raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Team not found")
+        if not dest.get("is_active", False):
+            raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail="Team is not active")
+
+        dest_id = dest.get("id")
+        if not dest_id or not ObjectId.is_valid(dest_id):
+            raise HTTPException(status_code=status.HTTP_500_INTERNAL_SERVER_ERROR, detail="Team ID invalid")
+
+        # Load user
+        user_doc = await self.users.find_one({"_id": ObjectId(user_id)})
+        if not user_doc:
+            raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="User not found")
+
+        if user_doc.get("role") in ["Master", "Admin"]:
+            raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail="Cannot move Admin/Master accounts")
+
+        # Block moving team leaders
+        leader_team = await self.teams.find_one({"leader_id": user_id})
+        if leader_team:
+            raise HTTPException(
+                status_code=status.HTTP_400_BAD_REQUEST,
+                detail="Cannot move a team leader to another team. Change team leader or delete the team first.",
+            )
+
+        # Remove user from any existing team membership (and fix member_count)
+        current_team = await self.teams.find_one({"members.user_id": user_id})
+        if current_team and str(current_team.get("_id")) != dest_id:
+            await self.teams.update_one(
+                {"_id": current_team["_id"]},
+                {
+                    "$pull": {"members": {"user_id": user_id}},
+                    "$inc": {"member_count": -1},
+                    "$set": {"updated_at": datetime.utcnow()},
+                },
+            )
+
+        # Prevent duplicates in destination
+        dest_team_doc = await self.teams.find_one({"_id": ObjectId(dest_id)})
+        if not dest_team_doc:
+            raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Team not found")
+
+        members = dest_team_doc.get("members", []) or []
+        if any(str(m.get("user_id")) == user_id for m in members):
+            # Already in team; ensure user fields updated anyway
+            pass
+        else:
+            max_members = int(dest_team_doc.get("max_members", 10))
+            if len(members) >= max_members:
+                raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail="Team is full")
+
+            new_member = {
+                "user_id": user_id,
+                "username": user_doc.get("username", ""),
+                "email": user_doc.get("email", ""),
+                "role": "member",
+                "joined_at": datetime.utcnow(),
+            }
+            await self.teams.update_one(
+                {"_id": ObjectId(dest_id)},
+                {
+                    "$push": {"members": new_member},
+                    "$inc": {"member_count": 1},
+                    "$set": {"updated_at": datetime.utcnow()},
+                },
+            )
+
+        # Update user doc to reference destination team
+        team_zone = dest_team_doc.get("zone") or dest.get("zone")  # prefer DB doc
+        update_user = {
+            "team_id": dest_id,
+            "team_code": dest.get("team_code"),
+            "team_name": dest_team_doc.get("name") or dest.get("name"),
+        }
+        if team_zone:
+            update_user["zone"] = team_zone
+
+        await self.users.update_one({"_id": ObjectId(user_id)}, {"$set": update_user})
+        return {"success": True, "user_id": user_id, "team_id": dest_id, "team_code": dest.get("team_code")}
+
 
 # Global instance
 team_service = TeamService()

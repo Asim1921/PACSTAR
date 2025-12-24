@@ -12,6 +12,7 @@ This service handles:
 import logging
 import asyncio
 from typing import Dict, List, Optional, Any
+import hashlib
 from datetime import datetime, timedelta, timezone
 from bson import ObjectId
 import motor.motor_asyncio
@@ -95,10 +96,10 @@ class EventService:
         now = datetime.utcnow()
         
         # Determine initial status based on creator role
-        # - Admin: requires approval
+        # - Admin: create as DRAFT; must submit for approval, then Master approves
         # - Master: no approval; auto-schedule or auto-run based on start_time
         if user_role == "Admin":
-            initial_status = EventStatus.PENDING_APPROVAL
+            initial_status = EventStatus.DRAFT
         elif user_role == "Master":
             now_utc = datetime.utcnow()
             try:
@@ -1321,6 +1322,123 @@ class EventService:
         event = await self.events.find_one({"_id": ObjectId(event_id)})
         if not event:
             raise ValueError("Event not found")
+
+        # Backfill: If users solved challenges via the global challenge submission endpoint,
+        # those records live in `submissions` and not `event_submissions`. Event Analytics is
+        # computed from `event_submissions`, so if it's empty but there are global solves for
+        # challenges in this event, sync them once.
+        try:
+            if user_role in ["Master", "Admin"]:
+                existing_event_subs = await self.event_submissions.count_documents({"event_id": event_id})
+                if existing_event_subs == 0:
+                    # Build list of event challenge ids
+                    ch_cfgs = event.get("challenges", []) or []
+                    ch_ids = [str(c.get("challenge_id")) for c in ch_cfgs if c.get("challenge_id")]
+                    obj_ids = [ObjectId(cid) for cid in ch_ids if ObjectId.is_valid(cid)]
+                    if obj_ids:
+                        global_cnt = await self.db["submissions"].count_documents({"challenge_id": {"$in": obj_ids}})
+                        if global_cnt > 0:
+                            # Map hashed team ids (team-<md5(team_code)[:8]>) -> Mongo team id
+                            team_map: Dict[str, Dict[str, str]] = {}
+                            async for t in self.teams.find({}, {"team_code": 1, "name": 1}):
+                                code = (t.get("team_code") or "").strip()
+                                if not code:
+                                    continue
+                                digest = hashlib.md5(code.encode()).hexdigest()[:8]
+                                team_map[f"team-{digest}"] = {"team_id": str(t["_id"]), "team_name": t.get("name") or code}
+
+                            # Quick lookup for event challenge meta
+                            ch_meta: Dict[str, Dict[str, Any]] = {}
+                            for c in ch_cfgs:
+                                cid = str(c.get("challenge_id"))
+                                if not cid:
+                                    continue
+                                ch_meta[cid] = {
+                                    "points": int(c.get("points", 0) or 0),
+                                    "skill_category": c.get("skill_category") or c.get("challenge_category") or "web",
+                                    "challenge_name": c.get("challenge_name"),
+                                }
+
+                            # Read global submissions and insert as event_submissions
+                            docs_to_insert: List[Dict[str, Any]] = []
+                            solve_counts: Dict[str, int] = {}
+                            points_by_team: Dict[str, int] = {}
+                            solves_by_team: Dict[str, int] = {}
+
+                            cursor = self.db["submissions"].find({"challenge_id": {"$in": obj_ids}})
+                            async for s in cursor:
+                                cid = str(s.get("challenge_id"))
+                                team_hash = s.get("team_id")
+                                mapped = team_map.get(str(team_hash))
+                                if not mapped:
+                                    continue
+                                mongo_team_id = mapped["team_id"]
+                                team_name = mapped.get("team_name")
+
+                                # Avoid duplicates if function runs twice (shouldn't, but safe)
+                                exists = await self.event_submissions.find_one(
+                                    {
+                                        "event_id": event_id,
+                                        "challenge_id": cid,
+                                        "team_id": mongo_team_id,
+                                        "is_correct": True,
+                                    },
+                                    {"_id": 1},
+                                )
+                                if exists:
+                                    continue
+
+                                meta = ch_meta.get(cid, {})
+                                pts = int(s.get("points", 0) or meta.get("points", 0) or 0)
+                                docs_to_insert.append(
+                                    {
+                                        "event_id": event_id,
+                                        "challenge_id": cid,
+                                        "user_id": str(s.get("user_id") or ""),
+                                        "username": str(s.get("user_id") or "unknown"),
+                                        "zone": event.get("zone"),
+                                        "team_id": mongo_team_id,
+                                        "team_name": team_name,
+                                        "submitted_flag": "",
+                                        "is_correct": True,
+                                        "points_awarded": pts,
+                                        "ip_address": "",
+                                        "user_agent": None,
+                                        "attempt_number": 1,
+                                        "skill_category": meta.get("skill_category") or "web",
+                                        "submitted_at": s.get("submitted_at") or datetime.utcnow(),
+                                    }
+                                )
+
+                                solve_counts[cid] = solve_counts.get(cid, 0) + 1
+                                points_by_team[mongo_team_id] = points_by_team.get(mongo_team_id, 0) + pts
+                                solves_by_team[mongo_team_id] = solves_by_team.get(mongo_team_id, 0) + 1
+
+                            if docs_to_insert:
+                                await self.event_submissions.insert_many(docs_to_insert)
+
+                                # Update event challenge solve_count fields based on backfill
+                                updated_challenges = []
+                                for c in ch_cfgs:
+                                    cid = str(c.get("challenge_id"))
+                                    if cid:
+                                        c["solve_count"] = int(solve_counts.get(cid, 0))
+                                    updated_challenges.append(c)
+                                await self.events.update_one(
+                                    {"_id": ObjectId(event_id)},
+                                    {"$set": {"challenges": updated_challenges}},
+                                )
+
+                                # Update participant totals (team-based events)
+                                if event.get("participation_type") == EventParticipationType.TEAM_BASED.value:
+                                    for tid, pts in points_by_team.items():
+                                        await self.event_participants.update_one(
+                                            {"event_id": event_id, "team_id": tid},
+                                            {"$set": {"total_points": int(pts), "challenges_solved": int(solves_by_team.get(tid, 0))}},
+                                        )
+        except Exception:
+            # Never block analytics on backfill; if it fails, stats will still compute from existing event_submissions.
+            pass
         
         # Access control
         if user_role != "Master":
@@ -1371,8 +1489,20 @@ class EventService:
                 {"$group": {"_id": "$challenge_id", "attempts": {"$sum": 1}}},
             ]
             attempt_rows = await self.event_submissions.aggregate(attempt_pipeline).to_list(10000)
-            attempt_by_challenge = {str(r["_id"]): int(r.get("attempts", 0)) for r in attempt_rows}
-        except Exception:
+            # Store attempts with both string and normalized string keys
+            for r in attempt_rows:
+                challenge_id_key = str(r["_id"])
+                attempt_by_challenge[challenge_id_key] = int(r.get("attempts", 0))
+                # Also try ObjectId string format if different
+                try:
+                    if ObjectId.is_valid(challenge_id_key):
+                        obj_id_str = str(ObjectId(challenge_id_key))
+                        if obj_id_str != challenge_id_key:
+                            attempt_by_challenge[obj_id_str] = attempt_by_challenge.get(obj_id_str, 0) + int(r.get("attempts", 0))
+                except:
+                    pass
+        except Exception as e:
+            logger.warning(f"Failed to compute attempt counts: {e}")
             attempt_by_challenge = {}
         
         for c in challenges:
@@ -1381,13 +1511,25 @@ class EventService:
             challenges_by_category[category] = challenges_by_category.get(category, 0) + 1
             total_possible_points += int(c.get("points", 0) or 0)
             
+            # Get challenge_id and normalize for lookup
+            challenge_id_key = str(c.get("challenge_id", ""))
+            attempt_count = attempt_by_challenge.get(challenge_id_key, 0)
+            # Try ObjectId format if string didn't match
+            if attempt_count == 0:
+                try:
+                    if ObjectId.is_valid(challenge_id_key):
+                        obj_id_str = str(ObjectId(challenge_id_key))
+                        attempt_count = attempt_by_challenge.get(obj_id_str, 0)
+                except:
+                    pass
+            
             challenge_stat = ChallengeStatsDetail(
-                challenge_id=c["challenge_id"],
+                challenge_id=challenge_id_key,
                 challenge_name=c["challenge_name"],
                 category=category,
                 points=c["points"],
                 solve_count=c.get("solve_count", 0),
-                attempt_count=attempt_by_challenge.get(str(c["challenge_id"]), 0),
+                attempt_count=attempt_count,
                 first_blood_user=c.get("first_blood"),
                 first_blood_time=c.get("first_blood_time")
             )
@@ -1413,7 +1555,7 @@ class EventService:
         
         # IP mappings
         ip_pipeline = [
-            {"$match": {"event_id": event_id}},
+            {"$match": {"event_id": event_id, "ip_address": {"$nin": [None, "", "unknown"]}}},
             {"$group": {
                 "_id": "$user_id",
                 "ips": {"$addToSet": "$ip_address"}
@@ -1421,7 +1563,7 @@ class EventService:
         ]
         ip_results = await self.event_submissions.aggregate(ip_pipeline).to_list(10000)
         ip_mappings = {str(r["_id"]): r["ips"] for r in ip_results}
-        unique_ip_count = len(set(ip for ips in ip_mappings.values() for ip in ips))
+        unique_ip_count = len(set(ip for ips in ip_mappings.values() for ip in ips if ip and str(ip).strip() and str(ip).strip().lower() != "unknown"))
 
         # IP details: group by IP with users + activity count + last seen
         ip_details: List[IPAddressDetail] = []
@@ -1430,7 +1572,7 @@ class EventService:
         total_activities_tracked: int = int(total_submissions or 0)
         try:
             ip_detail_pipeline = [
-                {"$match": {"event_id": event_id, "ip_address": {"$ne": None}}},
+                {"$match": {"event_id": event_id, "ip_address": {"$nin": [None, "", "unknown"]}}},
                 {"$group": {
                     "_id": "$ip_address",
                     "users": {"$addToSet": "$username"},
@@ -1901,27 +2043,98 @@ class EventService:
         )
     
     async def _get_top_users(self, event_id: str, limit: int = 10) -> List[UserStats]:
-        """Get top users by points"""
-        cursor = self.event_participants.find({
-            "event_id": event_id
-        }).sort("total_points", -1).limit(limit)
-        
-        participants = await cursor.to_list(limit)
-        
-        users = []
-        for p in participants:
+        """Get top users by points + activity, including per-user submission stats.
+
+        Important: Some users may have event submissions even if their participant record is missing
+        (e.g., legacy data). We include users from `event_submissions` as well so analytics charts
+        show everyone who interacted.
+        """
+        # Aggregate submissions per user for this event
+        subs_by_user: Dict[str, Dict[str, Any]] = {}
+        try:
+            pipeline = [
+                {"$match": {"event_id": event_id}},
+                {"$group": {
+                    "_id": "$user_id",
+                    "username": {"$first": "$username"},
+                    "zone": {"$first": "$zone"},
+                    "total_submissions": {"$sum": 1},
+                    "correct_submissions": {"$sum": {"$cond": ["$is_correct", 1, 0]}},
+                    "points_awarded": {"$sum": {"$ifNull": ["$points_awarded", 0]}},
+                    "last_submission_at": {"$max": "$submitted_at"},
+                    "ip_addresses": {"$addToSet": "$ip_address"},
+                    "solved_challenges": {"$addToSet": {"$cond": ["$is_correct", "$challenge_id", None]}},
+                }},
+            ]
+            rows = await self.event_submissions.aggregate(pipeline).to_list(10000)
+            for r in rows:
+                uid = str(r.get("_id") or "")
+                if not uid:
+                    continue
+                subs_by_user[uid] = r
+        except Exception:
+            subs_by_user = {}
+
+        # Pull participants (these include authoritative total_points/challenges_solved)
+        participants = await self.event_participants.find({"event_id": event_id}).to_list(length=5000)
+        participants_by_user: Dict[str, Dict[str, Any]] = {str(p.get("user_id")): p for p in participants if p.get("user_id")}
+
+        # Candidate users = participants U submissions
+        candidate_user_ids = list({*participants_by_user.keys(), *subs_by_user.keys()})
+        if not candidate_user_ids:
+            return []
+
+        users: List[UserStats] = []
+        for uid in candidate_user_ids:
+            p = participants_by_user.get(uid) or {}
+            s = subs_by_user.get(uid) or {}
+
+            total_submissions = int(s.get("total_submissions", 0) or 0)
+            correct_submissions = int(s.get("correct_submissions", 0) or 0)
+            incorrect_submissions = max(0, total_submissions - correct_submissions)
+
+            # Prefer participant totals; fallback to submission-derived totals
+            total_points = int(p.get("total_points", 0) or 0)
+            challenges_solved = int(p.get("challenges_solved", 0) or 0)
+            if not p:
+                # Derive from submissions if participant missing
+                total_points = int(s.get("points_awarded", 0) or 0)
+                solved = [x for x in (s.get("solved_challenges") or []) if x]
+                challenges_solved = len(set(str(x) for x in solved))
+
+            # Username/zone fallbacks
+            username = p.get("username") or s.get("username") or "unknown"
+            zone = p.get("zone") or s.get("zone") or "unknown"
+
+            # Clean IP list
+            ips = []
+            for ip in (s.get("ip_addresses") or []):
+                if not ip:
+                    continue
+                ip_str = str(ip).strip()
+                if not ip_str or ip_str.lower() == "unknown":
+                    continue
+                ips.append(ip_str)
+
             users.append(UserStats(
-                user_id=str(p["user_id"]),
-                username=p["username"],
-                zone=p.get("zone", "unknown"),
-                total_points=p.get("total_points", 0),
-                challenges_solved=p.get("challenges_solved", 0)
+                user_id=str(uid),
+                username=str(username),
+                zone=str(zone),
+                total_points=total_points,
+                challenges_solved=challenges_solved,
+                total_submissions=total_submissions,
+                correct_submissions=correct_submissions,
+                incorrect_submissions=incorrect_submissions,
+                ip_addresses=sorted(list(set(ips))),
+                last_submission_at=s.get("last_submission_at"),
             ))
-        
-        return users
+
+        # Sort: points, solves, submissions, username (stable)
+        users.sort(key=lambda u: (-u.total_points, -u.challenges_solved, -u.total_submissions, u.username))
+        return users[:limit]
     
     async def _get_top_teams(self, event_id: str, limit: int = 10) -> List[TeamStats]:
-        """Get top teams by points"""
+        """Get top teams by points, filtering out deleted teams"""
         pipeline = [
             {"$match": {"event_id": event_id, "team_id": {"$ne": None}}},
             {"$group": {
@@ -1933,54 +2146,151 @@ class EventService:
                 "member_count": {"$sum": 1}
             }},
             {"$sort": {"total_points": -1}},
-            {"$limit": limit}
+            {"$limit": limit * 2}  # Fetch more to account for filtered teams
         ]
         
-        results = await self.event_participants.aggregate(pipeline).to_list(limit)
+        results = await self.event_participants.aggregate(pipeline).to_list(limit * 2)
         
-        teams = []
+        if not results:
+            return []
+        
+        # Collect all team IDs and normalize them to ObjectId format
+        team_ids_to_check = []
+        team_id_map = {}  # Maps normalized ObjectId to original result data
+        team_names_to_check = {}  # For teams with string IDs, check by name
         for r in results:
-            teams.append(TeamStats(
-                team_id=str(r["_id"]) if r["_id"] else None,
-                team_name=r.get("team_name", "Unknown"),
-                zone=r.get("zone", "unknown"),
-                total_points=r.get("total_points", 0),
-                challenges_solved=r.get("challenges_solved", 0),
-                member_count=r.get("member_count", 0)
-            ))
+            team_id = r.get("_id")
+            if not team_id:
+                continue
+            try:
+                if isinstance(team_id, ObjectId):
+                    normalized_id = team_id
+                    team_ids_to_check.append(normalized_id)
+                    team_id_map[normalized_id] = r
+                elif isinstance(team_id, str) and ObjectId.is_valid(team_id):
+                    normalized_id = ObjectId(team_id)
+                    team_ids_to_check.append(normalized_id)
+                    team_id_map[normalized_id] = r
+                else:
+                    # For non-ObjectId string IDs, try to find by team name
+                    team_name = r.get("team_name")
+                    if team_name:
+                        team_names_to_check[team_name] = r
+            except Exception:
+                continue
+        
+        # Bulk check which teams exist by ID
+        existing_team_ids = set()
+        if team_ids_to_check:
+            existing_teams_cursor = self.teams.find({"_id": {"$in": team_ids_to_check}}, {"_id": 1})
+            existing_team_ids = {doc["_id"] async for doc in existing_teams_cursor}
+        
+        # Bulk check which teams exist by name (for non-ObjectId string IDs)
+        existing_team_names = set()
+        if team_names_to_check:
+            team_names_list = list(team_names_to_check.keys())
+            existing_teams_by_name_cursor = self.teams.find({"name": {"$in": team_names_list}}, {"name": 1})
+            existing_team_names = {doc["name"] async for doc in existing_teams_by_name_cursor}
+        
+        # Build result list with only existing teams
+        teams = []
+        for normalized_id, r in team_id_map.items():
+            if normalized_id in existing_team_ids:
+                teams.append(TeamStats(
+                    team_id=str(normalized_id) if normalized_id else None,
+                    team_name=r.get("team_name", "Unknown"),
+                    zone=r.get("zone", "unknown"),
+                    total_points=r.get("total_points", 0),
+                    challenges_solved=r.get("challenges_solved", 0),
+                    member_count=r.get("member_count", 0)
+                ))
+                
+                # Stop once we have enough valid teams
+                if len(teams) >= limit:
+                    break
+        
+        # Add teams found by name (if we still need more)
+        if len(teams) < limit:
+            for team_name, r in team_names_to_check.items():
+                if team_name in existing_team_names:
+                    teams.append(TeamStats(
+                        team_id=str(r.get("_id", "")),
+                        team_name=r.get("team_name", "Unknown"),
+                        zone=r.get("zone", "unknown"),
+                        total_points=r.get("total_points", 0),
+                        challenges_solved=r.get("challenges_solved", 0),
+                        member_count=r.get("member_count", 0)
+                    ))
+                    
+                    if len(teams) >= limit:
+                        break
         
         return teams
     
     async def _get_user_scoreboard(self, event_id: str) -> List[ScoreboardEntry]:
-        """Get user-based scoreboard"""
+        """Get user-based scoreboard, filtering out deleted users"""
         cursor = self.event_participants.find({
             "event_id": event_id
         }).sort([("total_points", -1), ("challenges_solved", -1)])
         
         participants = await cursor.to_list(1000)
         
+        if not participants:
+            return []
+        
+        # Collect all user IDs and normalize them to ObjectId format
+        user_ids_to_check = []
+        user_id_map = {}  # Maps normalized ObjectId to original participant data
+        for p in participants:
+            user_id = p.get("user_id")
+            if not user_id:
+                continue
+            try:
+                if isinstance(user_id, ObjectId):
+                    normalized_id = user_id
+                elif isinstance(user_id, str) and ObjectId.is_valid(user_id):
+                    normalized_id = ObjectId(user_id)
+                else:
+                    # Skip invalid IDs
+                    continue
+                user_ids_to_check.append(normalized_id)
+                user_id_map[normalized_id] = p
+            except Exception:
+                continue
+        
+        if not user_ids_to_check:
+            return []
+        
+        # Bulk check which users exist
+        existing_users_cursor = self.users.find({"_id": {"$in": user_ids_to_check}}, {"_id": 1})
+        existing_user_ids = {doc["_id"] async for doc in existing_users_cursor}
+        
+        # Build result list with only existing users
         entries = []
-        for i, p in enumerate(participants):
-            # Get last solve time
-            last_solve = await self.event_submissions.find_one(
-                {"event_id": event_id, "user_id": p["user_id"], "is_correct": True},
-                sort=[("submitted_at", -1)]
-            )
-            
-            entries.append(ScoreboardEntry(
-                rank=i + 1,
-                participant_id=str(p["user_id"]),
-                participant_name=p["username"],
-                zone=p.get("zone", "unknown"),
-                total_points=p.get("total_points", 0),
-                challenges_solved=p.get("challenges_solved", 0),
-                last_solve_time=last_solve["submitted_at"] if last_solve else None
-            ))
+        rank = 1
+        for normalized_id, p in user_id_map.items():
+            if normalized_id in existing_user_ids:
+                # Get last solve time
+                last_solve = await self.event_submissions.find_one(
+                    {"event_id": event_id, "user_id": normalized_id, "is_correct": True},
+                    sort=[("submitted_at", -1)]
+                )
+                
+                entries.append(ScoreboardEntry(
+                    rank=rank,
+                    participant_id=str(normalized_id),
+                    participant_name=p["username"],
+                    zone=p.get("zone", "unknown"),
+                    total_points=p.get("total_points", 0),
+                    challenges_solved=p.get("challenges_solved", 0),
+                    last_solve_time=last_solve["submitted_at"] if last_solve else None
+                ))
+                rank += 1
         
         return entries
     
     async def _get_team_scoreboard(self, event_id: str) -> List[ScoreboardEntry]:
-        """Get team-based scoreboard"""
+        """Get team-based scoreboard, filtering out deleted teams"""
         pipeline = [
             {"$match": {"event_id": event_id, "team_id": {"$ne": None}}},
             {"$group": {
@@ -1995,23 +2305,89 @@ class EventService:
         
         results = await self.event_participants.aggregate(pipeline).to_list(1000)
         
+        if not results:
+            return []
+        
+        # Collect all team IDs and normalize them to ObjectId format
+        team_ids_to_check = []
+        team_id_map = {}  # Maps normalized ObjectId to original result data
+        team_names_to_check = {}  # For teams with string IDs, check by name
+        for r in results:
+            team_id = r.get("_id")
+            if not team_id:
+                continue
+            try:
+                if isinstance(team_id, ObjectId):
+                    normalized_id = team_id
+                    team_ids_to_check.append(normalized_id)
+                    team_id_map[normalized_id] = r
+                elif isinstance(team_id, str) and ObjectId.is_valid(team_id):
+                    normalized_id = ObjectId(team_id)
+                    team_ids_to_check.append(normalized_id)
+                    team_id_map[normalized_id] = r
+                else:
+                    # For non-ObjectId string IDs, try to find by team name
+                    team_name = r.get("team_name")
+                    if team_name:
+                        team_names_to_check[team_name] = r
+            except Exception:
+                continue
+        
+        # Bulk check which teams exist by ID
+        existing_team_ids = set()
+        if team_ids_to_check:
+            existing_teams_cursor = self.teams.find({"_id": {"$in": team_ids_to_check}}, {"_id": 1})
+            existing_team_ids = {doc["_id"] async for doc in existing_teams_cursor}
+        
+        # Bulk check which teams exist by name (for non-ObjectId string IDs)
+        existing_team_names = set()
+        if team_names_to_check:
+            team_names_list = list(team_names_to_check.keys())
+            existing_teams_by_name_cursor = self.teams.find({"name": {"$in": team_names_list}}, {"name": 1})
+            existing_team_names = {doc["name"] async for doc in existing_teams_by_name_cursor}
+        
+        # Build result list with only existing teams
         entries = []
-        for i, r in enumerate(results):
-            # Get last solve time for team
-            last_solve = await self.event_submissions.find_one(
-                {"event_id": event_id, "team_id": r["_id"], "is_correct": True},
-                sort=[("submitted_at", -1)]
-            )
-            
-            entries.append(ScoreboardEntry(
-                rank=i + 1,
-                participant_id=str(r["_id"]),
-                participant_name=r.get("team_name", "Unknown"),
-                zone=r.get("zone", "unknown"),
-                total_points=r.get("total_points", 0),
-                challenges_solved=r.get("challenges_solved", 0),
-                last_solve_time=last_solve["submitted_at"] if last_solve else None
-            ))
+        rank = 1
+        for normalized_id, r in team_id_map.items():
+            if normalized_id in existing_team_ids:
+                # Get last solve time for team
+                last_solve = await self.event_submissions.find_one(
+                    {"event_id": event_id, "team_id": normalized_id, "is_correct": True},
+                    sort=[("submitted_at", -1)]
+                )
+                
+                entries.append(ScoreboardEntry(
+                    rank=rank,
+                    participant_id=str(normalized_id),
+                    participant_name=r.get("team_name", "Unknown"),
+                    zone=r.get("zone", "unknown"),
+                    total_points=r.get("total_points", 0),
+                    challenges_solved=r.get("challenges_solved", 0),
+                    last_solve_time=last_solve["submitted_at"] if last_solve else None
+                ))
+                rank += 1
+        
+        # Add teams found by name (maintaining sort order)
+        for team_name, r in team_names_to_check.items():
+            if team_name in existing_team_names:
+                # Get last solve time for team
+                team_id_str = str(r.get("_id", ""))
+                last_solve = await self.event_submissions.find_one(
+                    {"event_id": event_id, "team_id": team_id_str, "is_correct": True},
+                    sort=[("submitted_at", -1)]
+                )
+                
+                entries.append(ScoreboardEntry(
+                    rank=rank,
+                    participant_id=team_id_str,
+                    participant_name=r.get("team_name", "Unknown"),
+                    zone=r.get("zone", "unknown"),
+                    total_points=r.get("total_points", 0),
+                    challenges_solved=r.get("challenges_solved", 0),
+                    last_solve_time=last_solve["submitted_at"] if last_solve else None
+                ))
+                rank += 1
         
         return entries
     

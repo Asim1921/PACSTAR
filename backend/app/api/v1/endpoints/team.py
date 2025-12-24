@@ -5,7 +5,7 @@ from typing import List, Optional
 from fastapi import APIRouter, Depends, HTTPException, status
 
 from app.schemas.team import (
-    TeamCreate, TeamUpdate, TeamResponse, TeamListResponse, JoinTeamRequest
+    TeamCreate, TeamUpdate, TeamResponse, TeamListResponse, JoinTeamRequest, MoveUserToTeamRequest
 )
 from app.schemas.user import UserResponse
 from app.services.team_service import team_service
@@ -204,4 +204,55 @@ async def set_team_active(
 
     updated = await team_service.set_team_active(team_id, is_active)
     return TeamResponse(**updated)
+
+
+@router.delete("/{team_id}", response_model=dict)
+async def delete_team(
+    team_id: str,
+    current_user: UserResponse = Depends(get_current_user),
+):
+    """
+    Delete a team (Master or Admin).
+    Also unsets team fields for users belonging to that team.
+    """
+    if current_user.role not in ["Master", "Admin"]:
+        raise HTTPException(status_code=status.HTTP_403_FORBIDDEN, detail="Only Master/Admin can delete teams")
+    if current_user.role == "Admin":
+        team = await team_service.get_team_by_id(team_id)
+        if not team:
+            raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Team not found")
+        if team.get("zone") != current_user.zone:
+            raise HTTPException(status_code=status.HTTP_403_FORBIDDEN, detail="Admins can only delete teams in their own zone")
+    return await team_service.delete_team(team_id)
+
+
+@router.post("/move-user", response_model=dict)
+async def move_user_to_team(
+    body: MoveUserToTeamRequest,
+    current_user: UserResponse = Depends(get_current_user),
+):
+    """
+    Move a user to a specific team (by team code).
+    Constraint: cannot move team leaders to another team.
+    """
+    if current_user.role not in ["Master", "Admin"]:
+        raise HTTPException(status_code=status.HTTP_403_FORBIDDEN, detail="Only Master/Admin can move users between teams")
+    if current_user.role == "Admin":
+        # Admins are zone-restricted: user + team must be in their zone
+        from bson import ObjectId
+        if not ObjectId.is_valid(body.user_id):
+            raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail="Invalid user ID")
+        user_doc = await team_service.users.find_one({"_id": ObjectId(body.user_id)}, {"zone": 1, "role": 1})
+        if not user_doc:
+            raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="User not found")
+        if user_doc.get("zone") != current_user.zone:
+            raise HTTPException(status_code=status.HTTP_403_FORBIDDEN, detail="Admins can only manage users in their own zone")
+        if user_doc.get("role") in ["Admin", "Master"]:
+            raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail="Admins cannot move Admin/Master accounts")
+        dest_team = await team_service.get_team_by_code(body.team_code.upper())
+        if not dest_team:
+            raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Team not found")
+        if dest_team.get("zone") != current_user.zone:
+            raise HTTPException(status_code=status.HTTP_403_FORBIDDEN, detail="Admins can only move users into teams in their own zone")
+    return await team_service.move_user_to_team_by_code(body.user_id, body.team_code)
 

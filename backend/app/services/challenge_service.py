@@ -1,6 +1,7 @@
 import logging
 import asyncio
 from typing import Dict, List, Optional, Any
+import hashlib
 from datetime import datetime, timedelta
 from bson import ObjectId
 
@@ -1026,7 +1027,15 @@ class ChallengeService:
             created_by=str(challenge["created_by"])
         )
 
-    async def submit_flag(self, challenge_id: str, team_id: str, user_id: str, submitted_flag: str) -> Dict[str, Any]:
+    async def submit_flag(
+        self,
+        challenge_id: str,
+        team_id: str,
+        user_id: str,
+        submitted_flag: str,
+        ip_address: str | None = None,
+        user_agent: str | None = None,
+    ) -> Dict[str, Any]:
         """Validate submitted flag and award points if correct. Supports single and multi-flag."""
         challenges, _ = await self._get_collections()
         # Lazy init submissions if needed
@@ -1043,6 +1052,148 @@ class ChallengeService:
 
         mode = self._resolve_mode(challenge)
         flags_list = challenge.get("flags") or challenge.get("config", {}).get("flags") or []
+
+        async def _record_event_attempts_for_running_events(
+            *,
+            is_correct: bool,
+            points_awarded: int,
+            submitted_flag_value: str,
+        ) -> None:
+            """Record an attempt into event_submissions for any running event containing this challenge.
+            This is needed because the global /challenges/{id}/submit-flag endpoint is not event-scoped,
+            but admins expect Event Analytics to reflect attempts (correct and incorrect).
+            """
+            try:
+                from app.db.init_db import get_database
+                db = await get_database()
+                events_collection = db["events"]
+                event_submissions_collection = db["event_submissions"]
+                event_participants_collection = db["event_participants"]
+                teams_collection = db["teams"]
+                users_collection = db["users"]
+
+                # Find running events that contain this challenge
+                challenge_id_str = str(challenge_id)
+                query = {"status": "running"}
+                challenge_id_obj = None
+                try:
+                    if isinstance(challenge_id, str) and ObjectId.is_valid(challenge_id):
+                        challenge_id_obj = ObjectId(challenge_id)
+                except Exception:
+                    challenge_id_obj = None
+
+                if challenge_id_obj:
+                    query["$or"] = [
+                        {"challenges.challenge_id": challenge_id_str},
+                        {"challenges.challenge_id": challenge_id_obj},
+                    ]
+                else:
+                    query["challenges.challenge_id"] = challenge_id_str
+
+                running_events = await events_collection.find(query).to_list(length=100)
+                if not running_events:
+                    return
+
+                # Resolve user info once
+                username = "unknown"
+                user_zone = None
+                try:
+                    if ObjectId.is_valid(str(user_id)):
+                        udoc = await users_collection.find_one({"_id": ObjectId(str(user_id))}, {"username": 1, "zone": 1})
+                        if udoc:
+                            username = udoc.get("username") or username
+                            user_zone = udoc.get("zone") or user_zone
+                except Exception:
+                    pass
+
+                # Helper: resolve hashed team id -> Mongo team _id for team-based events
+                async def resolve_team_id(team_id_in: str | None) -> tuple[str | None, str | None]:
+                    if not team_id_in:
+                        return None, None
+                    # if already an ObjectId string, keep it
+                    if len(str(team_id_in)) == 24 and ObjectId.is_valid(str(team_id_in)):
+                        tdoc = await teams_collection.find_one({"_id": ObjectId(str(team_id_in))}, {"name": 1})
+                        return str(team_id_in), (tdoc.get("name") if tdoc else None)
+                    # hashed team form: team-<md5(team_code)[:8]>
+                    if str(team_id_in).startswith("team-"):
+                        suffix = str(team_id_in).split("team-", 1)[1]
+                        async for t in teams_collection.find({}, {"team_code": 1, "name": 1}):
+                            code = (t.get("team_code") or "").strip()
+                            if not code:
+                                continue
+                            digest = hashlib.md5(code.encode()).hexdigest()[:8]
+                            if digest == suffix:
+                                return str(t["_id"]), t.get("name")
+                    return str(team_id_in), None
+
+                for event in running_events:
+                    event_id = str(event["_id"])
+                    participation_type = event.get("participation_type")
+
+                    # Locate event challenge config (needed for points/skill_category)
+                    event_challenge = None
+                    for c in event.get("challenges", []) or []:
+                        if str(c.get("challenge_id")) == challenge_id_str:
+                            event_challenge = c
+                            break
+                    if not event_challenge:
+                        continue
+
+                    # Resolve team id if team-based
+                    resolved_team_id, resolved_team_name = (None, None)
+                    if participation_type == "team_based":
+                        resolved_team_id, resolved_team_name = await resolve_team_id(str(team_id))
+
+                    # Must be registered participant
+                    participant_query = {"event_id": event_id}
+                    if participation_type == "team_based" and resolved_team_id:
+                        participant_query["team_id"] = resolved_team_id
+                    else:
+                        participant_query["user_id"] = str(user_id)
+                    participant = await event_participants_collection.find_one(participant_query)
+                    if not participant:
+                        continue
+
+                    # Compute attempt_number for this user/team on this challenge within this event
+                    attempt_query = {"event_id": event_id, "challenge_id": challenge_id_str}
+                    if participation_type == "team_based" and resolved_team_id:
+                        attempt_query["team_id"] = resolved_team_id
+                    else:
+                        attempt_query["user_id"] = str(user_id)
+                    prev_attempts = await event_submissions_collection.count_documents(attempt_query)
+
+                    # If correct, avoid duplicate "already solved" entries in event context
+                    if is_correct:
+                        solve_check = {"event_id": event_id, "challenge_id": challenge_id_str, "is_correct": True}
+                        if participation_type == "team_based" and resolved_team_id:
+                            solve_check["team_id"] = resolved_team_id
+                        else:
+                            solve_check["user_id"] = str(user_id)
+                        already = await event_submissions_collection.find_one(solve_check, {"_id": 1})
+                        if already:
+                            continue
+
+                    await event_submissions_collection.insert_one(
+                        {
+                            "event_id": event_id,
+                            "challenge_id": challenge_id_str,
+                            "user_id": str(user_id),
+                            "username": username,
+                            "zone": user_zone or event.get("zone"),
+                            "team_id": resolved_team_id,
+                            "team_name": resolved_team_name,
+                            "submitted_flag": submitted_flag_value,
+                            "is_correct": bool(is_correct),
+                            "points_awarded": int(points_awarded),
+                            "ip_address": ip_address or "",
+                            "user_agent": user_agent,
+                            "attempt_number": int(prev_attempts) + 1,
+                            "skill_category": event_challenge.get("skill_category") or challenge.get("skill_category") or "web",
+                            "submitted_at": datetime.utcnow(),
+                        }
+                    )
+            except Exception as e:
+                logger.warning(f"Failed to record event attempt from global submission: {e}")
 
         # Multi-flag flow
         if mode == "multi_flag" and flags_list:
@@ -1076,6 +1227,14 @@ class ChallengeService:
                         "flag_name": name
                     }
                     await self._submissions_collection.insert_one(doc)
+                    
+                    # Record attempt for Event Analytics (correct solve)
+                    await _record_event_attempts_for_running_events(
+                        is_correct=True,
+                        points_awarded=points_per_flag,
+                        submitted_flag_value=trimmed,
+                    )
+                    
                     return {
                         "success": True,
                         "status": "correct",
@@ -1084,6 +1243,12 @@ class ChallengeService:
                         "message": f"Correct! ({name}) +{points_per_flag} points"
                     }
 
+            # Record incorrect attempt for Event Analytics
+            await _record_event_attempts_for_running_events(
+                is_correct=False,
+                points_awarded=0,
+                submitted_flag_value=submitted_flag.strip(),
+            )
             return {"success": False, "status": "incorrect", "points": 0, "message": "Incorrect flag"}
 
         # Single-flag (legacy/dynamic)
@@ -1095,28 +1260,51 @@ class ChallengeService:
         if not correct_flag:
             raise ValueError("Challenge does not have a flag configured")
 
-        # Prevent duplicate solves for the same team and challenge
+        # Check if already solved in regular submissions
         existing = await self._submissions_collection.find_one({
             "challenge_id": ObjectId(challenge_id),
             "team_id": team_id
         })
-        if existing:
-            return {"success": False, "status": "already_solved", "points": 0, "message": "Already solved by your team"}
-
+        
+        # Check if flag is correct
         if submitted_flag.strip() != str(correct_flag).strip():
+            # Record incorrect attempt for Event Analytics
+            await _record_event_attempts_for_running_events(
+                is_correct=False,
+                points_awarded=0,
+                submitted_flag_value=submitted_flag.strip(),
+            )
             return {"success": False, "status": "incorrect", "points": 0, "message": "Incorrect flag"}
-
+        
+        # If already solved in regular submissions, check if we need to record to events
+        # Don't return "already solved" yet - we might still need to record to event_submissions
+        already_in_submissions = existing is not None
+        
         points = int(challenge.get("points", 100))
-        doc = {
-            "challenge_id": ObjectId(challenge_id),
-            "team_id": team_id,
-            "user_id": str(user_id),
-            "points": points,
-            "submitted_at": datetime.utcnow()
-        }
-        await self._submissions_collection.insert_one(doc)
+        
+        # Only insert to regular submissions if not already there
+        if not already_in_submissions:
+            doc = {
+                "challenge_id": ObjectId(challenge_id),
+                "team_id": team_id,
+                "user_id": str(user_id),
+                "points": points,
+                "submitted_at": datetime.utcnow()
+            }
+            await self._submissions_collection.insert_one(doc)
 
-        return {"success": True, "status": "correct", "points": points, "message": f"Correct! +{points} points"}
+        # Record correct attempt for Event Analytics
+        await _record_event_attempts_for_running_events(
+            is_correct=True,
+            points_awarded=points,
+            submitted_flag_value=submitted_flag.strip(),
+        )
+
+        # Return appropriate message based on whether it was already solved
+        if already_in_submissions:
+            return {"success": True, "status": "correct", "points": points, "message": f"Correct! +{points} points (already recorded, but event stats updated)"}
+        else:
+            return {"success": True, "status": "correct", "points": points, "message": f"Correct! +{points} points"}
 
     async def get_scoreboard(self) -> List[Dict[str, Any]]:
         """Compute simple team scoreboard from submissions: total points and solves per team."""
@@ -1407,14 +1595,43 @@ class ChallengeService:
             # Deploy Heat template
             print(f"🚀 Starting Heat stack deployment: {stack_name}", flush=True)
             print(f"📋 Stack parameters: {heat_params}", flush=True)
-            stack_result = await openstack_service.deploy_heat_template(
-                stack_name=stack_name,
-                template_body=heat_template,
-                template_url=None,
-                parameters=heat_params,
-                timeout_minutes=30,
-                rollback_on_failure=True
-            )
+            # If force_redeploy: do NOT reuse existing stack name. Wait for deletion to complete.
+            stack_result = None
+            if force_redeploy:
+                max_wait_s = 45
+                waited = 0
+                while waited <= max_wait_s:
+                    try:
+                        stack_result = await openstack_service.deploy_heat_template(
+                            stack_name=stack_name,
+                            template_body=heat_template,
+                            template_url=None,
+                            parameters=heat_params,
+                            timeout_minutes=30,
+                            rollback_on_failure=True,
+                            reuse_if_exists=False,
+                        )
+                        break
+                    except Exception as e:
+                        # If Heat still reports stack exists while deleting, wait and retry.
+                        msg = str(e)
+                        if "409" in msg or "already exists" in msg or "ConflictException" in msg:
+                            await asyncio.sleep(3)
+                            waited += 3
+                            continue
+                        raise
+                if not stack_result:
+                    raise RuntimeError("Timed out waiting to redeploy stack (old stack still exists)")
+            else:
+                stack_result = await openstack_service.deploy_heat_template(
+                    stack_name=stack_name,
+                    template_body=heat_template,
+                    template_url=None,
+                    parameters=heat_params,
+                    timeout_minutes=30,
+                    rollback_on_failure=True,
+                    reuse_if_exists=True,
+                )
             
             stack_id = stack_result.get("stack_id") or stack_result.get("stack_name")
             print(f"✅ Heat stack deployment initiated. Stack ID: {stack_id}", flush=True)
@@ -1798,6 +2015,51 @@ class ChallengeService:
                                 logger.warning(f"Could not construct fallback VNC console URL: {fallback_error}")
                         
                 except Exception as e:
+                    # Self-heal: server_id from stack outputs can be stale. Try resolve via Heat stack resources.
+                    try:
+                        print(f"⚠️ Server lookup failed, attempting to resolve server_id from Heat stack resources...", flush=True)
+                        stack_obj = None
+                        try:
+                            stack_obj = conn.orchestration.get_stack(stack_id)
+                        except Exception:
+                            stack_obj = conn.orchestration.find_stack(stack_name, ignore_missing=True)
+                            if stack_obj:
+                                stack_obj = conn.orchestration.get_stack(stack_obj.id)
+
+                        resolved_server_id = None
+                        if stack_obj:
+                            # openstacksdk: conn.orchestration.resources(stack) yields resources
+                            for r in conn.orchestration.resources(stack_obj):
+                                r_type = getattr(r, "resource_type", None)
+                                physical = getattr(r, "physical_resource_id", None)
+                                if r_type == "OS::Nova::Server" and physical:
+                                    resolved_server_id = physical
+                                    break
+
+                        if resolved_server_id and resolved_server_id != server_id:
+                            print(f"✅ Resolved server_id from resources: {resolved_server_id}", flush=True)
+                            server_id = resolved_server_id
+                            # retry just VNC (IP already may exist)
+                            try:
+                                server = conn.compute.get_server(server_id)
+                                if server:
+                                    # Try VNC again quickly
+                                    import requests
+                                    token = conn.auth_token
+                                    headers = {"X-Auth-Token": token, "Content-Type": "application/json"}
+                                    compute_url = "http://192.168.15.222:8774/v2.1"
+                                    url = f"{compute_url}/servers/{server_id}/action"
+                                    data = {"os-getVNCConsole": {"type": "novnc"}}
+                                    resp = requests.post(url, json=data, headers=headers, timeout=10)
+                                    if resp.status_code == 200:
+                                        body = resp.json()
+                                        if body.get("console", {}).get("url"):
+                                            vnc_console_url = body["console"]["url"]
+                                            print(f"✅ Retrieved VNC console URL after resolving server_id", flush=True)
+                            except Exception:
+                                pass
+                    except Exception:
+                        pass
                     print(f"❌ Could not fetch server details: {e}", flush=True)
                     import traceback
                     print(traceback.format_exc(), flush=True)
@@ -1998,7 +2260,43 @@ class ChallengeService:
                     conn.compute.reboot_server(server, reboot_type="SOFT")
                     logger.info(f"Restarted server {server_id} for team {team_id}")
                 
-                await openstack_service._to_thread(_restart_server)
+                try:
+                    await openstack_service._to_thread(_restart_server)
+                except Exception as e:
+                    # Self-heal: if server no longer exists, try to resolve server_id from stack resources.
+                    stack_id = existing_instance.get("stack_id")
+                    stack_name = existing_instance.get("stack_name")
+                    try:
+                        def _resolve_server_id():
+                            conn = openstack_service._get_connection()
+                            st = None
+                            if stack_id:
+                                try:
+                                    st = conn.orchestration.get_stack(stack_id)
+                                except Exception:
+                                    st = None
+                            if not st and stack_name:
+                                found = conn.orchestration.find_stack(stack_name, ignore_missing=True)
+                                if found:
+                                    st = conn.orchestration.get_stack(found.id)
+                            if not st:
+                                return None
+                            for r in conn.orchestration.resources(st):
+                                if getattr(r, "resource_type", None) == "OS::Nova::Server" and getattr(r, "physical_resource_id", None):
+                                    return r.physical_resource_id
+                            return None
+
+                        resolved = await openstack_service._to_thread(_resolve_server_id)
+                        if resolved:
+                            existing_instance["server_id"] = resolved
+                            server_id = resolved
+                            # Retry restart once
+                            await openstack_service._to_thread(_restart_server)
+                        else:
+                            # If stack exists but server missing, a redeploy is required.
+                            raise RuntimeError("Server not found for this stack; please redeploy VM") from e
+                    except Exception:
+                        raise
                 
                 # Update reset info
                 existing_instance["last_reset_by"] = reset_by_username

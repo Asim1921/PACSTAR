@@ -301,7 +301,8 @@ export const UserChallenges: React.FC<UserChallengesProps> = ({ teamId: propTeam
           const vnc = inst?.vnc_console_url;
           const hasIp = !!ip && ip !== 'Pending';
           const hasVnc = !!vnc;
-          if (hasIp || hasVnc) {
+          // Prefer waiting for BOTH IP + VNC, but still stop after timeout to avoid locking the UI forever.
+          if (hasIp && hasVnc) {
             // Refresh list so UI updates access_info immediately.
             await fetchChallenges();
             break;
@@ -615,6 +616,12 @@ export const UserChallenges: React.FC<UserChallengesProps> = ({ teamId: propTeam
 
   const handleStartChallenge = async (challengeId: string) => {
     setStartingChallenge(challengeId);
+    const current = challenges.find((c) => c.id === challengeId);
+    const isOpenStack = current?.challenge_category === 'openstack';
+    // For OpenStack, disable the Start button immediately and keep it disabled until IP/VNC appear.
+    if (isOpenStack) {
+      setPendingOpenStackAccessByChallengeId((prev) => ({ ...prev, [challengeId]: true }));
+    }
     try {
       const result = await challengeAPI.startChallenge(challengeId);
       showToast('Challenge instance started successfully', 'success');
@@ -623,14 +630,12 @@ export const UserChallenges: React.FC<UserChallengesProps> = ({ teamId: propTeam
         await refreshChallenge(challengeId);
       }, 750);
 
-      const current = challenges.find((c) => c.id === challengeId);
-      if (current?.challenge_category === 'openstack') {
-        setPendingOpenStackAccessByChallengeId((prev) => ({ ...prev, [challengeId]: true }));
-      }
     } catch (error: any) {
       console.error('Start challenge error:', error);
       const errorMessage = error.response?.data?.detail || error.response?.data?.message || error.message || 'Failed to start challenge';
       showToast(errorMessage, 'error');
+      // If start failed, don't leave the button stuck in "pending access" mode.
+      setPendingOpenStackAccessByChallengeId((prev) => ({ ...prev, [challengeId]: false }));
     } finally {
       setStartingChallenge(null);
     }
@@ -802,6 +807,8 @@ export const UserChallenges: React.FC<UserChallengesProps> = ({ teamId: propTeam
             const isRefreshing = refreshingChallenge === challenge.id;
             const isStarting = startingChallenge === challenge.id;
             const isResetting = resettingChallenge === challenge.id;
+            const isWaitingForOpenStackAccess =
+              challenge.challenge_category === 'openstack' && !!pendingOpenStackAccessByChallengeId[challenge.id];
             // IMPORTANT: Only show as deployed if THIS TEAM has access info
             // deployedCount shows total instances (for stats) but doesn't mean THIS team has deployed
             // For OpenStack, check if we have instance data (stack_id, server_id, etc.)
@@ -977,30 +984,7 @@ export const UserChallenges: React.FC<UserChallengesProps> = ({ teamId: propTeam
                                     >
                                       {info.vnc_console_url}
                                     </a>
-                                    <InfoBox
-                                      type="info"
-                                      message="Click the VNC Console link above to access your VM's desktop in the browser!"
-                                    />
-                                    <div className="text-white/40 text-xs ml-6">
-                                      VNC Console provides remote desktop access to your OpenStack VM
-                                    </div>
                                   </>
-                                )}
-
-                                {/* Stack Name */}
-                                {info.stack_name && (
-                                  <div className="flex items-center gap-2">
-                                    <span className="text-white/60 text-sm">Stack Name:</span>
-                                    <span className="text-neon-cyan font-semibold text-sm">{info.stack_name}</span>
-                                  </div>
-                                )}
-
-                                {/* Server ID */}
-                                {info.server_id && (
-                                  <div className="flex items-center gap-2">
-                                    <span className="text-white/60 text-sm">Server ID:</span>
-                                    <span className="text-neon-cyan font-semibold text-sm font-mono text-xs">{info.server_id}</span>
-                                  </div>
                                 )}
 
                                 {/* Auto-delete Information */}
@@ -1294,15 +1278,17 @@ export const UserChallenges: React.FC<UserChallengesProps> = ({ teamId: propTeam
                           variant="primary"
                           size="lg"
                           onClick={() => handleStartChallenge(challenge.id)}
-                          disabled={isStarting || isRefreshing || isResetting}
-                          isLoading={isStarting}
-                          className="w-full"
+                          disabled={isStarting || isRefreshing || isResetting || isWaitingForOpenStackAccess}
+                          isLoading={isStarting || isWaitingForOpenStackAccess}
+                          className={`w-full ${isWaitingForOpenStackAccess ? 'opacity-60 blur-[0.5px] cursor-not-allowed pointer-events-none' : ''}`}
                         >
                           <Rocket 
                             size={18} 
                             className="mr-2" 
                           />
-                          {isStarting ? 'Starting...' : 'Start Challenge'}
+                          {isWaitingForOpenStackAccess
+                            ? 'Provisioning VM...'
+                            : (isStarting ? 'Starting...' : 'Start Challenge')}
                         </Button>
                         {/* Flag Submission Section for non-running challenges */}
                         <div className="mt-4 p-4 bg-cyber-800/50 rounded-xl border border-neon-green/20 terminal-border">

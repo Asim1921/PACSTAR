@@ -84,6 +84,17 @@ export const Events: React.FC = () => {
       return false;
     }
   })();
+  const currentZone = (() => {
+    if (typeof window === 'undefined') return '';
+    try {
+      const raw = sessionStorage.getItem('user_info');
+      if (!raw) return '';
+      const parsed = JSON.parse(raw);
+      return (parsed?.zone || '').toString();
+    } catch {
+      return '';
+    }
+  })();
   
   // Create event form state
   const [formData, setFormData] = useState({
@@ -114,6 +125,12 @@ export const Events: React.FC = () => {
   // Fetch available zones
   const fetchZones = async () => {
     try {
+      // Zone Admin: lock to their zone
+      if (!isMaster && currentZone) {
+        setAvailableZones([{ value: currentZone, label: currentZone }]);
+        setFormData(prev => ({ ...prev, zone: currentZone }));
+        return;
+      }
       const response = await authAPI.getZones();
       // Handle both array and object responses
       const zones = Array.isArray(response) ? response : (response.zones || []);
@@ -214,7 +231,7 @@ export const Events: React.FC = () => {
     if (activeAction === 'list') {
       fetchEvents();
     } else if (activeAction === 'pending') {
-      fetchPendingApprovals();
+      if (isMaster) fetchPendingApprovals();
     } else if (activeAction === 'create') {
       fetchAvailableChallenges();
     }
@@ -283,13 +300,13 @@ export const Events: React.FC = () => {
         showToast('Event created successfully!', 'success');
       }
       
-      setActiveAction('pending'); // Show pending approvals
+      setActiveAction(isMaster ? 'pending' : 'list'); // Pending approvals is Master-only
       setFormData({
         name: '',
         description: '',
         event_type: 'ctf',
         participation_type: 'team_based',
-        zone: '',
+        zone: isMaster ? '' : (currentZone || ''),
         start_time: '',
         end_time: '',
         max_participants: '',
@@ -300,8 +317,13 @@ export const Events: React.FC = () => {
       
       // Fetch pending approvals to show the new event
       if (activeAction === 'create') {
-        setActiveAction('pending');
-        fetchPendingApprovals();
+        if (isMaster) {
+          setActiveAction('pending');
+          fetchPendingApprovals();
+        } else {
+          setActiveAction('list');
+          fetchEvents();
+        }
       } else {
         fetchEvents();
       }
@@ -601,7 +623,7 @@ export const Events: React.FC = () => {
           {[
             { id: 'list', label: 'All Events', icon: List },
             { id: 'create', label: 'Create Event', icon: Plus },
-            { id: 'pending', label: 'Pending Approvals', icon: Send },
+            ...(isMaster ? [{ id: 'pending', label: 'Pending Approvals', icon: Send }] : []),
           ].map((tab) => {
             const Icon = tab.icon;
             return (
@@ -928,6 +950,7 @@ export const Events: React.FC = () => {
                       fetchAvailableChallenges(e.target.value);
                     }
                   }}
+                  disabled={!isMaster}
                   className="bg-cyber-800/50 border-neon-green/20 text-white"
                   options={availableZones.length > 0 ? availableZones : [
                     { value: 'zone1', label: 'Zone 1' },
